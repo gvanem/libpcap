@@ -2,9 +2,13 @@
  *  This file is part of DOS-libpcap
  *  Ported to DOS/DOSX by G. Vanem <gvanem@yahoo.no>
  *
- *  pcap-dos.c: Interface to PKTDRVR, NDIS2 and 32-bit pmode
- *              network drivers.
+ *  pcap-dos.c: Interface to PKTDRVR network drivers only.
+ *              NDIS2 + protected-mode drivers are no longer
+ *              supported.
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,34 +18,9 @@
 #include <fcntl.h>
 #include <io.h>
 
-#if defined(USE_32BIT_DRIVERS)
-  #include "msdos/pm_drvr/pmdrvr.h"
-  #include "msdos/pm_drvr/pci.h"
-  #include "msdos/pm_drvr/bios32.h"
-  #include "msdos/pm_drvr/module.h"
-  #include "msdos/pm_drvr/3c501.h"
-  #include "msdos/pm_drvr/3c503.h"
-  #include "msdos/pm_drvr/3c509.h"
-  #include "msdos/pm_drvr/3c59x.h"
-  #include "msdos/pm_drvr/3c515.h"
-  #include "msdos/pm_drvr/3c90x.h"
-  #include "msdos/pm_drvr/3c575_cb.h"
-  #include "msdos/pm_drvr/ne.h"
-  #include "msdos/pm_drvr/wd.h"
-  #include "msdos/pm_drvr/accton.h"
-  #include "msdos/pm_drvr/cs89x0.h"
-  #include "msdos/pm_drvr/rtl8139.h"
-  #include "msdos/pm_drvr/ne2k-pci.h"
-#endif
-
-#include "pcap.h"
-#include "pcap-dos.h"
 #include "pcap-int.h"
+#include "pcap-dos.h"
 #include "msdos/pktdrvr.h"
-
-#ifdef USE_NDIS2
-#include "msdos/ndis2.h"
-#endif
 
 #include <arpa/inet.h>
 #include <net/if.h>
@@ -49,27 +28,6 @@
 #include <net/if_ether.h>
 #include <net/if_packe.h>
 #include <tcp.h>
-
-#if defined(USE_32BIT_DRIVERS)
-  #define FLUSHK()       do { _printk_safe = 1; _printk_flush(); } while (0)
-  #define NDIS_NEXT_DEV  &rtl8139_dev
-
-  static char *rx_pool = NULL;
-  static void init_32bit (void);
-
-  static int  pktq_init     (struct rx_ringbuf *q, int size, int num, char *pool);
-  static int  pktq_check    (struct rx_ringbuf *q);
-  static int  pktq_inc_out  (struct rx_ringbuf *q);
-  static int  pktq_in_index (struct rx_ringbuf *q) LOCKED_FUNC;
-  static void pktq_clear    (struct rx_ringbuf *q) LOCKED_FUNC;
-
-  static struct rx_elem *pktq_in_elem  (struct rx_ringbuf *q) LOCKED_FUNC;
-  static struct rx_elem *pktq_out_elem (struct rx_ringbuf *q);
-
-#else
-  #define FLUSHK()      ((void)0)
-  #define NDIS_NEXT_DEV  NULL
-#endif
 
 /*
  * Internal variables/functions in Watt-32
@@ -83,17 +41,18 @@ extern int   _w32__bootp_on, _w32__dhcp_on, _w32__rarp_on, _w32__do_mask_req;
 extern void (*_w32_usr_post_init) (void);
 extern void (*_w32_print_hook)();
 
-extern void dbug_write (const char *);  /* Watt-32 lib, pcdbug.c */
-extern int  pkt_get_mtu (void);
+extern void dbug_write (const char *);  /* pcdbug.c */
+extern int  pkt_get_mtu (void);         /* pcpkt.c */
 
-static int ref_count = 0;
-
+static int    ref_count = 0;
 static u_long mac_count    = 0;
 static u_long filter_count = 0;
 
-static volatile BOOL exc_occured = 0;
+int pcap_pkt_debug = -1;
 
-static struct device *handle_to_device [20];
+static pcap_t *g_pcap = NULL;
+
+static volatile BOOL exc_occured = 0;
 
 static int  pcap_activate_dos (pcap_t *p);
 static int  pcap_read_dos (pcap_t *p, int cnt, pcap_handler callback,
@@ -103,62 +62,93 @@ static int  pcap_stats_dos (pcap_t *p, struct pcap_stat *ps);
 static int  pcap_sendpacket_dos (pcap_t *p, const void *buf, size_t len);
 static int  pcap_setfilter_dos (pcap_t *p, struct bpf_program *fp);
 
-static int  ndis_probe (struct device *dev);
-static int  pkt_probe  (struct device *dev);
-
 static void close_driver (void);
-static int  init_watt32 (struct pcap *pcap, const char *dev_name, char *err_buf);
-static int  first_init (const char *name, char *ebuf, int promisc);
+static int  init_watt32 (pcap_t *p);
+static int  first_init (pcap_t *p);
 
-static void watt32_recv_hook (u_char *dummy, const struct pcap_pkthdr *pcap,
+static void watt32_recv_hook (u_char *dummy, const struct pcap_pkthdr *p,
                               const u_char *buf);
-
-/*
- * These are the device we always support
- */
-static struct device ndis_dev = {
-              "ndis",
-              "NDIS2 LanManager",
-              0,
-              0,0,0,0,0,0,
-              NDIS_NEXT_DEV,  /* NULL or a 32-bit device */
-              ndis_probe
-            };
-
-static struct device pkt_dev = {
-              "pkt",
-              "Packet-Driver",
-              0,
-              0,0,0,0,0,0,
-              &ndis_dev,
-              pkt_probe
-            };
-
-static struct device *get_device (int fd)
-{
-  if (fd <= 0 || fd >= sizeof(handle_to_device)/sizeof(handle_to_device[0]))
-     return (NULL);
-  return handle_to_device [fd-1];
-}
 
 /*
  * Private data for capturing on MS-DOS.
  */
 struct pcap_dos {
-	void (*wait_proc)(void); /* call proc while waiting */
-	struct pcap_stat stat;
-};
+       void  (*wait_proc)(void);  /* call proc while waiting */
+       struct pcap_stat  stats;
+     };
+
+static int pkt_open (int promisc)
+{
+  PKT_RX_MODE mode;
+
+  /* Select what traffic to receive
+   */
+  if (promisc)
+       mode = PDRX_ALL_PACKETS;
+  else mode = PDRX_BROADCAST;
+
+  if (!PktInitDriver(mode))
+     return (0);
+
+  PktResetStatistics (pktInfo.handle);
+  PktQueueBusy (FALSE);
+  return (1);
+}
+
+static int pkt_xmit (pcap_t *p, const void *buf, int len)
+{
+  struct pcap_dos *pd = p->priv;
+
+  if (pcap_pkt_debug > 0)
+     dbug_write ("pcap_xmit\n");
+
+  if (!PktTransmit(buf,len))
+  {
+    pd->stats.ps_tx_err++;
+    return (0);
+  }
+  return (len);
+}
+
+static void *pkt_stats (pcap_t *p)
+{
+  struct pcap_dos *pd = p->priv;
+
+  if (!pd || !PktSessStatistics(pktInfo.handle))
+     return (NULL);
+
+  pd->stats.ps_recv   = pktStat.inPackets;
+  pd->stats.ps_ifdrop = pktStat.lost;
+  pd->stats.ps_drop   = PktRxDropped();
+  return (&pd->stats);
+}
+
+/*
+ * Return network statistics
+ */
+static int pcap_stats_dos (pcap_t *p, struct pcap_stat *ps)
+{
+  struct pcap_stat *stats = pkt_stats (p);
+
+  if (!stats)
+  {
+    strcpy (p->errbuf, "device statistics not available");
+    return (-1);
+  }
+  if (ps)
+     *ps = *stats;
+  return (0);
+}
 
 pcap_t *pcap_create_interface (const char *device _U_, char *ebuf)
 {
-	pcap_t *p;
+  pcap_t *p = pcap_create_common(ebuf, sizeof (struct pcap_dos));
 
-	p = pcap_create_common(ebuf, sizeof (struct pcap_dos));
-	if (p == NULL)
-		return (NULL);
+  if (!p)
+     return (NULL);
 
-	p->activate_op = pcap_activate_dos;
-	return (p);
+  p->activate_op = pcap_activate_dos;
+  return (p);
 }
 
 /*
@@ -174,43 +164,46 @@ static int pcap_activate_dos (pcap_t *pcap)
     return (PCAP_ERROR_RFMON_NOTSUP);
   }
 
+  /*
+   * Turn a negative snapshot value (invalid), a snapshot value of
+   * 0 (unspecified), or a value bigger than the normal maximum
+   * value, into the maximum allowed value.
+   *
+   * If some application really *needs* a bigger snapshot
+   * length, we should just increase MAXIMUM_SNAPLEN.
+   */
+  if (pcap->snapshot <= 0 || pcap->snapshot > MAXIMUM_SNAPLEN)
+     pcap->snapshot = MAXIMUM_SNAPLEN;
+
   if (pcap->snapshot < ETH_MIN+8)
-      pcap->snapshot = ETH_MIN+8;
+     pcap->snapshot = ETH_MIN+8;
 
   if (pcap->snapshot > ETH_MAX)   /* silently accept and truncate large MTUs */
-      pcap->snapshot = ETH_MAX;
+     pcap->snapshot = ETH_MAX;
 
-  pcap->linktype          = DLT_EN10MB;  /* !! */
-  pcap->cleanup_op        = pcap_cleanup_dos;
-  pcap->read_op           = pcap_read_dos;
-  pcap->stats_op          = pcap_stats_dos;
-  pcap->inject_op         = pcap_sendpacket_dos;
-  pcap->setfilter_op      = pcap_setfilter_dos;
-  pcap->setdirection_op   = NULL;  /* Not implemented.*/
-  pcap->fd                = ++ref_count;
+  pcap->linktype        = DLT_EN10MB;  /* !! */
+  pcap->cleanup_op      = pcap_cleanup_dos;
+  pcap->read_op         = pcap_read_dos;
+  pcap->stats_op        = pcap_stats_dos;
+  pcap->inject_op       = pcap_sendpacket_dos;
+  pcap->setfilter_op    = pcap_setfilter_dos;
+  pcap->setdirection_op = NULL;  /* Not implemented.*/
+  pcap->fd              = ++ref_count;
 
   pcap->bufsize = ETH_MAX+100;     /* add some margin */
   pcap->buffer = calloc (pcap->bufsize, 1);
 
-  if (pcap->fd == 1)  /* first time we're called */
+  if (ref_count == 1)  /* first time we're called */
   {
-    if (!init_watt32(pcap, pcap->opt.device, pcap->errbuf) ||
-        !first_init(pcap->opt.device, pcap->errbuf, pcap->opt.promisc))
+    if (!init_watt32(pcap) || !first_init(pcap))
     {
-      /* XXX - free pcap->buffer? */
+      /* The above 'pcap->buffer' should gets freed in 'pcap_cleanup_live_common()'
+       */
       return (PCAP_ERROR);
     }
+    g_pcap = pcap;
     atexit (close_driver);
   }
-  else if (stricmp(active_dev->name,pcap->opt.device))
-  {
-    pcap_snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE,
-                   "Cannot use different devices simultaneously "
-                   "(`%s' vs. `%s')", active_dev->name, pcap->opt.device);
-    /* XXX - free pcap->buffer? */
-    return (PCAP_ERROR);
-  }
-  handle_to_device [pcap->fd-1] = active_dev;
   return (0);
 }
 
@@ -221,7 +214,7 @@ static int pcap_activate_dos (pcap_t *pcap)
 static int
 pcap_read_one (pcap_t *p, pcap_handler callback, u_char *data)
 {
-  struct pcap_dos *pd = p->priv;
+  struct pcap_dos   *pd = p->priv;
   struct pcap_pkthdr pcap;
   struct timeval     now, expiry = { 0,0 };
   int    rx_len = 0;
@@ -240,33 +233,11 @@ pcap_read_one (pcap_t *p, pcap_handler callback, u_char *data)
 
   while (!exc_occured)
   {
-    volatile struct device *dev; /* might be reset by sig_handler */
-
-    dev = get_device (p->fd);
-    if (!dev)
-       break;
-
-    PCAP_ASSERT (dev->copy_rx_buf || dev->peek_rx_buf);
-    FLUSHK();
-
-    /* If driver has a zero-copy receive facility, peek at the queue,
-     * filter it, do the callback and release the buffer.
-     */
-    if (dev->peek_rx_buf)
-    {
-      PCAP_ASSERT (dev->release_rx_buf);
-      rx_len = (*dev->peek_rx_buf) (&p->buffer);
-    }
-    else
-    {
-      rx_len = (*dev->copy_rx_buf) (p->buffer, p->snapshot);
-    }
+    rx_len = PktReceive (p->buffer, p->snapshot);
 
     if (rx_len > 0)  /* got a packet */
     {
       mac_count++;
-
-      FLUSHK();
 
       pcap.caplen = min (rx_len, p->snapshot);
       pcap.len    = rx_len;
@@ -283,22 +254,19 @@ pcap_read_one (pcap_t *p, pcap_handler callback, u_char *data)
         (*callback) (data, &pcap, p->buffer);
       }
 
-      if (dev->release_rx_buf)
-        (*dev->release_rx_buf) (p->buffer);
-
       if (pcap_pkt_debug > 0)
       {
         if (callback == watt32_recv_hook)
              dbug_write ("pcap_recv_hook\n");
         else dbug_write ("pcap_read_op\n");
       }
-      FLUSHK();
       return (1);
     }
 
     /* Has "pcap_breakloop()" been called?
      */
-    if (p->break_loop) {
+    if (p->break_loop)
+    {
       /*
        * Yes - clear the flag that indicates that it
        * has, and return -2 to indicate that we were
@@ -329,11 +297,7 @@ pcap_read_one (pcap_t *p, pcap_handler callback, u_char *data)
 
   if (rx_len < 0)            /* receive error */
   {
-    pd->stat.ps_drop++;
-#ifdef USE_32BIT_DRIVERS
-    if (pcap_pkt_debug > 1)
-       printk ("pkt-err %s\n", pktInfo.error);
-#endif
+    pd->stats.ps_drop++;
     return (-1);
   }
   return (0);
@@ -356,65 +320,6 @@ pcap_read_dos (pcap_t *p, int cnt, pcap_handler callback, u_char *data)
     _w32_os_yield();  /* allow SIGINT generation, yield to Win95/NT */
   }
   return (num);
-}
-
-/*
- * Return network statistics
- */
-static int pcap_stats_dos (pcap_t *p, struct pcap_stat *ps)
-{
-  struct net_device_stats *stats;
-  struct pcap_dos         *pd;
-  struct device           *dev = p ? get_device(p->fd) : NULL;
-
-  if (!dev)
-  {
-    strcpy (p->errbuf, "illegal pcap handle");
-    return (-1);
-  }
-
-  if (!dev->get_stats || (stats = (*dev->get_stats)(dev)) == NULL)
-  {
-    strcpy (p->errbuf, "device statistics not available");
-    return (-1);
-  }
-
-  FLUSHK();
-
-  pd = p->priv;
-  pd->stat.ps_recv   = stats->rx_packets;
-  pd->stat.ps_drop  += stats->rx_missed_errors;
-  pd->stat.ps_ifdrop = stats->rx_dropped +  /* queue full */
-                         stats->rx_errors;    /* HW errors */
-  if (ps)
-     *ps = pd->stat;
-
-  return (0);
-}
-
-/*
- * Return detailed network/device statistics.
- * May be called after 'dev->close' is called.
- */
-int pcap_stats_ex (pcap_t *p, struct pcap_stat_ex *se)
-{
-  struct device *dev = p ? get_device (p->fd) : NULL;
-
-  if (!dev || !dev->get_stats)
-  {
-    strlcpy (p->errbuf, "detailed device statistics not available",
-             PCAP_ERRBUF_SIZE);
-    return (-1);
-  }
-
-  if (!strnicmp(dev->name,"pkt",3))
-  {
-    strlcpy (p->errbuf, "pktdrvr doesn't have detailed statistics",
-             PCAP_ERRBUF_SIZE);
-    return (-1);
-  }
-  memcpy (se, (*dev->get_stats)(dev), sizeof(*se));
-  return (0);
 }
 
 /*
@@ -449,53 +354,32 @@ u_long pcap_filter_packets (void)
 /*
  * Close pcap device. Not called for offline captures.
  */
-static void pcap_cleanup_dos (pcap_t *p)
+static void pcap_cleanup_dos (pcap_t *pcap)
 {
-  struct pcap_dos *pd;
-
   if (!exc_occured)
   {
-    pd = p->priv;
-    if (pcap_stats(p,NULL) < 0)
-       pd->stat.ps_drop = 0;
-    if (!get_device(p->fd))
-       return;
+    struct pcap_dos *pd = pcap->priv;
 
-    handle_to_device [p->fd-1] = NULL;
-    p->fd = 0;
+    if (pcap_stats(pcap,NULL) < 0)
+       pd->stats.ps_drop = 0;
+    pcap->fd = 0;
     if (ref_count > 0)
         ref_count--;
     if (ref_count > 0)
        return;
   }
   close_driver();
-  /* XXX - call pcap_cleanup_live_common? */
+  pcap_cleanup_live_common (pcap);
 }
 
 /*
- * Return the name of the 1st network interface,
+ * Return the name of a PktDrvr interface,
  * or NULL if none can be found.
  */
 char *pcap_lookupdev (char *ebuf)
 {
-  struct device *dev;
-
-#ifdef USE_32BIT_DRIVERS
-  init_32bit();
-#endif
-
-  for (dev = (struct device*)dev_base; dev; dev = dev->next)
-  {
-    PCAP_ASSERT (dev->probe);
-
-    if ((*dev->probe)(dev))
-    {
-      FLUSHK();
-      probed_dev = (struct device*) dev; /* remember last probed device */
-      return (char*) dev->name;
-    }
-  }
-
+  if (PktSearchDriver())
+     return ("pkt");
   if (ebuf)
      strcpy (ebuf, "No driver found");
   return (NULL);
@@ -542,65 +426,56 @@ int pcap_lookupnet (const char *device, bpf_u_int32 *localnet,
 /*
  * Get a list of all interfaces that are present and that we probe okay.
  * Returns -1 on error, 0 otherwise.
- * The list may be NULL epty if no interfaces were up and could be opened.
+ * The list may be NULL empty if no interfaces were up and could be opened.
  */
-int pcap_platform_finddevs  (pcap_if_list_t *devlistp, char *errbuf)
+int pcap_platform_finddevs (pcap_if_list_t *devlistp, char *errbuf)
 {
-  struct device     *dev;
-  pcap_if_t *curdev;
-#if 0   /* Pkt drivers should have no addresses */
+  pcap_if_t         *curdev;
   struct sockaddr_in sa_ll_1, sa_ll_2;
   struct sockaddr   *addr, *netmask, *broadaddr, *dstaddr;
-#endif
-  int       ret = 0;
-  int       found = 0;
+  pcap_if_list_t    *devlist = NULL;
+  int                ret = 0;
+  int                found = 0;
 
-  for (dev = (struct device*)dev_base; dev; dev = dev->next)
+  if (!PktSearchDriver())
+     goto fail;
+
+  close_driver();
+
+  /*
+   * XXX - find out whether it's up or running?  Does that apply here?
+   */
+  curdev = add_dev (devlist, "pkt", 0, "Packet-Driver", errbuf);
+  if (!curdev)
   {
-    PCAP_ASSERT (dev->probe);
-
-    if (!(*dev->probe)(dev))
-       continue;
-
-    PCAP_ASSERT (dev->close);  /* set by probe routine */
-    FLUSHK();
-    (*dev->close) (dev);
-
-    /*
-     * XXX - find out whether it's up or running?  Does that apply here?
-     */
-    if ((curdev = add_dev(devlistp, dev->name, 0,
-                dev->long_name, errbuf)) == NULL)
-    {
-      ret = -1;
-      break;
-    }
-    found = 1;
-#if 0   /* Pkt drivers should have no addresses */
-    memset (&sa_ll_1, 0, sizeof(sa_ll_1));
-    memset (&sa_ll_2, 0, sizeof(sa_ll_2));
-    sa_ll_1.sin_family = AF_INET;
-    sa_ll_2.sin_family = AF_INET;
-
-    addr      = (struct sockaddr*) &sa_ll_1;
-    netmask   = (struct sockaddr*) &sa_ll_1;
-    dstaddr   = (struct sockaddr*) &sa_ll_1;
-    broadaddr = (struct sockaddr*) &sa_ll_2;
-    memset (&sa_ll_2.sin_addr, 0xFF, sizeof(sa_ll_2.sin_addr));
-
-    if (add_addr_to_dev(curdev, addr, sizeof(*addr),
-                        netmask, sizeof(*netmask),
-                        broadaddr, sizeof(*broadaddr),
-                        dstaddr, sizeof(*dstaddr), errbuf) < 0)
-    {
-      ret = -1;
-      break;
-    }
-#endif
+    ret = -1;
+    goto fail;
   }
 
+  found = 1;
+  memset (&sa_ll_1, 0, sizeof(sa_ll_1));
+  memset (&sa_ll_2, 0, sizeof(sa_ll_2));
+  sa_ll_1.sin_family = AF_INET;
+  sa_ll_2.sin_family = AF_INET;
+
+  addr      = (struct sockaddr*) &sa_ll_1;
+  netmask   = (struct sockaddr*) &sa_ll_1;
+  dstaddr   = (struct sockaddr*) &sa_ll_1;
+  broadaddr = (struct sockaddr*) &sa_ll_2;
+  memset (&sa_ll_2.sin_addr, 0xFF, sizeof(sa_ll_2.sin_addr));
+
+  if (add_addr_to_dev(curdev, addr, sizeof(*addr),
+                      netmask, sizeof(*netmask),
+                      broadaddr, sizeof(*broadaddr),
+                      dstaddr, sizeof(*dstaddr), errbuf) < 0)
+  {
+    ret = -1;
+    goto fail;
+  }
+
+fail:
   if (ret == 0 && !found)
-     strcpy (errbuf, "No drivers found");
+     strcpy (errbuf, "No Pkt-Driver found");
 
   return (ret);
 }
@@ -610,7 +485,6 @@ int pcap_platform_finddevs  (pcap_if_list_t *devlistp, char *errbuf)
  */
 void pcap_assert (const char *what, const char *file, unsigned line)
 {
-  FLUSHK();
   fprintf (stderr, "%s (%u): Assertion \"%s\" failed\n",
            file, line, what);
   close_driver();
@@ -621,93 +495,39 @@ void pcap_assert (const char *what, const char *file, unsigned line)
  * For pcap_offline_read(): wait and yield between printing packets
  * to simulate the pace packets where actually recorded.
  */
-void pcap_set_wait (pcap_t *p, void (*yield)(void), int wait)
+void pcap_set_wait (pcap_t *pcap, void (*yield)(void), int wait)
 {
-  if (p)
+  if (pcap)
   {
-    struct pcap_dos *pd = p->priv;
+    struct pcap_dos *pd = pcap->priv;
 
     pd->wait_proc  = yield;
-    p->opt.timeout = wait;
+    pcap->opt.timeout = wait;
   }
 }
 
 /*
- * Initialise a named network device.
+ * Initialise the PktDrvr.
  */
-static struct device *
-open_driver (const char *dev_name, char *ebuf, int promisc)
+static int open_driver (pcap_t *pcap)
 {
-  struct device *dev;
-
-  for (dev = (struct device*)dev_base; dev; dev = dev->next)
+  if (!PktSearchDriver())
   {
-    PCAP_ASSERT (dev->name);
-
-    if (strcmp (dev_name,dev->name))
-       continue;
-
-    if (!probed_dev)   /* user didn't call pcap_lookupdev() first */
-    {
-      PCAP_ASSERT (dev->probe);
-
-      if (!(*dev->probe)(dev))    /* call the xx_probe() function */
-      {
-        pcap_snprintf (ebuf, PCAP_ERRBUF_SIZE, "failed to detect device `%s'", dev_name);
-        return (NULL);
-      }
-      probed_dev = dev;  /* device is probed okay and may be used */
-    }
-    else if (dev != probed_dev)
-    {
-      goto not_probed;
-    }
-
-    FLUSHK();
-
-    /* Select what traffic to receive
-     */
-    if (promisc)
-         dev->flags |=  (IFF_ALLMULTI | IFF_PROMISC);
-    else dev->flags &= ~(IFF_ALLMULTI | IFF_PROMISC);
-
-    PCAP_ASSERT (dev->open);
-
-    if (!(*dev->open)(dev))
-    {
-      pcap_snprintf (ebuf, PCAP_ERRBUF_SIZE, "failed to activate device `%s'", dev_name);
-      if (pktInfo.error && !strncmp(dev->name,"pkt",3))
-      {
-        strcat (ebuf, ": ");
-        strcat (ebuf, pktInfo.error);
-      }
-      return (NULL);
-    }
-
-    /* Some devices need this to operate in promiscous mode
-     */
-    if (promisc && dev->set_multicast_list)
-       (*dev->set_multicast_list) (dev);
-
-    active_dev = dev;   /* remember our active device */
-    break;
+    pcap_snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE, "failed to detect a Pkt-Driver");
+    return (0);
   }
 
-  /* 'dev_name' not matched in 'dev_base' list.
-   */
-  if (!dev)
+  if (!pkt_open(pcap->opt.promisc))
   {
-    pcap_snprintf (ebuf, PCAP_ERRBUF_SIZE, "device `%s' not supported", dev_name);
-    return (NULL);
+    pcap_snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE, "failed to activate the Pkt-Driver");
+    if (pktInfo.error)
+    {
+      strcat (pcap->errbuf, ": ");
+      strcat (pcap->errbuf, pktInfo.error);
+    }
+    return (0);
   }
-
-not_probed:
-  if (!probed_dev)
-  {
-    pcap_snprintf (ebuf, PCAP_ERRBUF_SIZE, "device `%s' not probed", dev_name);
-    return (NULL);
-  }
-  return (dev);
+  return (1);
 }
 
 /*
@@ -716,28 +536,15 @@ not_probed:
  */
 static void close_driver (void)
 {
-  /* !!todo: loop over all 'handle_to_device[]' ? */
-  struct device *dev = active_dev;
-
-  if (dev && dev->close)
+  if (g_pcap)
   {
-    (*dev->close) (dev);
-    FLUSHK();
-  }
+    BOOL okay = PktExitDriver();
 
-  active_dev = NULL;
-
-#ifdef USE_32BIT_DRIVERS
-  if (rx_pool)
-  {
-    k_free (rx_pool);
-    rx_pool = NULL;
+    if (pcap_pkt_debug > 1)
+       fprintf (stderr, "close_driver(): %d\n", okay);
+    g_pcap = NULL;
   }
-  if (dev)
-     pcibios_exit();
-#endif
 }
-
 
 #ifdef __DJGPP__
 static void setup_signals (void (*handler)(int))
@@ -749,15 +556,6 @@ static void setup_signals (void (*handler)(int))
 
 static void exc_handler (int sig)
 {
-#ifdef USE_32BIT_DRIVERS
-  if (active_dev->irq > 0)    /* excludes IRQ 0 */
-  {
-    disable_irq (active_dev->irq);
-    irq_eoi_cmd (active_dev->irq);
-    _printk_safe = 1;
-  }
-#endif
-
   switch (sig)
   {
     case SIGSEGV:
@@ -782,78 +580,27 @@ static void exc_handler (int sig)
 /*
  * Open the pcap device for the first client calling pcap_activate()
  */
-static int first_init (const char *name, char *ebuf, int promisc)
+static int first_init (pcap_t *pcap)
 {
-  struct device *dev;
-
-#ifdef USE_32BIT_DRIVERS
-  rx_pool = k_calloc (RECEIVE_BUF_SIZE, RECEIVE_QUEUE_SIZE);
-  if (!rx_pool)
-  {
-    strcpy (ebuf, "Not enough memory (Rx pool)");
-    return (0);
-  }
-#endif
-
 #ifdef __DJGPP__
   setup_signals (exc_handler);
 #endif
 
-#ifdef USE_32BIT_DRIVERS
-  init_32bit();
-#endif
-
-  dev = open_driver (name, ebuf, promisc);
-  if (!dev)
+  if (!open_driver(pcap))
   {
-#ifdef USE_32BIT_DRIVERS
-    k_free (rx_pool);
-    rx_pool = NULL;
-#endif
-
 #ifdef __DJGPP__
     setup_signals (SIG_DFL);
 #endif
     return (0);
   }
-
-#ifdef USE_32BIT_DRIVERS
-  /*
-   * If driver is NOT a 16-bit "pkt/ndis" driver (having a 'copy_rx_buf'
-   * set in it's probe handler), initialise near-memory ring-buffer for
-   * the 32-bit device.
-   */
-  if (dev->copy_rx_buf == NULL)
-  {
-    dev->get_rx_buf     = get_rxbuf;
-    dev->peek_rx_buf    = peek_rxbuf;
-    dev->release_rx_buf = release_rxbuf;
-    pktq_init (&dev->queue, RECEIVE_BUF_SIZE, RECEIVE_QUEUE_SIZE, rx_pool);
-  }
-#endif
   return (1);
 }
 
-#ifdef USE_32BIT_DRIVERS
-static void init_32bit (void)
-{
-  static int init_pci = 0;
-
-  if (!_printk_file)
-     _printk_init (64*1024, NULL); /* calls atexit(printk_exit) */
-
-  if (!init_pci)
-     (void)pci_init();             /* init BIOS32+PCI interface */
-  init_pci = 1;
-}
-#endif
-
-
 /*
- * Hook functions for using Watt-32 together with pcap
+ * Hook functions for using Watt-32 together with libpcap
  */
-static char rxbuf [ETH_MAX+100]; /* rx-buffer with some margin */
-static WORD etype;
+static char   rxbuf [ETH_MAX+100]; /* rx-buffer with some margin */
+static WORD   etype;
 static pcap_t pcap_save;
 
 static void watt32_recv_hook (u_char *dummy, const struct pcap_pkthdr *pcap,
@@ -894,9 +641,8 @@ static int pcap_xmit_hook (const void *buf, unsigned len)
   if (pcap_pkt_debug > 0)
      dbug_write ("pcap_xmit_hook: ");
 
-  if (active_dev && active_dev->xmit)
-     if ((*active_dev->xmit) (active_dev, buf, len) > 0)
-        rc = len;
+   if (pkt_xmit(g_pcap, buf, len) > 0)
+      rc = len;
 
   if (pcap_pkt_debug > 0)
      dbug_write (rc ? "ok\n" : "fail\n");
@@ -904,13 +650,12 @@ static int pcap_xmit_hook (const void *buf, unsigned len)
 }
 #endif
 
-static int pcap_sendpacket_dos (pcap_t *p, const void *buf, size_t len)
+static int pcap_sendpacket_dos (pcap_t *pcap, const void *buf, size_t len)
 {
-  struct device *dev = p ? get_device(p->fd) : NULL;
-
-  if (!dev || !dev->xmit)
-     return (-1);
-  return (*dev->xmit) (dev, buf, len);
+  if (pcap->fd > -1)
+     return pkt_xmit (pcap, buf, len);
+  strcpy (pcap->errbuf, "Pkt-Driver not initialised");
+  return (-1);
 }
 
 /*
@@ -937,13 +682,12 @@ static void null_print (void) {}
  * To use features of Watt-32 (netdb functions and socket etc.)
  * we must call sock_init(). But we set various hooks to prevent
  * using normal PKTDRVR functions in pcpkt.c. This should hopefully
- * make Watt-32 and pcap co-operate.
+ * make Watt-32 and libpcap co-operate.
  */
-static int init_watt32 (struct pcap *pcap, const char *dev_name, char *err_buf)
+static int init_watt32 (pcap_t *pcap)
 {
   char *env;
-  int   rc, MTU, has_ip_addr;
-  int   using_pktdrv = 1;
+  int   rc, MTU;
 
   /* If user called sock_init() first, we need to reinit in
    * order to open debug/trace-file properly
@@ -952,8 +696,7 @@ static int init_watt32 (struct pcap *pcap, const char *dev_name, char *err_buf)
      sock_exit();
 
   env = getenv ("PCAP_TRACE");
-  if (env && atoi(env) > 0 &&
-      pcap_pkt_debug < 0)   /* if not already set */
+  if (env && atoi(env) > 0 && pcap_pkt_debug < 0)   /* if not already set */
   {
     dbug_init();
     pcap_pkt_debug = atoi (env);
@@ -964,34 +707,12 @@ static int init_watt32 (struct pcap *pcap, const char *dev_name, char *err_buf)
   _w32_usr_post_init = pcap_init_hook;
   _w32_print_hook    = null_print;
 
-  if (dev_name && strncmp(dev_name,"pkt",3))
-     using_pktdrv = FALSE;
-
   rc = sock_init();
-  has_ip_addr = (rc != 8);  /* IP-address assignment failed */
-
-  /* if pcap is using a 32-bit driver w/o a pktdrvr loaded, we
-   * just pretend Watt-32 is initialised okay.
-   *
-   * !! fix-me: The Watt-32 config isn't done if no pktdrvr
-   *            was found. In that case my_ip_addr + sin_mask
-   *            have default values. Should be taken from another
-   *            ini-file/environment in any case (ref. tcpdump.ini)
-   */
   _watt_is_init = 1;
 
-  if (!using_pktdrv || !has_ip_addr)  /* for now .... */
+  if (rc)
   {
-    static const char myip[] = "192.168.0.1";
-    static const char mask[] = "255.255.255.0";
-
-    printf ("Just guessing, using IP %s and netmask %s\n", myip, mask);
-    my_ip_addr    = aton (myip);
-    _w32_sin_mask = aton (mask);
-  }
-  else if (rc && using_pktdrv)
-  {
-    pcap_snprintf (err_buf, PCAP_ERRBUF_SIZE, "sock_init() failed, code %d", rc);
+    pcap_snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE, "sock_init() failed, code %d", rc);
     return (0);
   }
 
@@ -1005,11 +726,8 @@ static int init_watt32 (struct pcap *pcap, const char *dev_name, char *err_buf)
   /* Free the pkt-drvr handle allocated in pkt_init().
    * The above hooks should thus use the handle reopened in open_driver()
    */
-  if (using_pktdrv)
-  {
-    _eth_release();
-/*  _eth_is_init = 1; */  /* hack to get Rx/Tx-hooks in Watt-32 working */
-  }
+  _eth_release();
+/*_eth_is_init = 1; */  /* hack to get Rx/Tx-hooks in Watt-32 working */
 
   memcpy (&pcap_save, pcap, sizeof(pcap_save));
   MTU = pkt_get_mtu();
@@ -1022,48 +740,16 @@ static int init_watt32 (struct pcap *pcap, const char *dev_name, char *err_buf)
    */
   last_nameserver = 0;
 #endif
+
   return (1);
 }
-
-int EISA_bus = 0;  /* Where is natural place for this? */
 
 /*
  * Application config hooks to set various driver parameters.
  */
-
 static const struct config_table debug_tab[] = {
-            { "PKT.DEBUG",       ARG_ATOI,   &pcap_pkt_debug    },
-            { "PKT.VECTOR",      ARG_ATOX_W, NULL               },
-            { "NDIS.DEBUG",      ARG_ATOI,   NULL               },
-#ifdef USE_32BIT_DRIVERS
-            { "3C503.DEBUG",     ARG_ATOI,   &ei_debug          },
-            { "3C503.IO_BASE",   ARG_ATOX_W, &el2_dev.base_addr },
-            { "3C503.MEMORY",    ARG_ATOX_W, &el2_dev.mem_start },
-            { "3C503.IRQ",       ARG_ATOI,   &el2_dev.irq       },
-            { "3C505.DEBUG",     ARG_ATOI,   NULL               },
-            { "3C505.BASE",      ARG_ATOX_W, NULL               },
-            { "3C507.DEBUG",     ARG_ATOI,   NULL               },
-            { "3C509.DEBUG",     ARG_ATOI,   &el3_debug         },
-            { "3C509.ILOOP",     ARG_ATOI,   &el3_max_loop      },
-            { "3C529.DEBUG",     ARG_ATOI,   NULL               },
-            { "3C575.DEBUG",     ARG_ATOI,   &debug_3c575       },
-            { "3C59X.DEBUG",     ARG_ATOI,   &vortex_debug      },
-            { "3C59X.IFACE0",    ARG_ATOI,   &vortex_options[0] },
-            { "3C59X.IFACE1",    ARG_ATOI,   &vortex_options[1] },
-            { "3C59X.IFACE2",    ARG_ATOI,   &vortex_options[2] },
-            { "3C59X.IFACE3",    ARG_ATOI,   &vortex_options[3] },
-            { "3C90X.DEBUG",     ARG_ATOX_W, &tc90xbc_debug     },
-            { "ACCT.DEBUG",      ARG_ATOI,   &ethpk_debug       },
-            { "CS89.DEBUG",      ARG_ATOI,   &cs89_debug        },
-            { "RTL8139.DEBUG",   ARG_ATOI,   &rtl8139_debug     },
-        /*  { "RTL8139.FDUPLEX", ARG_ATOI,   &rtl8139_options   }, */
-            { "SMC.DEBUG",       ARG_ATOI,   &ei_debug          },
-        /*  { "E100.DEBUG",      ARG_ATOI,   &e100_debug        }, */
-            { "PCI.DEBUG",       ARG_ATOI,   &pci_debug         },
-            { "BIOS32.DEBUG",    ARG_ATOI,   &bios32_debug      },
-            { "IRQ.DEBUG",       ARG_ATOI,   &irq_debug         },
-            { "TIMER.IRQ",       ARG_ATOI,   &timer_irq         },
-#endif
+            { "PKT.DEBUG",  ARG_ATOI,   &pcap_pkt_debug },
+            { "PKT.VECTOR", ARG_ATOX_W, NULL            },
             { NULL }
           };
 
@@ -1076,439 +762,14 @@ int pcap_config_hook (const char *keyword, const char *value)
   return parse_config_table (debug_tab, NULL, keyword, value);
 }
 
-/*
- * Linked list of supported devices
- */
-struct device       *active_dev = NULL;      /* the device we have opened */
-struct device       *probed_dev = NULL;      /* the device we have probed */
-const struct device *dev_base   = &pkt_dev;  /* list of network devices */
+#include "pcap_version.h"
 
 /*
- * PKTDRVR device functions
+ * Libpcap version string.
  */
-int pcap_pkt_debug = -1;
-
-static void pkt_close (struct device *dev)
+const char *
+pcap_lib_version(void)
 {
-  BOOL okay = PktExitDriver();
-
-  if (pcap_pkt_debug > 1)
-     fprintf (stderr, "pkt_close(): %d\n", okay);
-
-  if (dev->priv)
-     free (dev->priv);
-  dev->priv = NULL;
+  return ("DOS-" PCAP_VERSION_STRING);
 }
-
-static int pkt_open (struct device *dev)
-{
-  PKT_RX_MODE mode;
-
-  if (dev->flags & IFF_PROMISC)
-       mode = PDRX_ALL_PACKETS;
-  else mode = PDRX_BROADCAST;
-
-  if (!PktInitDriver(mode))
-     return (0);
-
-  PktResetStatistics (pktInfo.handle);
-  PktQueueBusy (FALSE);
-  return (1);
-}
-
-static int pkt_xmit (struct device *dev, const void *buf, int len)
-{
-  struct net_device_stats *stats = (struct net_device_stats*) dev->priv;
-
-  if (pcap_pkt_debug > 0)
-     dbug_write ("pcap_xmit\n");
-
-  if (!PktTransmit(buf,len))
-  {
-    stats->tx_errors++;
-    return (0);
-  }
-  return (len);
-}
-
-static void *pkt_stats (struct device *dev)
-{
-  struct net_device_stats *stats = (struct net_device_stats*) dev->priv;
-
-  if (!stats || !PktSessStatistics(pktInfo.handle))
-     return (NULL);
-
-  stats->rx_packets       = pktStat.inPackets;
-  stats->rx_errors        = pktStat.lost;
-  stats->rx_missed_errors = PktRxDropped();
-  return (stats);
-}
-
-static int pkt_probe (struct device *dev)
-{
-  if (!PktSearchDriver())
-     return (0);
-
-  dev->open           = pkt_open;
-  dev->xmit           = pkt_xmit;
-  dev->close          = pkt_close;
-  dev->get_stats      = pkt_stats;
-  dev->copy_rx_buf    = PktReceive;  /* farmem peek and copy routine */
-  dev->get_rx_buf     = NULL;
-  dev->peek_rx_buf    = NULL;
-  dev->release_rx_buf = NULL;
-  dev->priv           = calloc (sizeof(struct net_device_stats), 1);
-  if (!dev->priv)
-     return (0);
-  return (1);
-}
-
-/*
- * NDIS device functions
- */
-static void ndis_close (struct device *dev)
-{
-#ifdef USE_NDIS2
-  NdisShutdown();
-#endif
-  ARGSUSED (dev);
-}
-
-static int ndis_open (struct device *dev)
-{
-  int promis = (dev->flags & IFF_PROMISC);
-
-#ifdef USE_NDIS2
-  if (!NdisInit(promis))
-     return (0);
-  return (1);
-#else
-  ARGSUSED (promis);
-  return (0);
-#endif
-}
-
-static void *ndis_stats (struct device *dev)
-{
-  static struct net_device_stats stats;
-
-  /* to-do */
-  ARGSUSED (dev);
-  return (&stats);
-}
-
-static int ndis_probe (struct device *dev)
-{
-#ifdef USE_NDIS2
-  if (!NdisOpen())
-     return (0);
-#endif
-
-  dev->open           = ndis_open;
-  dev->xmit           = NULL;
-  dev->close          = ndis_close;
-  dev->get_stats      = ndis_stats;
-  dev->copy_rx_buf    = NULL;       /* to-do */
-  dev->get_rx_buf     = NULL;       /* upcall is from rmode driver */
-  dev->peek_rx_buf    = NULL;
-  dev->release_rx_buf = NULL;
-  return (0);
-}
-
-/*
- * Search & probe for supported 32-bit (pmode) pcap devices
- */
-#if defined(USE_32BIT_DRIVERS)
-
-struct device el2_dev LOCKED_VAR = {
-              "3c503",
-              "EtherLink II",
-              0,
-              0,0,0,0,0,0,
-              NULL,
-              el2_probe
-            };
-
-struct device el3_dev LOCKED_VAR = {
-              "3c509",
-              "EtherLink III",
-              0,
-              0,0,0,0,0,0,
-              &el2_dev,
-              el3_probe
-            };
-
-struct device tc515_dev LOCKED_VAR = {
-              "3c515",
-              "EtherLink PCI",
-              0,
-              0,0,0,0,0,0,
-              &el3_dev,
-              tc515_probe
-            };
-
-struct device tc59_dev LOCKED_VAR = {
-              "3c59x",
-              "EtherLink PCI",
-              0,
-              0,0,0,0,0,0,
-              &tc515_dev,
-              tc59x_probe
-            };
-
-struct device tc90xbc_dev LOCKED_VAR = {
-              "3c90x",
-              "EtherLink 90X",
-              0,
-              0,0,0,0,0,0,
-              &tc59_dev,
-              tc90xbc_probe
-            };
-
-struct device wd_dev LOCKED_VAR = {
-              "wd",
-              "Westen Digital",
-              0,
-              0,0,0,0,0,0,
-              &tc90xbc_dev,
-              wd_probe
-            };
-
-struct device ne_dev LOCKED_VAR = {
-              "ne",
-              "NEx000",
-              0,
-              0,0,0,0,0,0,
-              &wd_dev,
-              ne_probe
-            };
-
-struct device acct_dev LOCKED_VAR = {
-              "acct",
-              "Accton EtherPocket",
-              0,
-              0,0,0,0,0,0,
-              &ne_dev,
-              ethpk_probe
-            };
-
-struct device cs89_dev LOCKED_VAR = {
-              "cs89",
-              "Crystal Semiconductor",
-              0,
-              0,0,0,0,0,0,
-              &acct_dev,
-              cs89x0_probe
-            };
-
-struct device rtl8139_dev LOCKED_VAR = {
-              "rtl8139",
-              "RealTek PCI",
-              0,
-              0,0,0,0,0,0,
-              &cs89_dev,
-              rtl8139_probe     /* dev->probe routine */
-            };
-
-/*
- * Dequeue routine is called by polling.
- * NOTE: the queue-element is not copied, only a pointer is
- * returned at '*buf'
- */
-int peek_rxbuf (BYTE **buf)
-{
-  struct rx_elem *tail, *head;
-
-  PCAP_ASSERT (pktq_check (&active_dev->queue));
-
-  DISABLE();
-  tail = pktq_out_elem (&active_dev->queue);
-  head = pktq_in_elem (&active_dev->queue);
-  ENABLE();
-
-  if (head != tail)
-  {
-    PCAP_ASSERT (tail->size < active_dev->queue.elem_size-4-2);
-
-    *buf = &tail->data[0];
-    return (tail->size);
-  }
-  *buf = NULL;
-  return (0);
-}
-
-/*
- * Release buffer we peeked at above.
- */
-int release_rxbuf (BYTE *buf)
-{
-#ifndef NDEBUG
-  struct rx_elem *tail = pktq_out_elem (&active_dev->queue);
-
-  PCAP_ASSERT (&tail->data[0] == buf);
-#else
-  ARGSUSED (buf);
-#endif
-  pktq_inc_out (&active_dev->queue);
-  return (1);
-}
-
-/*
- * get_rxbuf() routine (in locked code) is called from IRQ handler
- * to request a buffer. Interrupts are disabled and we have a 32kB stack.
- */
-BYTE *get_rxbuf (int len)
-{
-  int idx;
-
-  if (len < ETH_MIN || len > ETH_MAX)
-     return (NULL);
-
-  idx = pktq_in_index (&active_dev->queue);
-
-#ifdef DEBUG
-  {
-    static int fan_idx LOCKED_VAR = 0;
-    writew ("-\\|/"[fan_idx++] | (15 << 8),      /* white on black colour */
-            0xB8000 + 2*79);  /* upper-right corner, 80-col colour screen */
-    fan_idx &= 3;
-  }
-/* writew (idx + '0' + 0x0F00, 0xB8000 + 2*78); */
-#endif
-
-  if (idx != active_dev->queue.out_index)
-  {
-    struct rx_elem *head = pktq_in_elem (&active_dev->queue);
-
-    head->size = len;
-    active_dev->queue.in_index = idx;
-    return (&head->data[0]);
-  }
-
-  /* !!to-do: drop 25% of the oldest element
-   */
-  pktq_clear (&active_dev->queue);
-  return (NULL);
-}
-
-/*
- *  Simple ring-buffer queue handler for reception of packets
- *  from network driver.
- */
-#define PKTQ_MARKER  0xDEADBEEF
-
-static int pktq_check (struct rx_ringbuf *q)
-{
-#ifndef NDEBUG
-  int   i;
-  char *buf;
-#endif
-
-  if (!q || !q->num_elem || !q->buf_start)
-     return (0);
-
-#ifndef NDEBUG
-  buf = q->buf_start;
-
-  for (i = 0; i < q->num_elem; i++)
-  {
-    buf += q->elem_size;
-    if (*(DWORD*)(buf - sizeof(DWORD)) != PKTQ_MARKER)
-       return (0);
-  }
-#endif
-  return (1);
-}
-
-static int pktq_init (struct rx_ringbuf *q, int size, int num, char *pool)
-{
-  int i;
-
-  q->elem_size = size;
-  q->num_elem  = num;
-  q->buf_start = pool;
-  q->in_index  = 0;
-  q->out_index = 0;
-
-  PCAP_ASSERT (size >= sizeof(struct rx_elem) + sizeof(DWORD));
-  PCAP_ASSERT (num);
-  PCAP_ASSERT (pool);
-
-  for (i = 0; i < num; i++)
-  {
-#if 0
-    struct rx_elem *elem = (struct rx_elem*) pool;
-
-    /* assert dword aligned elements
-     */
-    PCAP_ASSERT (((unsigned)(&elem->data[0]) & 3) == 0);
-#endif
-    pool += size;
-    *(DWORD*) (pool - sizeof(DWORD)) = PKTQ_MARKER;
-  }
-  return (1);
-}
-
-/*
- * Increment the queue 'out_index' (tail).
- * Check for wraps.
- */
-static int pktq_inc_out (struct rx_ringbuf *q)
-{
-  q->out_index++;
-  if (q->out_index >= q->num_elem)
-      q->out_index = 0;
-  return (q->out_index);
-}
-
-/*
- * Return the queue's next 'in_index' (head).
- * Check for wraps.
- */
-static int pktq_in_index (struct rx_ringbuf *q)
-{
-  volatile int index = q->in_index + 1;
-
-  if (index >= q->num_elem)
-      index = 0;
-  return (index);
-}
-
-/*
- * Return the queue's head-buffer.
- */
-static struct rx_elem *pktq_in_elem (struct rx_ringbuf *q)
-{
-  return (struct rx_elem*) (q->buf_start + (q->elem_size * q->in_index));
-}
-
-/*
- * Return the queue's tail-buffer.
- */
-static struct rx_elem *pktq_out_elem (struct rx_ringbuf *q)
-{
-  return (struct rx_elem*) (q->buf_start + (q->elem_size * q->out_index));
-}
-
-/*
- * Clear the queue ring-buffer by setting head=tail.
- */
-static void pktq_clear (struct rx_ringbuf *q)
-{
-  q->in_index = q->out_index;
-}
-
-/*
- * Symbols that must be linkable for "gcc -O0"
- */
-#undef __IOPORT_H
-#undef __DMA_H
-
-#define extern
-#define __inline__
-
-#include "msdos/pm_drvr/ioport.h"
-#include "msdos/pm_drvr/dma.h"
-
-#endif /* USE_32BIT_DRIVERS */
 

@@ -113,7 +113,7 @@
 #define _GNU_SOURCE
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
 #include <errno.h>
@@ -425,7 +425,7 @@ static int	iface_get_id(int fd, const char *device, char *ebuf);
 static int	iface_get_mtu(int fd, const char *device, char *ebuf);
 static int 	iface_get_arptype(int fd, const char *device, char *ebuf);
 #ifdef HAVE_PF_PACKET_SOCKETS
-static int 	iface_bind(int fd, int ifindex, char *ebuf);
+static int 	iface_bind(int fd, int ifindex, char *ebuf, int protocol);
 #ifdef IW_MODE_MONITOR
 static int	has_wext(int sock_fd, const char *device, char *ebuf);
 #endif /* IW_MODE_MONITOR */
@@ -1008,6 +1008,17 @@ is_bonding_device(int fd, const char *device)
 }
 #endif /* IW_MODE_MONITOR */
 
+static int pcap_protocol(pcap_t *handle)
+{
+	int protocol;
+
+	protocol = handle->opt.protocol;
+	if (protocol == 0)
+		protocol = ETH_P_ALL;
+
+	return htons(protocol);
+}
+
 static int
 pcap_can_set_rfmon_linux(pcap_t *handle)
 {
@@ -1059,7 +1070,7 @@ pcap_can_set_rfmon_linux(pcap_t *handle)
 	 * (We assume that if we have Wireless Extensions support
 	 * we also have PF_PACKET support.)
 	 */
-	sock_fd = socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+	sock_fd = socket(PF_PACKET, SOCK_RAW, pcap_protocol(handle));
 	if (sock_fd == -1) {
 		(void)pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 		    "socket: %s", pcap_strerror(errno));
@@ -1445,6 +1456,17 @@ pcap_activate_linux(pcap_t *handle)
 		status = PCAP_ERROR_NO_SUCH_DEVICE;
 		goto fail;
 	}
+
+	/*
+	 * Turn a negative snapshot value (invalid), a snapshot value of
+	 * 0 (unspecified), or a value bigger than the normal maximum
+	 * value, into the maximum allowed value.
+	 *
+	 * If some application really *needs* a bigger snapshot
+	 * length, we should just increase MAXIMUM_SNAPLEN.
+	 */
+	if (handle->snapshot <= 0 || handle->snapshot > MAXIMUM_SNAPLEN)
+		handle->snapshot = MAXIMUM_SNAPLEN;
 
 	handle->inject_op = pcap_inject_linux;
 	handle->setfilter_op = pcap_setfilter_linux;
@@ -3226,7 +3248,7 @@ static void map_arphrd_to_dlt(pcap_t *handle, int sock_fd, int arptype,
 		 * IP-over-FC on which somebody wants to capture
 		 * packets.
 		 */
-		handle->dlt_list = (u_int *) malloc(sizeof(u_int) * 2);
+		handle->dlt_list = (u_int *) malloc(sizeof(u_int) * 3);
 		/*
 		 * If that fails, just leave the list empty.
 		 */
@@ -3295,6 +3317,13 @@ static void map_arphrd_to_dlt(pcap_t *handle, int sock_fd, int arptype,
 		/* handlep->cooked = 1; */
 		break;
 
+#ifndef ARPHRD_VSOCKMON
+#define ARPHRD_VSOCKMON	826
+#endif
+	case ARPHRD_VSOCKMON:
+		handle->linktype = DLT_VSOCK;
+		break;
+
 	default:
 		handle->linktype = -1;
 		break;
@@ -3317,6 +3346,7 @@ activate_new(pcap_t *handle)
 	struct pcap_linux *handlep = handle->priv;
 	const char		*device = handle->opt.device;
 	int			is_any_device = (strcmp(device, "any") == 0);
+	int			protocol = pcap_protocol(handle);
 	int			sock_fd = -1, arptype;
 #ifdef HAVE_PACKET_AUXDATA
 	int			val;
@@ -3335,8 +3365,8 @@ activate_new(pcap_t *handle)
 	 * try a SOCK_RAW socket for the raw interface.
 	 */
 	sock_fd = is_any_device ?
-		socket(PF_PACKET, SOCK_DGRAM, htons(ETH_P_ALL)) :
-		socket(PF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+		socket(PF_PACKET, SOCK_DGRAM, protocol) :
+		socket(PF_PACKET, SOCK_RAW, protocol);
 
 	if (sock_fd == -1) {
 		if (errno == EINVAL || errno == EAFNOSUPPORT) {
@@ -3453,8 +3483,7 @@ activate_new(pcap_t *handle)
 					 "close: %s", pcap_strerror(errno));
 				return PCAP_ERROR;
 			}
-			sock_fd = socket(PF_PACKET, SOCK_DGRAM,
-			    htons(ETH_P_ALL));
+			sock_fd = socket(PF_PACKET, SOCK_DGRAM, protocol);
 			if (sock_fd == -1) {
 				pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 				    "socket: %s", pcap_strerror(errno));
@@ -3518,7 +3547,7 @@ activate_new(pcap_t *handle)
 		}
 
 		if ((err = iface_bind(sock_fd, handlep->ifindex,
-		    handle->errbuf)) != 1) {
+		    handle->errbuf, protocol)) != 1) {
 		    	close(sock_fd);
 			if (err < 0)
 				return err;
@@ -3999,6 +4028,8 @@ prepare_tpacket_socket(pcap_t *handle)
 	return 1;
 }
 
+#define MAX(a,b) ((a)>(b)?(a):(b))
+
 /*
  * Attempt to set up memory-mapped access.
  *
@@ -4042,10 +4073,10 @@ create_ring(pcap_t *handle, int *status)
 #ifdef HAVE_TPACKET2
 	case TPACKET_V2:
 #endif
-		/* Note that with large snapshot length (say 64K, which is
-		 * the default for recent versions of tcpdump, the value that
-		 * "-s 0" has given for a long time with tcpdump, and the
-		 * default in Wireshark/TShark/dumpcap), if we use the snapshot
+		/* Note that with large snapshot length (say 256K, which is
+		 * the default for recent versions of tcpdump, Wireshark,
+		 * TShark, dumpcap or 64K, the value that "-s 0" has given for
+		 * a long time with tcpdump), if we use the snapshot
 		 * length to calculate the frame length, only a few frames
 		 * will be available in the ring even with pretty
 		 * large ring size (and a lot of memory will be unused).
@@ -4069,29 +4100,35 @@ create_ring(pcap_t *handle, int *status)
 		 * based on the MTU, so that the MTU limits the maximum size
 		 * of packets that we can receive.)
 		 *
-		 * We don't do that if segmentation/fragmentation or receive
-		 * offload are enabled, so we don't get rudely surprised by
-		 * "packets" bigger than the MTU. */
+		 * If segmentation/fragmentation or receive offload are
+		 * enabled, we can get reassembled/aggregated packets larger
+		 * than MTU, but bounded to 65535 plus the Ethernet overhead,
+		 * due to kernel and protocol constraints */
 		frame_size = handle->snapshot;
 		if (handle->linktype == DLT_EN10MB) {
+			unsigned int max_frame_len;
 			int mtu;
 			int offload;
 
+			mtu = iface_get_mtu(handle->fd, handle->opt.device,
+			    handle->errbuf);
+			if (mtu == -1) {
+				*status = PCAP_ERROR;
+				return -1;
+			}
 			offload = iface_get_offload(handle);
 			if (offload == -1) {
 				*status = PCAP_ERROR;
 				return -1;
 			}
-			if (!offload) {
-				mtu = iface_get_mtu(handle->fd, handle->opt.device,
-				    handle->errbuf);
-				if (mtu == -1) {
-					*status = PCAP_ERROR;
-					return -1;
-				}
-				if (frame_size > (unsigned int)mtu + 18)
-					frame_size = (unsigned int)mtu + 18;
-			}
+			if (offload)
+				max_frame_len = MAX(mtu, 65535);
+			else
+				max_frame_len = mtu;
+			max_frame_len += 18;
+
+			if (frame_size > max_frame_len)
+				frame_size = max_frame_len;
 		}
 
 		/* NOTE: calculus matching those in tpacket_rcv()
@@ -4468,24 +4505,24 @@ pcap_cleanup_linux_mmap( pcap_t *handle )
 
 
 static int
-pcap_getnonblock_mmap(pcap_t *p)
+pcap_getnonblock_mmap(pcap_t *handle)
 {
-	struct pcap_linux *handlep = p->priv;
+	struct pcap_linux *handlep = handle->priv;
 
 	/* use negative value of timeout to indicate non blocking ops */
 	return (handlep->timeout<0);
 }
 
 static int
-pcap_setnonblock_mmap(pcap_t *p, int nonblock)
+pcap_setnonblock_mmap(pcap_t *handle, int nonblock)
 {
-	struct pcap_linux *handlep = p->priv;
+	struct pcap_linux *handlep = handle->priv;
 
 	/*
 	 * Set the file descriptor to non-blocking mode, as we use
 	 * it for sending packets.
 	 */
-	if (pcap_setnonblock_fd(p, nonblock) == -1)
+	if (pcap_setnonblock_fd(handle, nonblock) == -1)
 		return -1;
 
 	/*
@@ -5291,7 +5328,7 @@ iface_get_id(int fd, const char *device, char *ebuf)
  *  or a PCAP_ERROR_ value on a hard error.
  */
 static int
-iface_bind(int fd, int ifindex, char *ebuf)
+iface_bind(int fd, int ifindex, char *ebuf, int protocol)
 {
 	struct sockaddr_ll	sll;
 	int			err;
@@ -5300,7 +5337,7 @@ iface_bind(int fd, int ifindex, char *ebuf)
 	memset(&sll, 0, sizeof(sll));
 	sll.sll_family		= AF_PACKET;
 	sll.sll_ifindex		= ifindex;
-	sll.sll_protocol	= htons(ETH_P_ALL);
+	sll.sll_protocol	= protocol;
 
 	if (bind(fd, (struct sockaddr *) &sll, sizeof(sll)) == -1) {
 		if (errno == ENETDOWN) {
@@ -6908,3 +6945,33 @@ reset_kernel_filter(pcap_t *handle)
 	return 0;
 }
 #endif
+
+int
+pcap_set_protocol(pcap_t *p, int protocol)
+{
+	if (pcap_check_activated(p))
+		return (PCAP_ERROR_ACTIVATED);
+	p->opt.protocol = protocol;
+	return (0);
+}
+
+#include "pcap_version.h"
+
+/*
+ * Libpcap version string.
+ */
+const char *
+pcap_lib_version(void)
+{
+#ifdef HAVE_PACKET_RING
+ #if defined(HAVE_TPACKET3)
+	return (PCAP_VERSION_STRING " (with TPACKET_V3)");
+ #elif defined(HAVE_TPACKET2)
+	return (PCAP_VERSION_STRING " (with TPACKET_V2)");
+ #else
+	return (PCAP_VERSION_STRING " (with TPACKET_V1)");
+ #endif
+#else
+	return (PCAP_VERSION_STRING " (without TPACKET)");
+#endif
+}

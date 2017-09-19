@@ -1,10 +1,8 @@
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
-#ifdef _WIN32
-#include <pcap-stdinc.h>
-#else /* !_WIN32 */
+#ifndef _WIN32
 #include <sys/param.h>
 #endif /* !_WIN32 */
 
@@ -299,6 +297,17 @@ snf_activate(pcap_t* p)
 		return -1;
 	}
 
+	/*
+	 * Turn a negative snapshot value (invalid), a snapshot value of
+	 * 0 (unspecified), or a value bigger than the normal maximum
+	 * value, into the maximum allowed value.
+	 *
+	 * If some application really *needs* a bigger snapshot
+	 * length, we should just increase MAXIMUM_SNAPLEN.
+	 */
+	if (p->snapshot <= 0 || p->snapshot > MAXIMUM_SNAPLEN)
+		p->snapshot = MAXIMUM_SNAPLEN;
+
 	if (p->opt.timeout <= 0)
 		ps->snf_timeout = -1;
 	else
@@ -581,5 +590,16 @@ pcap_create_interface(const char *device, char *errbuf)
 	pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
 	    "This version of libpcap only supports SNF cards");
 	return NULL;
+}
+
+#include "pcap_version.h"
+
+/*
+ * Libpcap version string.
+ */
+const char *
+pcap_lib_version(void)
+{
+	return (PCAP_VERSION_STRING " (SNF-only)");
 }
 #endif

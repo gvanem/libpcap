@@ -21,33 +21,21 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
+#include <pcap-types.h>
 #ifdef _WIN32
-#include <pcap-stdinc.h>
-#else /* _WIN32 */
-#if HAVE_INTTYPES_H
-#include <inttypes.h>
-#elif HAVE_STDINT_H
-#include <stdint.h>
-#endif
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif
-#include <sys/types.h>
-#include <sys/socket.h>
-#endif /* _WIN32 */
+  #include <ws2tcpip.h>
+#else
+  #include <sys/socket.h>
 
-#ifndef _WIN32
+  #ifdef __NetBSD__
+    #include <sys/param.h>
+  #endif
 
-#ifdef __NetBSD__
-#include <sys/param.h>
-#endif
-
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
+  #include <netinet/in.h>
+  #include <arpa/inet.h>
 #endif /* _WIN32 */
 
 #include <stdlib.h>
@@ -102,9 +90,9 @@ struct in6_addr
   {
     union
       {
-	u_int8_t		u6_addr8[16];
-	u_int16_t	u6_addr16[8];
-	u_int32_t	u6_addr32[4];
+	uint8_t		u6_addr8[16];
+	uint16_t	u6_addr16[8];
+	uint32_t	u6_addr32[4];
       } in6_u;
 #define s6_addr			in6_u.u6_addr8
 #define s6_addr16		in6_u.u6_addr16
@@ -121,8 +109,8 @@ typedef unsigned short	sa_family_t;
 struct sockaddr_in6
   {
     __SOCKADDR_COMMON (sin6_);
-    u_int16_t sin6_port;		/* Transport layer port # */
-    u_int32_t sin6_flowinfo;	/* IPv6 flow information */
+    uint16_t sin6_port;		/* Transport layer port # */
+    uint32_t sin6_flowinfo;	/* IPv6 flow information */
     struct in6_addr sin6_addr;	/* IPv6 address */
   };
 
@@ -356,6 +344,11 @@ struct _compiler_state {
 	 * that later filters apply to the encapsulated payload.
 	 */
 	int is_geneve;
+
+	/*
+	 * TRUE if we need variable length part of VLAN offset
+	 */
+	int is_vlan_vloffset;
 
 	/*
 	 * These are offsets for the ATM pseudo-header.
@@ -1095,6 +1088,11 @@ init_linktype(compiler_state_t *cstate, pcap_t *p)
 	 * And not Geneve.
 	 */
 	cstate->is_geneve = 0;
+
+	/*
+	 * No variable length VLAN offset by default
+	 */
+	cstate->is_vlan_vloffset = 0;
 
 	/*
 	 * And assume we're not doing SS7.
@@ -2823,6 +2821,28 @@ insert_compute_vloffsets(compiler_state_t *cstate, struct block *b)
 	}
 
 	/*
+	 * If there there is no initialization yet and we need variable
+	 * length offsets for VLAN, initialize them to zero
+	 */
+	if (s == NULL && cstate->is_vlan_vloffset) {
+		struct slist *s2;
+
+		if (cstate->off_linkpl.reg == -1)
+			cstate->off_linkpl.reg = alloc_reg(cstate);
+		if (cstate->off_linktype.reg == -1)
+			cstate->off_linktype.reg = alloc_reg(cstate);
+
+		s = new_stmt(cstate, BPF_LD|BPF_W|BPF_IMM);
+		s->s.k = 0;
+		s2 = new_stmt(cstate, BPF_ST);
+		s2->s.k = cstate->off_linkpl.reg;
+		sappend(s, s2);
+		s2 = new_stmt(cstate, BPF_ST);
+		s2->s.k = cstate->off_linktype.reg;
+		sappend(s, s2);
+	}
+
+	/*
 	 * If we have any offset-loading code, append all the
 	 * existing statements in the block to those statements,
 	 * and make the resulting list the list of statements
@@ -3868,7 +3888,7 @@ gen_hostop6(compiler_state_t *cstate, struct in6_addr *addr,
 {
 	struct block *b0, *b1;
 	u_int offset;
-	u_int32_t *a, *m;
+	uint32_t *a, *m;
 
 	switch (dir) {
 
@@ -3897,8 +3917,8 @@ gen_hostop6(compiler_state_t *cstate, struct in6_addr *addr,
 		abort();
 	}
 	/* this order is important */
-	a = (u_int32_t *)addr;
-	m = (u_int32_t *)mask;
+	a = (uint32_t *)addr;
+	m = (uint32_t *)mask;
 	b1 = gen_mcmp(cstate, OR_LINKPL, offset + 12, BPF_W, ntohl(a[3]), ntohl(m[3]));
 	b0 = gen_mcmp(cstate, OR_LINKPL, offset + 8, BPF_W, ntohl(a[2]), ntohl(m[2]));
 	gen_and(b0, b1);
@@ -6685,7 +6705,7 @@ gen_mcode6(compiler_state_t *cstate, const char *s1, const char *s2,
 	struct in6_addr *addr;
 	struct in6_addr mask;
 	struct block *b;
-	u_int32_t *a, *m;
+	uint32_t *a, *m;
 
 	if (s2)
 		bpf_error(cstate, "no mask %s supported", s2);
@@ -6707,8 +6727,8 @@ gen_mcode6(compiler_state_t *cstate, const char *s1, const char *s2,
 			(0xff << (8 - masklen % 8)) & 0xff;
 	}
 
-	a = (u_int32_t *)addr;
-	m = (u_int32_t *)&mask;
+	a = (uint32_t *)addr;
+	m = (uint32_t *)&mask;
 	if ((a[0] & ~m[0]) || (a[1] & ~m[1])
 	 || (a[2] & ~m[2]) || (a[3] & ~m[3])) {
 		bpf_error(cstate, "non-network bits set in \"%s/%d\"", s1, masklen);
@@ -7969,11 +7989,143 @@ gen_ahostop(compiler_state_t *cstate, const u_char *eaddr, int dir)
 	/* NOTREACHED */
 }
 
+static struct block *
+gen_vlan_tpid_test(compiler_state_t *cstate)
+{
+	struct block *b0, *b1;
+
+	/* check for VLAN, including QinQ */
+	b0 = gen_linktype(cstate, ETHERTYPE_8021Q);
+	b1 = gen_linktype(cstate, ETHERTYPE_8021AD);
+	gen_or(b0,b1);
+	b0 = b1;
+	b1 = gen_linktype(cstate, ETHERTYPE_8021QINQ);
+	gen_or(b0,b1);
+
+	return b1;
+}
+
+static struct block *
+gen_vlan_vid_test(compiler_state_t *cstate, int vlan_num)
+{
+	return gen_mcmp(cstate, OR_LINKPL, 0, BPF_H, (bpf_int32)vlan_num, 0x0fff);
+}
+
+static struct block *
+gen_vlan_no_bpf_extensions(compiler_state_t *cstate, int vlan_num)
+{
+	struct block *b0, *b1;
+
+	b0 = gen_vlan_tpid_test(cstate);
+
+	if (vlan_num >= 0) {
+		b1 = gen_vlan_vid_test(cstate, vlan_num);
+		gen_and(b0, b1);
+		b0 = b1;
+	}
+
+	/*
+	 * Both payload and link header type follow the VLAN tags so that
+	 * both need to be updated.
+	 */
+	cstate->off_linkpl.constant_part += 4;
+	cstate->off_linktype.constant_part += 4;
+
+	return b0;
+}
+
 #if defined(SKF_AD_VLAN_TAG) && defined(SKF_AD_VLAN_TAG_PRESENT)
+/* add v to variable part of off */
+static void
+gen_vlan_vloffset_add(compiler_state_t *cstate, bpf_abs_offset *off, int v, struct slist *s)
+{
+	struct slist *s2;
+
+	if (!off->is_variable)
+		off->is_variable = 1;
+	if (off->reg == -1)
+		off->reg = alloc_reg(cstate);
+
+	s2 = new_stmt(cstate, BPF_LD|BPF_MEM);
+	s2->s.k = off->reg;
+	sappend(s, s2);
+	s2 = new_stmt(cstate, BPF_ALU|BPF_ADD|BPF_IMM);
+	s2->s.k = v;
+	sappend(s, s2);
+	s2 = new_stmt(cstate, BPF_ST);
+	s2->s.k = off->reg;
+	sappend(s, s2);
+}
+
+/*
+ * patch block b_tpid (VLAN TPID test) to update variable parts of link payload
+ * and link type offsets first
+ */
+static void
+gen_vlan_patch_tpid_test(compiler_state_t *cstate, struct block *b_tpid)
+{
+	struct slist s;
+
+	/* offset determined at run time, shift variable part */
+	s.next = NULL;
+	cstate->is_vlan_vloffset = 1;
+	gen_vlan_vloffset_add(cstate, &cstate->off_linkpl, 4, &s);
+	gen_vlan_vloffset_add(cstate, &cstate->off_linktype, 4, &s);
+
+	/* we get a pointer to a chain of or-ed blocks, patch first of them */
+	sappend(s.next, b_tpid->head->stmts);
+	b_tpid->head->stmts = s.next;
+}
+
+/*
+ * patch block b_vid (VLAN id test) to load VID value either from packet
+ * metadata (using BPF extensions) if SKF_AD_VLAN_TAG_PRESENT is true
+ */
+static void
+gen_vlan_patch_vid_test(compiler_state_t *cstate, struct block *b_vid)
+{
+	struct slist *s, *s2, *sjeq;
+	unsigned cnt;
+
+	s = new_stmt(cstate, BPF_LD|BPF_B|BPF_ABS);
+	s->s.k = SKF_AD_OFF + SKF_AD_VLAN_TAG_PRESENT;
+
+	/* true -> next instructions, false -> beginning of b_vid */
+	sjeq = new_stmt(cstate, JMP(BPF_JEQ));
+	sjeq->s.k = 1;
+	sjeq->s.jf = b_vid->stmts;
+	sappend(s, sjeq);
+
+	s2 = new_stmt(cstate, BPF_LD|BPF_B|BPF_ABS);
+	s2->s.k = SKF_AD_OFF + SKF_AD_VLAN_TAG;
+	sappend(s, s2);
+	sjeq->s.jt = s2;
+
+	/* jump to the test in b_vid (bypass loading VID from packet data) */
+	cnt = 0;
+	for (s2 = b_vid->stmts; s2; s2 = s2->next)
+		cnt++;
+	s2 = new_stmt(cstate, JMP(BPF_JA));
+	s2->s.k = cnt;
+	sappend(s, s2);
+
+	/* insert our statements at the beginning of b_vid */
+	sappend(s, b_vid->stmts);
+	b_vid->stmts = s;
+}
+
+/*
+ * Generate check for "vlan" or "vlan <id>" on systems with support for BPF
+ * extensions.  Even if kernel supports VLAN BPF extensions, (outermost) VLAN
+ * tag can be either in metadata or in packet data; therefore if the
+ * SKF_AD_VLAN_TAG_PRESENT test is negative, we need to check link
+ * header for VLAN tag. As the decision is done at run time, we need
+ * update variable part of the offsets
+ */
 static struct block *
 gen_vlan_bpf_extensions(compiler_state_t *cstate, int vlan_num)
 {
-        struct block *b0, *b1;
+        struct block *b0, *b_tpid, *b_vid;
         struct slist *s;
 
         /* generate new filter code based on extracting packet
@@ -7985,58 +8137,33 @@ gen_vlan_bpf_extensions(compiler_state_t *cstate, int vlan_num)
         b0->stmts = s;
         b0->s.k = 1;
 
-        if (vlan_num >= 0) {
-                s = new_stmt(cstate, BPF_LD|BPF_B|BPF_ABS);
-                s->s.k = SKF_AD_OFF + SKF_AD_VLAN_TAG;
+	/*
+	 * This is tricky. We need to insert the statements updating variable
+	 * parts of offsets before the the traditional TPID and VID tests so
+	 * that they are called whenever SKF_AD_VLAN_TAG_PRESENT fails but
+	 * we do not want this update to affect those checks. That's why we
+	 * generate both test blocks first and insert the statements updating
+	 * variable parts of both offsets after that. This wouldn't work if
+	 * there already were variable length link header when entering this
+	 * function but gen_vlan_bpf_extensions() isn't called in that case.
+	 */
+	b_tpid = gen_vlan_tpid_test(cstate);
+	if (vlan_num >= 0)
+		b_vid = gen_vlan_vid_test(cstate, vlan_num);
 
-                b1 = new_block(cstate, JMP(BPF_JEQ));
-                b1->stmts = s;
-                b1->s.k = (bpf_int32) vlan_num;
+	gen_vlan_patch_tpid_test(cstate, b_tpid);
+	gen_or(b0, b_tpid);
+	b0 = b_tpid;
 
-                gen_and(b0,b1);
-                b0 = b1;
-        }
+	if (vlan_num >= 0) {
+		gen_vlan_patch_vid_test(cstate, b_vid);
+		gen_and(b0, b_vid);
+		b0 = b_vid;
+	}
 
         return b0;
 }
 #endif
-
-static struct block *
-gen_vlan_no_bpf_extensions(compiler_state_t *cstate, int vlan_num)
-{
-        struct block *b0, *b1;
-
-        /* check for VLAN, including QinQ */
-        b0 = gen_linktype(cstate, ETHERTYPE_8021Q);
-        b1 = gen_linktype(cstate, ETHERTYPE_8021AD);
-        gen_or(b0,b1);
-        b0 = b1;
-        b1 = gen_linktype(cstate, ETHERTYPE_8021QINQ);
-        gen_or(b0,b1);
-        b0 = b1;
-
-        /* If a specific VLAN is requested, check VLAN id */
-        if (vlan_num >= 0) {
-                b1 = gen_mcmp(cstate, OR_LINKPL, 0, BPF_H,
-                              (bpf_int32)vlan_num, 0x0fff);
-                gen_and(b0, b1);
-                b0 = b1;
-        }
-
-	/*
-	 * The payload follows the full header, including the
-	 * VLAN tags, so skip past this VLAN tag.
-	 */
-        cstate->off_linkpl.constant_part += 4;
-
-	/*
-	 * The link-layer type information follows the VLAN tags, so
-	 * skip past this VLAN tag.
-	 */
-        cstate->off_linktype.constant_part += 4;
-
-        return b0;
-}
 
 /*
  * support IEEE 802.1Q VLAN trunk over ethernet

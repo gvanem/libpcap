@@ -1,116 +1,249 @@
 #
-# GNU Makefile for DOS-libpcap. djgpp version.
+# GNU Makefile for DOS-libpcap. djgpp 2.04+ version.
 #
 # Use this makefile from the libpcap root directory.
 # E.g. like this:
 #
-#  c:\net\pcap> make -f msdos/makefile.dj
+#   c:\net\pcap> make -f msdos/Makefile.dj
 #
-# Note: you should do a "set LFN=y" before running this makefile.
+# Note 1:
+#   under plain DOS, you should do a "set LFN=y" first.
 #
+# Note 2:
+#  If using this makefile under Windows (ref. 'DJ_PREFIX' below),
+#  remember to do a 'make -f msdos/Makefile.dj clean' first in case
+#  there are any leftovers from a Win32 build. E.g. a 'pcap_version.h'
+#  generated for Windows does NOT work like 'msdos/pcap_version.h'.
+#
+MAKEFILE = msdos/Makefile.dj
 
-VPATH = missing msdos bpf/net
+VPATH = missing msdos bpf/net tests
 
-PREREQUISITES = scanner.c grammar.c tokdefs.h version.h msdos/pkt_stub.inc
+WATT32_ROOT = $(realpath $(WATT_ROOT))
 
-include ./msdos/common.dj
+OBJ_DIR = djgpp.obj
 
-DRIVER_DIR = ./msdos/pm_drvr
+#
+# Set to 1 to create a detailed map-file.
+#
+MAKE_MAPFILE = 1
 
-CFLAGS += -DDEBUG -DNDIS_DEBUG -DHAVE_LIMITS_H -DHAVE_STRERROR -DHAVE_SNPRINTF -DHAVE_VSNPRINTF\
-          -D_U_='__attribute__((unused))'
-
-CFLAGS += -Dyylval=pcap_lval # -DBDEBUG -DNDEBUG
-
-SOURCES = grammar.c scanner.c bpf/net/bpf_filter.c bpf_image.c bpf_dump.c \
-          etherent.c gencode.c nametoaddr.c pcap-common.c pcap-dos.c optimize.c \
-          savefile.c pcap.c sf-pcap.c sf-pcap-ng.c inet.c \
-          msdos/pktdrvr.c msdos/ndis2.c # missing/snprintf.c
-
-OBJECTS = $(addprefix $(OBJ_DIR)/, $(notdir $(SOURCES:.c=.o)))
-TEMPBIN = tmp.bin
-
-ifeq ($(USE_32BIT_DRIVERS),1)
-  PM_OBJECTS = $(addprefix $(OBJ_DIR)/, \
-                 printk.o pci.o pci-scan.o bios32.o dma.o irq.o intwrap.o \
-                 lock.o kmalloc.o quirks.o timer.o net_init.o)
+ifeq ($(OS),Windows_NT)
   #
-  # Static link of drivers
+  # Windows hosted djgpp cross compiler. Get it from:
+  #   https://github.com/andrewwutw/build-djgpp/releases
   #
-  ifeq ($(USE_32BIT_MODULES),0)
-    PM_OBJECTS += $(addprefix $(OBJ_DIR)/, \
-                    accton.o 8390.o 3c503.o 3c509.o 3c59x.o 3c515.o \
-                    3c575_cb.o 3c90x.o ne.o wd.o cs89x0.o rtl8139.o)
-  endif
+  # And set 'DJ_PREFIX' according to the 'c:/djgpp_cross_install_root'.
+  #
+  DJ_PREFIX ?= c:/djgpp_cross_install_root/bin/i586-pc-msdosdjgpp-
+  CC = $(DJ_PREFIX)gcc
+  IS_WINDOWS_HOSTED = 1
+
+  #
+  # A MinGW or a CygWin 'gcc'.
+  #
+  HOST_CC = gcc
+
+else
+  IS_WINDOWS_HOSTED = 0
+  #
+  # The normal djgpp 'gcc' for MSDOS.
+  #
+  CC      = gcc
+  HOST_CC = $(CC)
 endif
 
-TARGETS = msdos/bin2c.exe libpcap.a filtertest.exe findalldevstest.exe \
-          nonblocktest.exe opentest.exe
+ASM  = nasm -fbin -dDEBUG
+YACC = bison
+FLEX = flex
+
+CFLAGS = -g -O2 -Wall -I./msdos -I. -I$(WATT32_ROOT)/inc \
+         -DHAVE_CONFIG_H -D_U_='__attribute__((unused))' \
+         -Wno-unused-variable
+
+PCAP_LIB = msdos/libpcap.a
+
+GEN_FILES = msdos/config.h       \
+            msdos/pcap_version.h \
+            msdos/pkt_stub.inc   \
+            scanner.c            \
+            grammar.c            \
+            grammar.h
+
+SOURCES = grammar.c            \
+          scanner.c            \
+          bpf/net/bpf_filter.c \
+          bpf_image.c          \
+          bpf_dump.c           \
+          etherent.c           \
+          gencode.c            \
+          nametoaddr.c         \
+          pcap-common.c        \
+          pcap-dos.c           \
+          optimize.c           \
+          savefile.c           \
+          pcap.c               \
+          sf-pcap.c            \
+          sf-pcap-ng.c         \
+          msdos/pktdrvr.c
+
+OBJECTS  = $(addprefix $(OBJ_DIR)/, $(notdir $(SOURCES:.c=.o)))
+TEMP_BIN = tmp.bin
+
+TARGETS = $(PCAP_LIB)            \
+          can_set_rfmon_test.exe \
+          capturetest.exe        \
+          filtertest.exe         \
+          findalldevstest.exe    \
+          nonblocktest.exe       \
+          opentest.exe
+
+#
+# From the make manual, sec. 10.4:
+#   You can prevent automatic deletion of an intermediate file by marking it as a secondary
+#   file. To do this, list it as a prerequisite of the special target .SECONDARY. When a file
+#   is secondary, make will not create the file merely because it does not already exist, but
+#   make does not automatically delete the file.
+#
+TEST_OBJ = $(addprefix $(OBJ_DIR)/, \
+             can_set_rfmon_test.o   \
+             capturetest.o          \
+             filtertest.o           \
+             findalldevstest.o      \
+             nonblocktest.o         \
+             opentest.o)
+
+.SECONDARY: $(TEST_OBJ)
 
 all: $(TARGETS)
 	@echo 'Welcome to libpcap/djgpp with samples.'
 
-ifeq ($(USE_32BIT_DRIVERS),1)
-$(PM_OBJECTS):
-	$(MAKE) -f Makefile.dj -C $(DRIVER_DIR) $(notdir $@)
-endif
+$(OBJECTS): $(OBJ_DIR)
 
-libpcap.a: version.h $(OBJECTS) $(PM_OBJECTS)
+$(OBJ_DIR):
+	-mkdir $@
+
+$(PCAP_LIB): msdos/config.h msdos/pcap_version.h $(OBJECTS)
 	rm -f $@
 	ar rs $@ $^
 
-filtertest.exe: tests/filtertest.c libpcap.a
-	$(CC) $(CFLAGS) -Din_addr_t=u_long -o $@ $^ $(WATT32_ROOT)/lib/libwatt.a
+$(OBJ_DIR)/%.o: %.c
+	$(CC) -c $(CFLAGS) -o $@ $<
 	@echo
 
-findalldevstest.exe: tests/findalldevstest.c libpcap.a
-	$(CC) $(CFLAGS) -o $@ $^ $(WATT32_ROOT)/lib/libwatt.a
+$(OBJ_DIR)/%.o: %.s
+	$(CC) -c $(CFLAGS) -x assembler-with-cpp -o $@ $<
 	@echo
 
-nonblocktest.exe: tests/nonblocktest.c libpcap.a
-	$(CC) $(CFLAGS) -o $@ $^ $(WATT32_ROOT)/lib/libwatt.a
-	@echo
-
-opentest.exe: tests/opentest.c libpcap.a
-	$(CC) $(CFLAGS) -o $@ $^ $(WATT32_ROOT)/lib/libwatt.a
-	@echo
+%.exe: $(OBJ_DIR)/%.o $(PCAP_LIB)
+	$(call link_EXE, $@, $^ $(WATT32_ROOT)/lib/libwatt.a, $(@:.exe=.map))
 
 msdos/pkt_stub.inc: msdos/bin2c.exe msdos/pkt_rx1.S
-	$(ASM) -o $(TEMPBIN) -lmsdos/pkt_rx1.lst msdos/pkt_rx1.S
-	./msdos/bin2c $(TEMPBIN) > $@
-	rm -f $(TEMPBIN)
+	$(ASM) -o $(TEMP_BIN) -lmsdos/pkt_rx1.lst msdos/pkt_rx1.S
+	./msdos/bin2c $(TEMP_BIN) > $@
+	rm -f $(TEMP_BIN)
 
-grammar.c tokdefs.h: grammar.y
-	rm -f grammar.c tokdefs.h
-	$(YACC) --name-prefix=pcap_ --yacc --defines grammar.y
-	mv -f y.tab.c grammar.c
-	mv -f y.tab.h tokdefs.h
+grammar.h: grammar.c
 
-version.h: ./VERSION
-	@echo '/* Generated from VERSION. Do not edit */' > $@
-	sed -e 's/.*/static char pcap_version_string[] = "libpcap (&)";/' ./VERSION >> $@
+grammar.c: grammar.y
+	$(YACC) -p pcap_  --yacc --defines grammar.y
+	@mv -f y.tab.c grammar.c
+	@mv -f y.tab.h grammar.h
+	@echo
+
+msdos/config.h: $(MAKEFILE)
+	$(call Generate_file, $@)
+	$(file >> $@,$(CONFIG_H))
+
+msdos/pcap_version.h: ./VERSION
+	$(call Generate_file, $@)
+	$(file >> $@,$(PCAP_VERSION_H))
 
 scanner.c: scanner.l
-	$(LEX) -Ppcap_ -7 -t $^ > $@
+	$(FLEX) -P pcap_ -7 -t $< > $@
 	@echo
 
 msdos/bin2c.exe: msdos/bin2c.c
-	$(CC) $*.c -o $*.exe
+	$(HOST_CC) $< -o $@
 
 clean:
-	rm -f $(OBJECTS) msdos/pkt_rx1.lst Makefile.bak .depend.dj $(PREREQUISITES)
-#	$(MAKE) -f Makefile.dj -C $(DRIVER_DIR) clean
+	rm -f $(OBJECTS) pcap_version.h msdos/pkt_rx1.lst msdos/bin2c.exe msdos/.depend.dj \
+	      $(GEN_FILES)
 
 vclean: clean
-	rm -f $(TARGETS)
+	rm -f $(TARGETS) $(TARGETS:.exe=.map)
 	-rmdir $(OBJ_DIR)
+
+define CONFIG_H
+  #define DEBUG          1
+  #define HAVE_LIMITS_H  1
+  #define HAVE_STRERROR  1
+  #define HAVE_STRLCAT   1
+  #define HAVE_STRLCPY   1
+  #define HAVE_SNPRINTF  1
+  #define HAVE_VSNPRINTF 1
+  #define in_addr_t      u_long
+  #define yylval         pcap_lval
+
+  #define PCAP_TRACE(level, fmt, ...)  (void)0
+endef
+
+define PCAP_VERSION_H
+  /*
+   * For djgpp/MSDOS: Generated from VERSION. Do not edit.
+   */
+  #if !defined(MSDOS)
+    #error This file was generated for MSDOS only
+  #endif
+  #define PCAP_VERSION_STRING  "libpcap ($(shell cat ./VERSION))"
+endef
+
+#
+# Create a file with header.
+#  $(1): file to write to.
+#
+define Generate_file
+  $(info2 Generating $(1) ...)
+  $(file  > $(1), /*)
+  $(file >> $(1),  * Generated $(strip $(1)) for djgpp.)
+  $(file >> $(1),  * DO NOT EDIT. Edit $(realpath $(MAKEFILE)) instead.)
+  $(file >> $(1),  */)
+endef
+
+ifeq ($(MAKE_MAPFILE),0)
+  define link_EXE
+    $(CC) -o $(1) $(2)
+    @echo
+  endef
+
+else ifeq ($(IS_WINDOWS_HOSTED),1)
+  #
+  # A Windows-hosted 'gcc' will print .map-file info to 'stdout'.
+  # Hence this special handling.
+  #
+  define link_EXE
+    $(CC) -Wl,--print-map -o $(1) $(2) > $(3)
+    @echo
+  endef
+
+else
+  #
+  # I assume under plain DOS, one has to use the 'redir' command
+  # since 'stderr' is used to output a .map-file. That used to
+  # be the case in the old days. But untested by me.
+  #
+  define link_EXE
+    redir -e $(3) $(CC) -Wl,--print-map -o $(1) $(2)
+    @echo
+  endef
+endif
 
 #
 # Manually generated dependencies
 #
 msdos/pktdrvr.c: msdos/pkt_stub.inc
 scanner.c: scanner.l
-grammar.c tokdefs.h: grammar.y
+grammar.c: grammar.y
 grammar.h: grammar.y
 scanner.l: pcap-int.h pcap-namedb.h gencode.h grammar.h
 grammar.y: pcap-int.h gencode.h pcap-namedb.h
@@ -120,8 +253,8 @@ grammar.y: pcap-int.h gencode.h pcap-namedb.h
 #
 REPLACE = sed -e 's/\(.*\)\.o: /\n$$(OBJ_DIR)\/\1.o: /'
 
-depend: $(PREREQUISITES)
-	$(CC) -MM $(CFLAGS) $(SOURCES) | $(REPLACE) > .depend.dj
+depend: $(GEN_FILES)
+	$(CC) -MM $(CFLAGS) $(SOURCES) | $(REPLACE) > msdos/.depend.dj
 
--include .depend.dj
+-include msdos/.depend.dj
 

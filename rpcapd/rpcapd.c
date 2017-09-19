@@ -31,12 +31,14 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
 #ifdef _WIN32
 #define USE_THREADS		// threads vs. subprocesses
 #endif
+
+#include "ftmacros.h"
 
 #include <errno.h>		// for the errno variable
 #include <string.h>		// for strtok, etc
@@ -45,10 +47,10 @@
 #include <signal.h>		// for signal()
 #include <pthread.h>
 
+#include "sockutils.h"		// for socket calls
 #include "portability.h"
 #include "rpcapd.h"
 #include "fileconf.h"		// for the configuration file management
-#include "sockutils.h"		// for socket calls
 #include "rpcap-protocol.h"
 #include "pcap-rpcap-int.h"
 #include "daemon.h"		// the true main() method of this daemon

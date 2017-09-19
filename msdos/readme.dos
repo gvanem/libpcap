@@ -20,14 +20,6 @@ Files specific to DOS are pcap-dos.[ch] and the assembly and C files in
 the MSDOS sub-directory. Remember to built the libpcap library from the top
 install directory. And not from the MSDOS sub-directory.
 
-Note for djgpp users:
-  If you got the libpcap from the official site www.tcpdump, then that
-  distribution does NOT contain any sources for building 32-bit drivers.
-  Instead get the full version at
-     http://www.watt-32.net/pcap/libpcap.zip
-
-  and set "USE_32BIT_DRIVERS = 1" in msdos\common.dj.
-
 
 
 Requirements
@@ -35,11 +27,8 @@ Requirements
 
 DOS-libpcap currently only works reliably with a real-mode Ethernet packet-
 driver. This driver must be installed prior to using any program (e.g.
-tcpdump) compiled with libpcap. Work is underway to implement protected-
-mode drivers for 32-bit targets (djgpp only). The 3Com 3c509 driver is
-working almost perfectly. Due to lack of LAN-cards, I've not had the
-opportunity to test other drivers. These 32-bit drivers are modified
-Linux drivers.
+tcpdump) compiled with libpcap. All support for 32bit protected-mode drivers
+has been dropped.
 
 
 Required packages
@@ -52,11 +41,6 @@ The following packages and tools must be present for all targets.
    file and other <netdb.h> features. Get 'watt32s*.zip' at:
 
      http://www.watt-32.net
-
-2. Exception handler and disassember library (libexc.a) is needed if
-   "USE_EXCEPT = 1" in common.dj. Available at:
-
-     http://www.watt-32.net/misc/exc_dx07.zip
 
 3. Flex & Bison is used to generate parser for the filter handler
    pcap_compile:
@@ -95,10 +79,7 @@ Follow these steps in building libpcap:
      set C_INCLUDE_PATH=c:/net/watt/inc
      set LIBRARY_PATH=c:/net/watt/lib
 
-2. Revise the msdos/common.dj file for your djgpp/gcc installation;
-   - change the value of `GCCLIB' to match location of libgcc.a.
-   - set `USE_32BIT_DRIVERS = 1' to build 32-bit driver objects.
-
+2. Revise the msdos/common.dj file for your djgpp/gcc installation.
 
 3. Build pcap by using appropriate makefile. For djgpp, use:
      `make -f msdos/makefile.dj'  (i.e. GNU `make')
@@ -118,8 +99,6 @@ Follow these steps in building libpcap:
    `-fomit-frame-pointer' to `CFLAGS' to speed up the generated code.
    But note, this makes debugging and crash-traceback difficult. Only
    add it if you're fully confident your application is 100% stable.
-
-   Note: Code in `USE_NDIS2' does not work at the moment.
 
 4. The resulting library is put in current directory. There's some
    test-program for `libpcap': `filtertest.exe', `findalldevstest.exe',
@@ -162,5 +141,5 @@ Happy sniffing !
 
 Gisle Vanem <gvanem@yahoo.no>
 
-October 1999, 2004, 2006, 2013
+October 1999, 2004, 2006, 2013, 2017
 

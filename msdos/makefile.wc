@@ -18,20 +18,20 @@ LIB    = $(OBJDIR)\pcap.lib
 
 .EXTENSIONS: .l .y
 
-DEFS = -dDEBUG -dNDIS_DEBUG -d_U_= -dHAVE_LIMITS_H -dHAVE_STRERROR &
+DEFS = -dDEBUG -d_U_= -dHAVE_LIMITS_H -dHAVE_STRERROR &
        -dHAVE_SNPRINTF -dHAVE_VSNPRINTF
 
 CC  = wcc386.exe
 ASM = wasm.exe -$(MODEL) $(DEFS) -dDOSX -dDOS4GW -zq -bt=dos -fr=nul -d3 -s
 
-OBJS = $(OBJDIR)\grammar.obj    $(OBJDIR)\scanner.obj  $(OBJDIR)\pcap.obj     &
-       $(OBJDIR)\bpf_filter.obj $(OBJDIR)\bpf_imag.obj $(OBJDIR)\bpf_dump.obj &
-       $(OBJDIR)\etherent.obj   $(OBJDIR)\gencode.obj  $(OBJDIR)\nametoad.obj &
-       $(OBJDIR)\pcap-dos.obj   $(OBJDIR)\pktdrvr.obj  $(OBJDIR)\optimize.obj &
-       $(OBJDIR)\savefile.obj   $(OBJDIR)\inet.obj     $(OBJDIR)\ndis2.obj
+OBJS = $(OBJDIR)\grammar.obj    $(OBJDIR)\scanner.obj   $(OBJDIR)\pcap.obj       &
+       $(OBJDIR)\bpf_filter.obj $(OBJDIR)\bpf_image.obj $(OBJDIR)\bpf_dump.obj   &
+       $(OBJDIR)\etherent.obj   $(OBJDIR)\gencode.obj   $(OBJDIR)\nametoaddr.obj &
+       $(OBJDIR)\pcap-dos.obj   $(OBJDIR)\pktdrvr.obj   $(OBJDIR)\optimize.obj   &
+       $(OBJDIR)\savefile.obj
 
-CFLAGS = $(DEFS) $(YYDEFS) -I. -I$(%watt_root)\inc -I.\msdos\pm_drvr &
-         -$(MODEL) -mf -zff -zgf -zq -bt=dos -fr=nul -w6 -fpi        &
+CFLAGS = $(DEFS) $(YYDEFS) -I. -I.\msdos -I$(%watt_root)\inc  &
+         -$(MODEL) -mf -zff -zgf -zq -bt=dos -fr=nul -w6 -fpi &
          -oilrtf -zm
 
 TEMPBIN = tmp.bin
@@ -54,9 +54,6 @@ $(OBJDIR)\pktdrvr.obj: msdos\pkt_stub.inc msdos\pktdrvr.c &
 
 $(OBJDIR)\bpf_filter.obj: bpf\net\bpf_filter.c
           *$(CC) $(CFLAGS) bpf\net\bpf_filter.c -fo=$@
-
-$(OBJDIR)\ndis2.obj: msdos\ndis2.c
-          *$(CC) $(CFLAGS) msdos\ndis2.c -fo=$@
 
 .ERASE
 .c{$(OBJDIR)}.obj:
@@ -94,6 +91,8 @@ clean realclean vclean: .SYMBOLIC
 #
 # dependencies
 #
+pcap.h: pcap\pcap.h
+
 $(OBJDIR)\bpf_filter.obj: bpf\net\bpf_filter.c pcap-int.h pcap.h pcap-bpf.h
 
 $(OBJDIR)\bpf_imag.obj: bpf_imag.c pcap-int.h pcap.h pcap-bpf.h
@@ -108,8 +107,6 @@ $(OBJDIR)\savefile.obj: savefile.c pcap-int.h pcap.h pcap-bpf.h
 
 $(OBJDIR)\pcap.obj: pcap.c pcap-dos.h pcap-int.h pcap.h pcap-bpf.h
 
-$(OBJDIR)\inet.obj: inet.c pcap-int.h pcap.h pcap-bpf.h
-
 $(OBJDIR)\grammar.obj: grammar.c pcap-int.h pcap.h pcap-bpf.h gencode.h &
   pcap-namedb.h
 
@@ -117,7 +114,7 @@ $(OBJDIR)\scanner.obj: scanner.c pcap-int.h pcap.h pcap-bpf.h gencode.h &
   pcap-namedb.h tokdefs.h
 
 $(OBJDIR)\gencode.obj: gencode.c pcap-dos.h pcap-int.h pcap.h pcap-bpf.h &
-  ethertyp.h nlpid.h llc.h gencode.h atmuni31.h sunatmpo.h ppp.h sll.h &
+  ethertyp.h nlpid.h llc.h gencode.h atmuni31.h sunatmpo.h ppp.h pcap\sll.h &
   arcnet.h pcap-namedb.h
 
 $(OBJDIR)\nametoad.obj: nametoad.c pcap-int.h pcap.h pcap-bpf.h gencode.h &
@@ -128,7 +125,4 @@ $(OBJDIR)\pcap-dos.obj: pcap-dos.c pcap.h pcap-bpf.h pcap-dos.h pcap-int.h &
 
 $(OBJDIR)\pktdrvr.obj: msdos\pktdrvr.c pcap-dos.h pcap-int.h &
   pcap.h pcap-bpf.h msdos\pktdrvr.h msdos\pkt_stub.inc
-
-$(OBJDIR)\ndis2.obj: msdos\ndis2.c pcap-dos.h pcap-int.h pcap.h pcap-bpf.h &
-  msdos\ndis2.h
 

@@ -27,67 +27,7 @@ AC_LBL_C_INLINE
 AC_C___ATTRIBUTE__
 if test "$ac_cv___attribute__" = "yes"; then
 	AC_C___ATTRIBUTE___UNUSED
-	AC_C___ATTRIBUTE___FORMAT
 fi
-
-AC_CHECK_HEADERS(sys/bitypes.h)
-
-AC_CHECK_TYPE([int8_t], ,
-	[AC_DEFINE([int8_t], [signed char],
-	[Define to `signed char' if int8_t not defined.])],
-	[AC_INCLUDES_DEFAULT
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif])
-AC_CHECK_TYPE([u_int8_t], ,
-	[AC_DEFINE([u_int8_t], [unsigned char],
-	[Define to `unsigned char' if u_int8_t not defined.])],
-	[AC_INCLUDES_DEFAULT
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif])
-AC_CHECK_TYPE([int16_t], ,
-	[AC_DEFINE([int16_t], [short],
-	[Define to `short' if int16_t not defined.])]
-	[AC_INCLUDES_DEFAULT
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif])
-AC_CHECK_TYPE([u_int16_t], ,
-	[AC_DEFINE([u_int16_t], [unsigned short],
-	[Define to `unsigned short' if u_int16_t not defined.])],
-	[AC_INCLUDES_DEFAULT
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif])
-AC_CHECK_TYPE([int32_t], ,
-	[AC_DEFINE([int32_t], [int],
-	[Define to `int' if int32_t not defined.])],
-	[AC_INCLUDES_DEFAULT
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif])
-AC_CHECK_TYPE([u_int32_t], ,
-	[AC_DEFINE([u_int32_t], [unsigned int],
-	[Define to `unsigned int' if u_int32_t not defined.])],
-	[AC_INCLUDES_DEFAULT
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif])
-AC_CHECK_TYPE([int64_t], ,
-	[AC_DEFINE([int64_t], [long long],
-	[Define to `long long' if int64_t not defined.])],
-	[AC_INCLUDES_DEFAULT
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif])
-AC_CHECK_TYPE([u_int64_t], ,
-	[AC_DEFINE([u_int64_t], [unsigned long long],
-	[Define to `unsigned long long' if u_int64_t not defined.])],
-	[AC_INCLUDES_DEFAULT
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif])
 
 #
 # Try to arrange for large file support.
@@ -104,9 +44,8 @@ dnl in "aclocal.m4" uses it, so we would still have to test for it
 dnl and set "HAVE_SYS_IOCCOM_H" if we have it, otherwise
 dnl "AC_LBL_FIXINCLUDES" wouldn't work on some platforms such as Solaris.
 dnl
-AC_CHECK_HEADERS(sys/ioccom.h sys/select.h sys/sockio.h limits.h)
-AC_CHECK_HEADERS(linux/types.h)
-AC_CHECK_HEADERS(linux/if_packet.h netpacket/packet.h netpacket/if_packet.h)
+AC_CHECK_HEADERS(sys/ioccom.h sys/sockio.h limits.h)
+AC_CHECK_HEADERS(netpacket/packet.h)
 AC_CHECK_HEADERS(net/pfvar.h, , , [#include <sys/types.h>
 #include <sys/socket.h>
 #include <net/if.h>])
@@ -322,68 +261,85 @@ if test -z "$with_pcap" && test "$cross_compiling" = yes; then
 fi
 AC_ARG_WITH(pcap,
 AC_HELP_STRING([--with-pcap=TYPE],[use packet capture TYPE]))
-AC_MSG_CHECKING(packet capture type)
 if test ! -z "$with_pcap" ; then
 	V_PCAP="$withval"
-elif test -r /dev/bpf -o -h /dev/bpf ; then
-	#
-	# Cloning BPF device.
-	#
-	V_PCAP=bpf
-	AC_DEFINE(HAVE_CLONING_BPF,1,[define if you have a cloning BPF device])
-
-	#
-	# We have BPF, so build valgrindtest with "make test".
-	#
-	VALGRINDTEST=valgrindtest
-elif test -r /dev/bpf0 ; then
-	V_PCAP=bpf
-
-	#
-	# We have BPF, so build valgrindtest with "make test".
-	#
-	VALGRINDTEST=valgrindtest
-elif test -r /usr/include/net/pfilt.h ; then
-	V_PCAP=pf
-elif test -r /dev/enet ; then
-	V_PCAP=enet
-elif test -r /dev/nit ; then
-	V_PCAP=snit
-elif test -r /usr/include/sys/net/nit.h ; then
-	V_PCAP=nit
-elif test -r /usr/include/linux/socket.h ; then
-	V_PCAP=linux
-
-	#
-	# XXX - this won't work with older kernels that have SOCK_PACKET
-	# sockets but not PF_PACKET sockets.
-	#
-	VALGRINDTEST=valgrindtest
-elif test -r /usr/include/net/raw.h ; then
-	V_PCAP=snoop
-elif test -r /usr/include/odmi.h ; then
-	#
-	# On AIX, the BPF devices might not yet be present - they're
-	# created the first time libpcap runs after booting.
-	# We check for odmi.h instead.
-	#
-	V_PCAP=bpf
-elif test -c /dev/bpf0 ; then		# check again in case not readable
-	V_PCAP=bpf
-
-	#
-	# We have BPF, so build valgrindtest with "make test".
-	#
-	VALGRINDTEST=valgrindtest
-elif test -r /usr/include/sys/dlpi.h ; then
-	V_PCAP=dlpi
-elif test -c /dev/enet ; then		# check again in case not readable
-	V_PCAP=enet
-elif test -c /dev/nit ; then		# check again in case not readable
-	V_PCAP=snit
 else
-	V_PCAP=null
+	#
+	# Check for a bunch of headers for various packet
+	# capture mechanisms.
+	#
+	AC_CHECK_HEADERS(net/bpf.h net/pfilt.h net/enet.h)
+	AC_CHECK_HEADERS(net/nit.h sys/net/nit.h)
+	AC_CHECK_HEADERS(linux/socket.h net/raw.h sys/dlpi.h)
+
+	if test "$ac_cv_header_net_bpf_h" = yes; then
+		#
+		# BPF.
+		# Check this before DLPI, so that we pick BPF on
+		# Solaris 11 and later.
+		#
+		V_PCAP=bpf
+
+		#
+		# We have BPF, so build valgrindtest with "make test"
+		# on macOS, FreeBSD, and Linux (add your OS once
+		# there's a valgrind for it).
+		#
+		case "$host_os" in
+
+		freebsd*|darwin*|linux*)
+			VALGRINDTEST=valgrindtest
+			;;
+		esac
+	elif test "$ac_cv_header_net_pfilt_h" = yes; then
+	        #
+	        # DEC OSF/1, Digital UNIX, Tru64 UNIX
+        	#
+		V_PCAP=pf
+	elif test "$ac_cv_header_net_enet_h" = yes; then
+		#
+		# Stanford Enetfilter.
+		#
+		V_PCAP=enet
+	elif test "$ac_cv_header_net_nit_h" = yes; then
+		#
+		# SunOS 4.x STREAMS NIT.
+		#
+		V_PCAP=snit
+	elif test "$ac_cv_header_sys_net_nit_h" = yes; then
+		#
+		# Pre-SunOS 4.x non-STREAMS NIT.
+		#
+		V_PCAP=nit
+	elif test "$ac_cv_header_linux_socket_h" = yes; then
+		#
+		# No prizes for guessing this one.
+		#
+		V_PCAP=linux
+
+		#
+		# XXX - this won't work with older kernels that have
+		# SOCK_PACKET sockets but not PF_PACKET sockets.
+		#
+		VALGRINDTEST=valgrindtest
+	elif test "$ac_cv_header_net_raw_h" = yes; then
+		#
+		# IRIX snoop.
+		#
+		V_PCAP=snoop
+	elif test "$ac_cv_header_sys_dlpi_h" = yes; then
+		#
+		# DLPI on pre-Solaris 11 SunOS 5, HP-UX, possibly others.
+		#
+		V_PCAP=dlpi
+	else
+		#
+		# Nothing we support.
+		#
+		V_PCAP=null
+	fi
 fi
+AC_MSG_CHECKING(packet capture type)
 AC_MSG_RESULT($V_PCAP)
 AC_SUBST(VALGRINDTEST)
 
@@ -442,25 +398,6 @@ dlpi)
 	AC_MSG_RESULT($ac_cv_sys_dlpi_usable)
 	if test $ac_cv_sys_dlpi_usable = no ; then
 		AC_MSG_ERROR(<sys/dlpi.h> is not usable on this system; it probably has a non-standard DLPI)
-	fi
-
-	#
-	# Check whether we have a /dev/dlpi device or have multiple devices.
-	#
-	AC_MSG_CHECKING(for /dev/dlpi device)
-	if test -c /dev/dlpi ; then
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_DEV_DLPI, 1, [define if you have a /dev/dlpi])
-	else
-		AC_MSG_RESULT(no)
-		dir="/dev/dlpi"
-		AC_MSG_CHECKING(for $dir directory)
-		if test -d $dir ; then
-			AC_MSG_RESULT(yes)
-			AC_DEFINE_UNQUOTED(PCAP_DEV_PREFIX, "$dir", [/dev/dlpi directory])
-		else
-			AC_MSG_RESULT(no)
-		fi
 	fi
 
 	#
@@ -572,20 +509,6 @@ bpf)
 	# Check whether we have the *BSD-style ioctls.
 	#
 	AC_CHECK_HEADERS(net/if_media.h)
-
-	AC_MSG_CHECKING(whether the system supports zerocopy BPF)
-	AC_TRY_COMPILE(
-	    [#include <sys/socket.h>
-	    #include <sys/ioctl.h>
-	    #include <net/if.h>
-	    #include <net/bpf.h>],
-	    [return (BIOCROTZBUF + BPF_BUFMODE_ZBUF);],
-	    [
-		AC_MSG_RESULT(yes)
-		AC_DEFINE(HAVE_ZEROCOPY_BPF, 1,
-		[define if the system supports zerocopy BPF])
-	    ],
-	    AC_MSG_RESULT(no))
 
 	    #
 	    # Check whether we have struct BPF_TIMEVAL.
@@ -1563,9 +1486,6 @@ if test "x$enable_usb" != "xno" ; then
 	  AC_CACHE_VAL(ac_cv_usbdevfs_ctrltransfer_has_bRequestType,
 	    AC_TRY_COMPILE([
 AC_INCLUDES_DEFAULT
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif
 #ifdef HAVE_LINUX_COMPILER_H
 #include <linux/compiler.h>
 #endif
@@ -1623,9 +1543,9 @@ AC_INCLUDES_DEFAULT
 #include <linux/netfilter/nfnetlink.h>
 #include <linux/netfilter/nfnetlink_log.h>
 #include <linux/netfilter/nfnetlink_queue.h>],
-	    [],
-	    ac_cv_netfilter_can_compile=yes,
-	    ac_cv_netfilter_can_compile=no))
+		    [],
+		    ac_cv_netfilter_can_compile=yes,
+		    ac_cv_netfilter_can_compile=no))
 		AC_MSG_RESULT($ac_cv_netfilter_can_compile)
 		if test $ac_cv_netfilter_can_compile = yes ; then
 		  AC_DEFINE(PCAP_SUPPORT_NETFILTER, 1,
@@ -1640,6 +1560,38 @@ AC_INCLUDES_DEFAULT
 fi
 AC_SUBST(PCAP_SUPPORT_NETFILTER)
 AC_SUBST(NETFILTER_SRC)
+
+AC_ARG_ENABLE([netmap],
+[AC_HELP_STRING([--enable-netmap],[enable netmap support @<:@default=yes, if support available@:>@])],
+    [],
+    [enable_netmap=yes])
+
+if test "x$enable_netmap" != "xno" ; then
+	#
+	# Check whether net/netmap_user.h is usable if NETMAP_WITH_LIBS is
+	# defined; it's not usable on DragonFly BSD 4.6 if NETMAP_WITH_LIBS
+	# is defined, for example, as it includes a non-existent malloc.h
+	# header.
+	#
+	AC_MSG_CHECKING(whether we can compile the netmap support)
+	AC_CACHE_VAL(ac_cv_net_netmap_user_can_compile,
+	  AC_TRY_COMPILE([
+AC_INCLUDES_DEFAULT
+#define NETMAP_WITH_LIBS
+#include <net/netmap_user.h>],
+	    [],
+	    ac_cv_net_netmap_user_can_compile=yes,
+	    ac_cv_net_netmap_user_can_compile=no))
+	AC_MSG_RESULT($ac_cv_net_netmap_user_can_compile)
+	if test $ac_cv_net_netmap_user_can_compile = yes ; then
+	  AC_DEFINE(PCAP_SUPPORT_NETMAP, 1,
+	    [target host supports netmap])
+	    NETMAP_SRC=pcap-netmap.c
+	fi
+	AC_SUBST(PCAP_SUPPORT_NETMAP)
+	AC_SUBST(NETMAP_SRC)
+fi
+
 
 AC_ARG_ENABLE([bluetooth],
 [AC_HELP_STRING([--enable-bluetooth],[enable Bluetooth support @<:@default=yes, if support available@:>@])],
@@ -1841,6 +1793,45 @@ AC_ARG_ENABLE([packet-ring],
 if test "x$enable_packet_ring" != "xno" ; then
 	AC_DEFINE(PCAP_SUPPORT_PACKET_RING, 1, [use Linux packet ring capture if available])
 	AC_SUBST(PCAP_SUPPORT_PACKET_RING)
+fi
+
+AC_ARG_ENABLE([rdma],
+[AC_HELP_STRING([--enable-rdma],[enable RDMA capture support @<:@default=yes, if support available@:>@])],
+    [],
+    [enable_rdmasniff=ifavailable])
+
+if test "xxx_only" = yes; then
+	# User requested something-else-only pcap, so they don't
+	# want RDMA support.
+	enable_rdmasniff=no
+fi
+
+if test "x$enable_rdmasniff" != "xno"; then
+	AC_CHECK_LIB(ibverbs, ibv_get_device_list, [
+		AC_CHECK_HEADER(infiniband/verbs.h, [
+			AC_MSG_CHECKING(whether libibverbs defines ibv_create_flow)
+			AC_TRY_LINK(
+				[
+					#include <infiniband/verbs.h>
+				],
+				[
+					(void) ibv_create_flow((struct ibv_qp *) NULL,
+							       (struct ibv_flow_attr *) NULL);
+				],
+				[
+					AC_MSG_RESULT([yes])
+					AC_DEFINE(PCAP_SUPPORT_RDMASNIFF, , [target host supports RDMA sniffing])
+					RDMA_SRC=pcap-rdmasniff.c
+					LIBS="-libverbs $LIBS"
+				],
+				[
+					AC_MSG_RESULT([no])
+				]
+			)
+		])
+	])
+	AC_SUBST(PCAP_SUPPORT_RDMASNIFF)
+	AC_SUBST(RDMA_SRC)
 fi
 
 AC_PROG_INSTALL

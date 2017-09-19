@@ -15,7 +15,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
 #include <sys/param.h>
@@ -197,6 +197,17 @@ static pcap_t *septel_activate(pcap_t* handle) {
   /* Initialize some components of the pcap structure. */
   handle->linktype = DLT_MTP2;
 
+  /*
+   * Turn a negative snapshot value (invalid), a snapshot value of
+   * 0 (unspecified), or a value bigger than the normal maximum
+   * value, into the maximum allowed value.
+   *
+   * If some application really *needs* a bigger snapshot
+   * length, we should just increase MAXIMUM_SNAPLEN.
+   */
+  if (handle->snapshot <= 0 || handle->snapshot > MAXIMUM_SNAPLEN)
+    handle->snapshot = MAXIMUM_SNAPLEN;
+
   handle->bufsize = 0;
 
   /*
@@ -318,5 +329,16 @@ pcap_create_interface(const char *device, char *errbuf)
   pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
                 "This version of libpcap only supports Septel cards");
   return (NULL);
+}
+
+#include "pcap_version.h"
+
+/*
+ * Libpcap version string.
+ */
+const char *
+pcap_lib_version(void)
+{
+  return (PCAP_VERSION_STRING " (Septel-only)");
 }
 #endif

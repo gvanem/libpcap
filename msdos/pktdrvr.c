@@ -1,7 +1,7 @@
 /*
  *  File.........: pktdrvr.c
  *
- *  Responsible..: Gisle Vanem,  giva@bgnett.no
+ *  Responsible..: Gisle Vanem,  gvanem@yahoo.no
  *
  *  Created......: 26.Sept 1995
  *
@@ -15,6 +15,9 @@
  *                 FTP Software Inc.
  *
  */
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -673,7 +676,7 @@ PUBLIC BOOL PktGetAddress (ETHER *addr)
 
 PUBLIC BOOL PktSetAddress (const ETHER *addr)
 {
-  /* copy addr to real-mode scrath area */
+  /* copy addr to real-mode scratch area */
 
 #if (DOSX & PHARLAP)
   WriteRealMem (realBase + (WORD)&pktTemp, (void*)addr, sizeof(*addr));

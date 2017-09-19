@@ -22,22 +22,10 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
-#ifdef _WIN32
-#include <pcap-stdinc.h>
-#else /* _WIN32 */
-#if HAVE_INTTYPES_H
-#include <inttypes.h>
-#elif HAVE_STDINT_H
-#include <stdint.h>
-#endif
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif
-#include <sys/types.h>
-#endif /* _WIN32 */
+#include <pcap-types.h>
 
 #include "pcap-int.h"
 #include "extract.h"
@@ -703,14 +691,14 @@
  * the pseudo-header is:
  *
  * struct dl_ipnetinfo {
- *     u_int8_t   dli_version;
- *     u_int8_t   dli_family;
- *     u_int16_t  dli_htype;
- *     u_int32_t  dli_pktlen;
- *     u_int32_t  dli_ifindex;
- *     u_int32_t  dli_grifindex;
- *     u_int32_t  dli_zsrc;
- *     u_int32_t  dli_zdst;
+ *     uint8_t   dli_version;
+ *     uint8_t   dli_family;
+ *     uint16_t  dli_htype;
+ *     uint32_t  dli_pktlen;
+ *     uint32_t  dli_ifindex;
+ *     uint32_t  dli_grifindex;
+ *     uint32_t  dli_zsrc;
+ *     uint32_t  dli_zdst;
  * };
  *
  * dli_version is 2 for the current version of the pseudo-header.
@@ -1038,7 +1026,37 @@
  */
 #define LINKTYPE_OPENFLOW	267
 
-#define LINKTYPE_MATCHING_MAX	267		/* highest value in the "matching" range */
+/*
+ * SDLC frames containing SNA PDUs.
+ */
+#define LINKTYPE_SDLC		268
+
+/*
+ * per "Selvig, Bjorn" <b.selvig@ti.com> used for
+ * TI protocol sniffer.
+ */
+#define LINKTYPE_TI_LLN_SNIFFER	269
+
+/*
+ * per: Erik de Jong <erikdejong at gmail.com> for
+ *   https://github.com/eriknl/LoRaTap/releases/tag/v0.1
+ */
+#define LINKTYPE_LORATAP        270
+
+/*
+ * per: Stefanha at gmail.com for
+ *   http://lists.sandelman.ca/pipermail/tcpdump-workers/2017-May/000772.html
+ * and: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/linux/vsockmon.h
+ * for: http://qemu-project.org/Features/VirtioVsock
+ */
+#define LINKTYPE_VSOCK          271
+
+/*
+ * Nordic Semiconductor Bluetooth LE sniffer.
+ */
+#define LINKTYPE_NORDIC_BLE	272
+
+#define LINKTYPE_MATCHING_MAX	272		/* highest value in the "matching" range */
 
 static struct linktype_map {
 	int	dlt;
@@ -1185,7 +1203,22 @@ linktype_to_dlt(int linktype)
 	return linktype;
 }
 
-#define EXTRACT_
+/*
+ * Return the maximum snapshot length for a given DLT_ value.
+ *
+ * For most link-layer types, we use MAXIMUM_SNAPLEN, but for DLT_DBUS,
+ * the maximum is 134217728, as per
+ *
+ *    https://dbus.freedesktop.org/doc/dbus-specification.html#message-protocol-messages
+ */
+u_int
+max_snaplen_for_dlt(int dlt)
+{
+	if (dlt == DLT_DBUS)
+		return 134217728;
+	else
+		return MAXIMUM_SNAPLEN;
+}
 
 /*
  * DLT_LINUX_SLL packets with a protocol type of LINUX_SLL_P_CAN or
@@ -1202,7 +1235,7 @@ swap_linux_sll_header(const struct pcap_pkthdr *hdr, u_char *buf)
 	u_int caplen = hdr->caplen;
 	u_int length = hdr->len;
 	struct sll_header *shdr = (struct sll_header *)buf;
-	u_int16_t protocol;
+	uint16_t protocol;
 	pcap_can_socketcan_hdr *chdr;
 
 	if (caplen < (u_int) sizeof(struct sll_header) ||
@@ -1348,7 +1381,7 @@ swap_linux_usb_header(const struct pcap_pkthdr *hdr, u_char *buf,
 		if (uhdr->transfer_type == URB_ISOCHRONOUS) {
 			/* swap the values in struct linux_usb_isodesc */
 			usb_isodesc *pisodesc;
-			u_int32_t i;
+			uint32_t i;
 
 			pisodesc = (usb_isodesc *)(void *)(buf+offset);
 			for (i = 0; i < uhdr->ndesc; i++) {
@@ -1394,7 +1427,7 @@ swap_nflog_header(const struct pcap_pkthdr *hdr, u_char *buf)
 	nflog_tlv_t *tlv;
 	u_int caplen = hdr->caplen;
 	u_int length = hdr->len;
-	u_int16_t size;
+	uint16_t size;
 
 	if (caplen < (u_int) sizeof(nflog_hdr_t) ||
 	    length < (u_int) sizeof(nflog_hdr_t)) {

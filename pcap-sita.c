@@ -25,7 +25,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
 #include <stdio.h>
@@ -992,6 +992,18 @@ static int pcap_activate_sita(pcap_t *handle) {
 	    &handle->linktype);
 	if (fd == -1)
 		return PCAP_ERROR;
+
+	/*
+	 * Turn a negative snapshot value (invalid), a snapshot value of
+	 * 0 (unspecified), or a value bigger than the normal maximum
+	 * value, into the maximum allowed value.
+	 *
+	 * If some application really *needs* a bigger snapshot
+	 * length, we should just increase MAXIMUM_SNAPLEN.
+	 */
+	if (handle->snapshot <= 0 || handle->snapshot > MAXIMUM_SNAPLEN)
+		handle->snapshot = MAXIMUM_SNAPLEN;
+
 	handle->fd = fd;
 	handle->bufsize = handle->snapshot;
 
@@ -1046,4 +1058,15 @@ int pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf) {
 	acn_if_list = 0;											/* then forget our list head, because someone will call pcap_freealldevs() to empty the malloc'ed stuff */
 	//printf("pcap_findalldevs() returning ZERO OK\n");				// fulko
 	return 0;
+}
+
+#include "pcap_version.h"
+
+/*
+ * Libpcap version string.
+ */
+const char *
+pcap_lib_version(void)
+{
+	return PCAP_VERSION_STRING " (SITA-only)";
 }

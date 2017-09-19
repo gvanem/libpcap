@@ -32,22 +32,12 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
-#ifdef _WIN32
-#include <pcap-stdinc.h>
-#else /* _WIN32 */
-#if HAVE_INTTYPES_H
-#include <inttypes.h>
-#elif HAVE_STDINT_H
-#include <stdint.h>
-#endif
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif
+#include <pcap-types.h>
+#ifndef _WIN32
 #include <sys/param.h>
-#include <sys/types.h>
 #ifndef MSDOS
 #include <sys/file.h>
 #endif
@@ -120,9 +110,66 @@ struct rtentry;		/* declarations in <net/if.h> */
 #include "pcap-netfilter-linux.h"
 #endif
 
+#ifdef PCAP_SUPPORT_NETMAP
+#include "pcap-netmap.h"
+#endif
+
 #ifdef PCAP_SUPPORT_DBUS
 #include "pcap-dbus.h"
 #endif
+
+#ifdef PCAP_SUPPORT_RDMASNIFF
+#include "pcap-rdmasniff.h"
+#endif
+
+#ifdef _WIN32
+/*
+ * DllMain(), required when built as a Windows DLL.
+ */
+BOOL WINAPI DllMain(
+  HANDLE hinstDLL,
+  DWORD dwReason,
+  LPVOID lpvReserved
+)
+{
+	return (TRUE);
+}
+
+/*
+ * Start WinSock.
+ * Exported in case some applications using WinPcap called it,
+ * even though it wasn't exported.
+ */
+int
+wsockinit(void)
+{
+	WORD wVersionRequested;
+	WSADATA wsaData;
+	static int err = -1;
+	static int done = 0;
+
+	if (done)
+		return (err);
+
+	wVersionRequested = MAKEWORD( 1, 1);
+	err = WSAStartup( wVersionRequested, &wsaData );
+	atexit ((void(*)(void))WSACleanup);
+	done = 1;
+
+	if ( err != 0 )
+		err = -1;
+	return (err);
+}
+
+/*
+ * This is the exported function; new programs should call this.
+ */
+int
+pcap_wsockinit(void)
+{
+       return (wsockinit());
+}
+#endif /* _WIN32 */
 
 static int
 pcap_not_initialized(pcap_t *pcap)
@@ -350,8 +397,14 @@ static struct capture_source_type {
 #ifdef PCAP_SUPPORT_NETFILTER
 	{ netfilter_findalldevs, netfilter_create },
 #endif
+#ifdef PCAP_SUPPORT_NETMAP
+	{ pcap_netmap_findalldevs, pcap_netmap_create },
+#endif
 #ifdef PCAP_SUPPORT_DBUS
 	{ dbus_findalldevs, dbus_create },
+#endif
+#ifdef PCAP_SUPPORT_RDMASNIFF
+	{ rdmasniff_findalldevs, rdmasniff_create },
 #endif
 	{ NULL, NULL }
 };
@@ -1101,6 +1154,727 @@ pcap_freealldevs(pcap_if_t *alldevs)
 	}
 }
 
+/*
+ * pcap-npf.c has its own pcap_lookupdev(), for compatibility reasons, as
+ * it actually returns the names of all interfaces, with a NUL separator
+ * between them; some callers may depend on that.
+ *
+ * MS-DOS has its own pcap_lookupdev(), but that might be useful only
+ * as an optimization.
+ *
+ * In all other cases, we just use pcap_findalldevs() to get a list of
+ * devices, and pick from that list.
+ */
+#if !defined(HAVE_PACKET32) && !defined(MSDOS)
+/*
+ * Return the name of a network interface attached to the system, or NULL
+ * if none can be found.  The interface must be configured up; the
+ * lowest unit number is preferred; loopback is ignored.
+ */
+char *
+pcap_lookupdev(errbuf)
+	register char *errbuf;
+{
+	pcap_if_t *alldevs;
+#ifdef _WIN32
+  /*
+   * Windows - use the same size as the old WinPcap 3.1 code.
+   * XXX - this is probably bigger than it needs to be.
+   */
+  #define IF_NAMESIZE 8192
+#else
+  /*
+   * UN*X - use the system's interface name size.
+   * XXX - that might not be large enough for capture devices
+   * that aren't regular network interfaces.
+   */
+  /* for old BSD systems, including bsdi3 */
+  #ifndef IF_NAMESIZE
+  #define IF_NAMESIZE IFNAMSIZ
+  #endif
+#endif
+	static char device[IF_NAMESIZE + 1];
+	char *ret;
+
+	if (pcap_findalldevs(&alldevs, errbuf) == -1)
+		return (NULL);
+
+	if (alldevs == NULL || (alldevs->flags & PCAP_IF_LOOPBACK)) {
+		/*
+		 * There are no devices on the list, or the first device
+		 * on the list is a loopback device, which means there
+		 * are no non-loopback devices on the list.  This means
+		 * we can't return any device.
+		 *
+		 * XXX - why not return a loopback device?  If we can't
+		 * capture on it, it won't be on the list, and if it's
+		 * on the list, there aren't any non-loopback devices,
+		 * so why not just supply it as the default device?
+		 */
+		(void)strlcpy(errbuf, "no suitable device found",
+		    PCAP_ERRBUF_SIZE);
+		ret = NULL;
+	} else {
+		/*
+		 * Return the name of the first device on the list.
+		 */
+		(void)strlcpy(device, alldevs->name, sizeof(device));
+		ret = device;
+	}
+
+	pcap_freealldevs(alldevs);
+	return (ret);
+}
+#endif /* !defined(HAVE_PACKET32) && !defined(MSDOS) */
+
+#if !defined(_WIN32) && !defined(MSDOS)
+/*
+ * We don't just fetch the entire list of devices, search for the
+ * particular device, and use its first IPv4 address, as that's too
+ * much work to get just one device's netmask.
+ *
+ * If we had an API to get attributes for a given device, we could
+ * use that.
+ */
+int
+pcap_lookupnet(device, netp, maskp, errbuf)
+	register const char *device;
+	register bpf_u_int32 *netp, *maskp;
+	register char *errbuf;
+{
+	register int fd;
+	register struct sockaddr_in *sin4;
+	struct ifreq ifr;
+
+	/*
+	 * The pseudo-device "any" listens on all interfaces and therefore
+	 * has the network address and -mask "0.0.0.0" therefore catching
+	 * all traffic. Using NULL for the interface is the same as "any".
+	 */
+	if (!device || strcmp(device, "any") == 0
+#ifdef HAVE_DAG_API
+	    || strstr(device, "dag") != NULL
+#endif
+#ifdef HAVE_SEPTEL_API
+	    || strstr(device, "septel") != NULL
+#endif
+#ifdef PCAP_SUPPORT_BT
+	    || strstr(device, "bluetooth") != NULL
+#endif
+#ifdef PCAP_SUPPORT_USB
+	    || strstr(device, "usbmon") != NULL
+#endif
+#ifdef HAVE_SNF_API
+	    || strstr(device, "snf") != NULL
+#endif
+#ifdef PCAP_SUPPORT_NETMAP
+	    || strncmp(device, "netmap:", 7) == 0
+	    || strncmp(device, "vale", 4) == 0
+#endif
+	    ) {
+		*netp = *maskp = 0;
+		return 0;
+	}
+
+	fd = socket(AF_INET, SOCK_DGRAM, 0);
+	if (fd < 0) {
+		(void)pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "socket: %s",
+		    pcap_strerror(errno));
+		return (-1);
+	}
+	memset(&ifr, 0, sizeof(ifr));
+#ifdef linux
+	/* XXX Work around Linux kernel bug */
+	ifr.ifr_addr.sa_family = AF_INET;
+#endif
+	(void)strlcpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
+	if (ioctl(fd, SIOCGIFADDR, (char *)&ifr) < 0) {
+		if (errno == EADDRNOTAVAIL) {
+			(void)pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+			    "%s: no IPv4 address assigned", device);
+		} else {
+			(void)pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+			    "SIOCGIFADDR: %s: %s",
+			    device, pcap_strerror(errno));
+		}
+		(void)close(fd);
+		return (-1);
+	}
+	sin4 = (struct sockaddr_in *)&ifr.ifr_addr;
+	*netp = sin4->sin_addr.s_addr;
+	memset(&ifr, 0, sizeof(ifr));
+#ifdef linux
+	/* XXX Work around Linux kernel bug */
+	ifr.ifr_addr.sa_family = AF_INET;
+#endif
+	(void)strlcpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
+	if (ioctl(fd, SIOCGIFNETMASK, (char *)&ifr) < 0) {
+		(void)pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+		    "SIOCGIFNETMASK: %s: %s", device, pcap_strerror(errno));
+		(void)close(fd);
+		return (-1);
+	}
+	(void)close(fd);
+	*maskp = sin4->sin_addr.s_addr;
+	if (*maskp == 0) {
+		if (IN_CLASSA(*netp))
+			*maskp = IN_CLASSA_NET;
+		else if (IN_CLASSB(*netp))
+			*maskp = IN_CLASSB_NET;
+		else if (IN_CLASSC(*netp))
+			*maskp = IN_CLASSC_NET;
+		else {
+			(void)pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+			    "inet class for 0x%x unknown", *netp);
+			return (-1);
+		}
+	}
+	*netp &= *maskp;
+	return (0);
+}
+#endif /* !defined(_WIN32) && !defined(MSDOS) */
+
+#ifdef HAVE_REMOTE
+#include "pcap-rpcap.h"
+
+/*
+ * Extract a substring from a string.
+ */
+static char *
+get_substring(const char *p, size_t len, char *ebuf)
+{
+	char *token;
+
+	token = malloc(len + 1);
+	if (token == NULL) {
+		pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
+		    pcap_strerror(errno));
+		return (NULL);
+	}
+	memcpy(token, p, len);
+	token[len] = '\0';
+	return (token);
+}
+
+/*
+ * Parse a capture source that might be a URL.
+ *
+ * If the source is not a URL, *schemep, *userinfop, *hostp, and *portp
+ * are set to NULL, *pathp is set to point to the source, and 0 is
+ * returned.
+ *
+ * If source is a URL, and the URL refers to a local device (a special
+ * case of rpcap:), *schemep, *userinfop, *hostp, and *portp are set
+ * to NULL, *pathp is set to point to the device name, and 0 is returned.
+ *
+ * If source is a URL, and it's not a special case that refers to a local
+ * device, and the parse succeeds:
+ *
+ *    *schemep is set to point to an allocated string containing the scheme;
+ *
+ *    if user information is present in the URL, *userinfop is set to point
+ *    to an allocated string containing the user information, otherwise
+ *    it's set to NULL;
+ *
+ *    if host information is present in the URL, *hostp is set to point
+ *    to an allocated string containing the host information, otherwise
+ *    it's set to NULL;
+ *
+ *    if a port number is present in the URL, *portp is set to point
+ *    to an allocated string containing the port number, otherwise
+ *    it's set to NULL;
+ *
+ *    *pathp is set to point to an allocated string containing the
+ *    path;
+ *
+ * and 0 is returned.
+ *
+ * If the parse fails, ebuf is set to an error string, and -1 is returned.
+ */
+static int
+pcap_parse_source(const char *source, char **schemep, char **userinfop,
+    char **hostp, char **portp, char **pathp, char *ebuf)
+{
+	char *colonp;
+	size_t scheme_len;
+	char *scheme;
+	const char *endp;
+	size_t authority_len;
+	char *authority;
+	char *parsep, *atsignp, *bracketp;
+	char *userinfo, *host, *port, *path;
+
+	/*
+	 * Start out returning nothing.
+	 */
+	*schemep = NULL;
+	*userinfop = NULL;
+	*hostp = NULL;
+	*portp = NULL;
+	*pathp = NULL;
+
+	/*
+	 * RFC 3986 says:
+	 *
+	 *   URI         = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
+	 *
+	 *   hier-part   = "//" authority path-abempty
+	 *               / path-absolute
+	 *               / path-rootless
+	 *               / path-empty
+	 *
+	 *   authority   = [ userinfo "@" ] host [ ":" port ]
+	 *
+	 *   userinfo    = *( unreserved / pct-encoded / sub-delims / ":" )
+         *
+         * Step 1: look for the ":" at the end of the scheme.
+	 * A colon in the source is *NOT* sufficient to indicate that
+	 * this is a URL, as interface names on some platforms might
+	 * include colons (e.g., I think some Solaris interfaces
+	 * might).
+	 */
+	colonp = strchr(source, ':');
+	if (colonp == NULL) {
+		/*
+		 * The source is the device to open.
+		 * Return a NULL pointer for the scheme, user information,
+		 * host, and port, and return the device as the path.
+		 */
+		*pathp = strdup(source);
+		if (*pathp == NULL) {
+			pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
+			    pcap_strerror(errno));
+			return (-1);
+		}
+		return (0);
+	}
+
+	/*
+	 * All schemes must have "//" after them, i.e. we only support
+	 * hier-part   = "//" authority path-abempty, not
+	 * hier-part   = path-absolute
+	 * hier-part   = path-rootless
+	 * hier-part   = path-empty
+	 *
+	 * We need that in order to distinguish between a local device
+	 * name that happens to contain a colon and a URI.
+	 */
+	if (strncmp(colonp + 1, "//", 2) != 0) {
+		/*
+		 * The source is the device to open.
+		 * Return a NULL pointer for the scheme, user information,
+		 * host, and port, and return the device as the path.
+		 */
+		*pathp = strdup(source);
+		if (*pathp == NULL) {
+			pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
+			    pcap_strerror(errno));
+			return (-1);
+		}
+		return (0);
+	}
+
+	/*
+	 * XXX - check whether the purported scheme could be a scheme?
+	 */
+
+	/*
+	 * OK, this looks like a URL.
+	 * Get the scheme.
+	 */
+	scheme_len = colonp - source;
+	scheme = malloc(scheme_len + 1);
+	if (scheme == NULL) {
+		pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
+		    pcap_strerror(errno));
+		return (-1);
+	}
+	memcpy(scheme, source, scheme_len);
+	scheme[scheme_len] = '\0';
+	 
+	/*
+	 * Treat file: specially - take everything after file:// as
+	 * the pathname.
+	 */
+	if (pcap_strcasecmp(scheme, "file") == 0) {
+		*pathp = strdup(colonp + 3);
+		if (*pathp == NULL) {
+			pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
+			    pcap_strerror(errno));
+			return (-1);
+		}
+		return (0);
+	}
+
+	/*
+	 * The WinPcap documentation says you can specify a local
+	 * interface with "rpcap://{device}"; we special-case
+	 * that here.  If the scheme is "rpcap", and there are
+	 * no slashes past the "//", we just return the device.
+	 *
+	 * XXX - %-escaping?
+	 */
+	if (pcap_strcasecmp(scheme, "rpcap") == 0 &&
+	    strchr(colonp + 3, '/') == NULL) {
+		/*
+		 * Local device.
+		 *
+		 * Return a NULL pointer for the scheme, user information,
+		 * host, and port, and return the device as the path.
+		 */
+		free(scheme);
+		*pathp = strdup(colonp + 3);
+		if (*pathp == NULL) {
+			pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
+			    pcap_strerror(errno));
+			return (-1);
+		}
+		return (0);
+	}
+
+	/*
+	 * OK, now start parsing the authority.
+	 * Get token, terminated with / or terminated at the end of
+	 * the string.
+	 */
+	authority_len = strcspn(colonp + 3, "/");
+	authority = get_substring(colonp + 3, authority_len, ebuf);
+	if (authority == NULL) {
+		/*
+		 * Error.
+		 */
+		free(scheme);
+		return (-1);
+	}
+	endp = colonp + 3 + authority_len;
+
+	/*
+	 * Now carve the authority field into its components.
+	 */
+	parsep = authority;
+
+	/*
+	 * Is there a userinfo field?
+	 */
+	atsignp = strchr(parsep, '@');
+	if (atsignp != NULL) {
+		/*
+		 * Yes.
+		 */
+		size_t userinfo_len;
+
+		userinfo_len = atsignp - parsep;
+		userinfo = get_substring(parsep, userinfo_len, ebuf);
+		if (userinfo == NULL) {
+			/*
+			 * Error.
+			 */
+			free(authority);
+			free(scheme);
+			return (-1);
+		}
+		parsep = atsignp + 1;
+	} else {
+		/*
+		 * No.
+		 */
+		userinfo = NULL;
+	}
+
+	/*
+	 * Is there a host field?
+	 */
+	if (*parsep == '\0') {
+		/*
+		 * No; there's no host field or port field.
+		 */
+		host = NULL;
+		port = NULL;
+	} else {
+		/*
+		 * Yes.
+		 */
+		size_t host_len;
+
+		/*
+		 * Is it an IP-literal?
+		 */
+		if (*parsep == '[') {
+			/*
+			 * Yes.
+			 * Treat verything up to the closing square
+			 * bracket as the IP-Literal; we don't worry
+			 * about whether it's a valid IPv6address or
+			 * IPvFuture.
+			 */
+			bracketp = strchr(parsep, ']');
+			if (bracketp == NULL) {
+				/*
+				 * There's no closing square bracket.
+				 */
+				pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE,
+				    "IP-literal in URL doesn't end with ]");
+				free(userinfo);
+				free(authority);
+				free(scheme);
+				return (-1);
+			}
+			if (*(bracketp + 1) != '\0' &&
+			    *(bracketp + 1) != ':') {
+				/*
+				 * There's extra crud after the
+				 * closing square bracketn.
+				 */
+				pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE,
+				    "Extra text after IP-literal in URL");
+				free(userinfo);
+				free(authority);
+				free(scheme);
+				return (-1);
+			}
+			host_len = (bracketp - 1) - parsep;
+			host = get_substring(parsep + 1, host_len, ebuf);
+			if (host == NULL) {
+				/*
+				 * Error.
+				 */
+				free(userinfo);
+				free(authority);
+				free(scheme);
+				return (-1);
+			}
+			parsep = bracketp + 1;
+		} else {
+			/*
+			 * No.
+			 * Treat everything up to a : or the end of
+			 * the string as the host.
+			 */
+			host_len = strcspn(parsep, ":");
+			host = get_substring(parsep, host_len, ebuf);
+			if (host == NULL) {
+				/*
+				 * Error.
+				 */
+				free(userinfo);
+				free(authority);
+				free(scheme);
+				return (-1);
+			}
+			parsep = parsep + host_len;
+		}
+
+		/*
+		 * Is there a port field?
+		 */
+		if (*parsep == ':') {
+			/*
+			 * Yes.  It's the rest of the authority field.
+			 */
+			size_t port_len;
+
+			parsep++;
+			port_len = strlen(parsep);
+			port = get_substring(parsep, port_len, ebuf);
+			if (port == NULL) {
+				/*
+				 * Error.
+				 */
+				free(host);
+				free(userinfo);
+				free(authority);
+				free(scheme);
+				return (-1);
+			}
+		} else {
+			/*
+			 * No.
+			 */
+			port = NULL;
+		}
+	}
+	free(authority);
+
+	/*
+	 * Everything else is the path.  Strip off the leading /.
+	 */
+	if (*endp == '\0')
+		path = strdup("");
+	else
+		path = strdup(endp + 1);
+	if (path == NULL) {
+		pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
+		    pcap_strerror(errno));
+		free(port);
+		free(host);
+		free(userinfo);
+		free(scheme);
+		return (-1);
+	}
+	*schemep = scheme;
+	*userinfop = userinfo;
+	*hostp = host;
+	*portp = port;
+	*pathp = path;
+	return (0);
+}
+
+int
+pcap_createsrcstr(char *source, int type, const char *host, const char *port,
+    const char *name, char *errbuf)
+{
+	switch (type) {
+
+	case PCAP_SRC_FILE:
+		strlcpy(source, PCAP_SRC_FILE_STRING, PCAP_BUF_SIZE);
+		if (name != NULL && *name != '\0') {
+			strlcat(source, name, PCAP_BUF_SIZE);
+			return (0);
+		} else {
+			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+			    "The file name cannot be NULL.");
+			return (-1);
+		}
+
+	case PCAP_SRC_IFREMOTE:
+		strlcpy(source, PCAP_SRC_IF_STRING, PCAP_BUF_SIZE);
+		if (host != NULL && *host != '\0') {
+			if (strchr(host, ':') != NULL) {
+				/*
+				 * The host name contains a colon, so it's
+				 * probably an IPv6 address, and needs to
+				 * be included in square brackets.
+				 */
+				strlcat(source, "[", PCAP_BUF_SIZE);
+				strlcat(source, host, PCAP_BUF_SIZE);
+				strlcat(source, "]", PCAP_BUF_SIZE);
+			} else
+				strlcat(source, host, PCAP_BUF_SIZE);
+
+			if (port != NULL && *port != '\0') {
+				strlcat(source, ":", PCAP_BUF_SIZE);
+				strlcat(source, port, PCAP_BUF_SIZE);
+			}
+
+			strlcat(source, "/", PCAP_BUF_SIZE);
+		} else {
+			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+			    "The host name cannot be NULL.");
+			return (-1);
+		}
+
+		if (name != NULL && *name != '\0')
+			strlcat(source, name, PCAP_BUF_SIZE);
+
+		return (0);
+
+	case PCAP_SRC_IFLOCAL:
+		strlcpy(source, PCAP_SRC_IF_STRING, PCAP_BUF_SIZE);
+
+		if (name != NULL && *name != '\0')
+			strlcat(source, name, PCAP_BUF_SIZE);
+
+		return (0);
+
+	default:
+		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+		    "The interface type is not valid.");
+		return (-1);
+	}
+}
+
+int
+pcap_parsesrcstr(const char *source, int *type, char *host, char *port,
+    char *name, char *errbuf)
+{
+	char *scheme, *tmpuserinfo, *tmphost, *tmpport, *tmppath;
+
+	/* Initialization stuff */
+	if (host)
+		*host = '\0';
+	if (port)
+		*port = '\0';
+	if (name)
+		*name = '\0';
+
+	/* Parse the source string */
+	if (pcap_parse_source(source, &scheme, &tmpuserinfo, &tmphost,
+	    &tmpport, &tmppath, errbuf) == -1) {
+		/*
+		 * Fail.
+		 */
+		return (-1);
+	}
+
+	if (scheme == NULL) {
+		/*
+		 * Local device.
+		 */
+		if (name && tmppath)
+			strlcpy(name, tmppath, PCAP_BUF_SIZE);
+		if (type)
+			*type = PCAP_SRC_IFLOCAL;
+		free(tmppath);
+		free(tmphost);
+		free(tmpuserinfo);
+		return (0);
+	}
+
+	if (strcmp(scheme, "rpcap") == 0) {
+		/*
+		 * rpcap://
+		 *
+		 * pcap_parse_source() has already handled the case of
+		 * rpcap://device
+		 */
+		if (host && tmphost) {
+			if (tmpuserinfo)
+				pcap_snprintf(host, PCAP_BUF_SIZE, "%s@%s",
+				    tmpuserinfo, tmphost);
+			else
+				strlcpy(host, tmphost, PCAP_BUF_SIZE);
+		}
+		if (port && tmpport)
+			strlcpy(port, tmpport, PCAP_BUF_SIZE);
+		if (name && tmppath)
+			strlcpy(name, tmppath, PCAP_BUF_SIZE);
+		if (type)
+			*type = PCAP_SRC_IFREMOTE;
+		free(tmppath);
+		free(tmphost);
+		free(tmpuserinfo);
+		return (0);
+	}
+
+	if (strcmp(scheme, "file") == 0) {
+		/*
+		 * file://
+		 */
+		if (name && tmppath)
+			strlcpy(name, tmppath, PCAP_BUF_SIZE);
+		if (type)
+			*type = PCAP_SRC_FILE;
+		free(tmppath);
+		free(tmphost);
+		free(tmpuserinfo);
+		return (0);
+	}
+
+	/*
+	 * Neither rpcap: nor file:; just treat the entire string
+	 * as a local device.
+	 */
+	if (name)
+		strlcpy(name, source, PCAP_BUF_SIZE);
+	if (type)
+		*type = PCAP_SRC_IFLOCAL;
+	free(tmppath);
+	free(tmphost);
+	free(tmpuserinfo);
+	return (0);
+}
+#endif
+
 pcap_t *
 pcap_create(const char *device, char *errbuf)
 {
@@ -1277,7 +2051,9 @@ pcap_alloc_pcap_t(char *ebuf, size_t size)
 	 */
 	p = (pcap_t *)chunk;
 
-#ifndef _WIN32
+#ifdef _WIN32
+	p->handle = INVALID_HANDLE_VALUE;	/* not opened yet */
+#else
 	p->fd = -1;	/* not opened yet */
 	p->selectable_fd = -1;
 #endif
@@ -1323,7 +2099,7 @@ pcap_create_common(char *ebuf, size_t size)
 	initialize_ops(p);
 
 	/* put in some defaults*/
-	p->snapshot = MAXIMUM_SNAPLEN;	/* max packet size */
+	p->snapshot = 0;		/* max packet size unspecified */
 	p->opt.timeout = 0;		/* no timeout specified */
 	p->opt.buffer_size = 0;		/* use the platform's default */
 	p->opt.promisc = 0;
@@ -1331,6 +2107,15 @@ pcap_create_common(char *ebuf, size_t size)
 	p->opt.immediate = 0;
 	p->opt.tstamp_type = -1;	/* default to not setting time stamp type */
 	p->opt.tstamp_precision = PCAP_TSTAMP_PRECISION_MICRO;
+	/*
+	 * Platform-dependent options.
+	 */
+#ifdef __linux__
+	p->opt.protocol = 0;
+#endif
+#ifdef _WIN32
+	p->opt.nocapture_local = 0;
+#endif
 
 	/*
 	 * Start out with no BPF code generation flags set.
@@ -1356,16 +2141,6 @@ pcap_set_snaplen(pcap_t *p, int snaplen)
 {
 	if (pcap_check_activated(p))
 		return (PCAP_ERROR_ACTIVATED);
-
-	/*
-	 * Turn invalid values, or excessively large values, into
-	 * the maximum allowed value.
-	 *
-	 * If some application really *needs* a bigger snapshot
-	 * length, we should just increase MAXIMUM_SNAPLEN.
-	 */
-	if (snaplen <= 0 || snaplen > MAXIMUM_SNAPLEN)
-		snaplen = MAXIMUM_SNAPLEN;
 	p->snapshot = snaplen;
 	return (0);
 }
@@ -2087,6 +2862,10 @@ static struct dlt_choice dlt_choices[] = {
 	DLT_CHOICE(RDS, "IEC 62106 Radio Data System groups"),
 	DLT_CHOICE(USB_DARWIN, "USB with Darwin header"),
 	DLT_CHOICE(OPENFLOW, "OpenBSD DLT_OPENFLOW"),
+	DLT_CHOICE(SDLC, "IBM SDLC frames"),
+	DLT_CHOICE(TI_LLN_SNIFFER, "TI LLN sniffer frames"),
+	DLT_CHOICE(VSOCK, "Linux vsock"),
+	DLT_CHOICE(NORDIC_BLE, "Nordic Semiconductor Bluetooth LE sniffer frames"),
 	DLT_CHOICE_SENTINEL
 };
 
@@ -2229,8 +3008,8 @@ pcap_fileno(pcap_t *p)
 #ifndef _WIN32
 	return (p->fd);
 #else
-	if (p->adapter != NULL)
-		return ((int)(DWORD)p->adapter->hFile);
+	if (p->handle != INVALID_HANDLE_VALUE)
+		return ((int)(DWORD)p->handle);
 	else
 		return (PCAP_ERROR);
 #endif
@@ -2954,161 +3733,6 @@ pcap_offline_filter(const struct bpf_program *fp, const struct pcap_pkthdr *h,
 	else
 		return (0);
 }
-
-#include "pcap_version.h"
-
-#ifdef _WIN32
-
-static char *full_pcap_version_string;
-
-#ifdef HAVE_VERSION_H
-/*
- * libpcap being built for Windows, as part of a WinPcap/Npcap source
- * tree.  Include version.h from that source tree to get the WinPcap/Npcap
- * version.
- *
- * XXX - it'd be nice if we could somehow generate the WinPcap version number
- * when building WinPcap.  (It'd be nice to do so for the packet.dll version
- * number as well.)
- */
-#include "../../version.h"
-
-static const char wpcap_version_string[] = WINPCAP_VER_STRING;
-static const char pcap_version_string_fmt[] =
-	WINPCAP_PRODUCT_NAME " version %s, based on %s";
-static const char pcap_version_string_packet_dll_fmt[] =
-	WINPCAP_PRODUCT_NAME " version %s (packet.dll version %s), based on %s";
-
-const char *
-pcap_lib_version(void)
-{
-	char *packet_version_string;
-	size_t full_pcap_version_string_len;
-
-	if (full_pcap_version_string == NULL) {
-		/*
-		 * Generate the version string.
-		 */
-		packet_version_string = PacketGetVersion();
-		if (strcmp(wpcap_version_string, packet_version_string) == 0) {
-			/*
-			 * WinPcap version string and packet.dll version
-			 * string are the same; just report the WinPcap
-			 * version.
-			 */
-			full_pcap_version_string_len =
-			    (sizeof pcap_version_string_fmt - 4) +
-			    strlen(wpcap_version_string) +
-			    strlen(pcap_version_string);
-			full_pcap_version_string =
-			    malloc(full_pcap_version_string_len);
-			if (full_pcap_version_string == NULL)
-				return (NULL);
-			pcap_snprintf(full_pcap_version_string,
-			    full_pcap_version_string_len,
-			    pcap_version_string_fmt,
-			    wpcap_version_string,
-			    pcap_version_string);
-		} else {
-			/*
-			 * WinPcap version string and packet.dll version
-			 * string are different; that shouldn't be the
-			 * case (the two libraries should come from the
-			 * same version of WinPcap), so we report both
-			 * versions.
-			 */
-			full_pcap_version_string_len =
-			    (sizeof pcap_version_string_packet_dll_fmt - 6) +
-			    strlen(wpcap_version_string) +
-			    strlen(packet_version_string) +
-			    strlen(pcap_version_string);
-			full_pcap_version_string = malloc(full_pcap_version_string_len);
-			if (full_pcap_version_string == NULL)
-				return (NULL);
-			pcap_snprintf(full_pcap_version_string,
-			    full_pcap_version_string_len,
-			    pcap_version_string_packet_dll_fmt,
-			    wpcap_version_string,
-			    packet_version_string,
-			    pcap_version_string);
-		}
-	}
-	return (full_pcap_version_string);
-}
-
-#else /* HAVE_VERSION_H */
-
-/*
- * libpcap being built for Windows, not as part of a WinPcap/Npcap source
- * tree.
- */
-static const char pcap_version_string_packet_dll_fmt[] =
-	"%s (packet.dll version %s)";
-const char *
-pcap_lib_version(void)
-{
-	char *packet_version_string;
-	size_t full_pcap_version_string_len;
-
-	if (full_pcap_version_string == NULL) {
-		/*
-		 * Generate the version string.  Report the packet.dll
-		 * version.
-		 */
-		packet_version_string = PacketGetVersion();
-		full_pcap_version_string_len =
-		    (sizeof pcap_version_string_packet_dll_fmt - 4) +
-		    strlen(pcap_version_string) +
-		    strlen(packet_version_string);
-		full_pcap_version_string = malloc(full_pcap_version_string_len);
-		if (full_pcap_version_string == NULL)
-			return (NULL);
-		pcap_snprintf(full_pcap_version_string,
-		    full_pcap_version_string_len,
-		    pcap_version_string_packet_dll_fmt,
-		    pcap_version_string,
-		    packet_version_string);
-	}
-	return (full_pcap_version_string);
-}
-
-#endif /* HAVE_VERSION_H */
-
-#elif defined(MSDOS)
-
-static char *full_pcap_version_string;
-
-const char *
-pcap_lib_version (void)
-{
-	char *packet_version_string;
-	size_t full_pcap_version_string_len;
-	static char dospfx[] = "DOS-";
-
-	if (full_pcap_version_string == NULL) {
-		/*
-		 * Generate the version string.
-		 */
-		full_pcap_version_string_len =
-		    sizeof dospfx + strlen(pcap_version_string);
-		full_pcap_version_string =
-		    malloc(full_pcap_version_string_len);
-		if (full_pcap_version_string == NULL)
-			return (NULL);
-		strcpy(full_pcap_version_string, dospfx);
-		strcat(full_pcap_version_string, pcap_version_string);
-	}
-	return (full_pcap_version_string);
-}
-
-#else /* UN*X */
-
-const char *
-pcap_lib_version(void)
-{
-	return (pcap_version_string);
-}
-#endif
 
 #ifdef YYDEBUG
 /*

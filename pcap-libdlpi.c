@@ -25,7 +25,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
 #include <sys/types.h>
@@ -136,6 +136,17 @@ pcap_activate_libdlpi(pcap_t *p)
 		pcap_libdlpi_err(p->opt.device, "dlpi_bind", retv, p->errbuf);
 		goto bad;
 	}
+
+	/*
+	 * Turn a negative snapshot value (invalid), a snapshot value of
+	 * 0 (unspecified), or a value bigger than the normal maximum
+	 * value, into the maximum allowed value.
+	 *
+	 * If some application really *needs* a bigger snapshot
+	 * length, we should just increase MAXIMUM_SNAPLEN.
+	 */
+	if (p->snapshot <= 0 || p->snapshot > MAXIMUM_SNAPLEN)
+		p->snapshot = MAXIMUM_SNAPLEN;
 
 	/* Enable promiscuous mode. */
 	if (p->opt.promisc) {
@@ -449,4 +460,15 @@ pcap_create_interface(const char *device _U_, char *ebuf)
 
 	p->activate_op = pcap_activate_libdlpi;
 	return (p);
+}
+
+#include "pcap_version.h"
+
+/*
+ * Libpcap version string.
+ */
+const char *
+pcap_lib_version(void)
+{
+	return (PCAP_VERSION_STRING);
 }

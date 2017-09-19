@@ -34,7 +34,7 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
 #include "pcap-int.h"
@@ -86,8 +86,8 @@
 #endif
 
 struct mon_bin_stats {
-	u_int32_t queued;
-	u_int32_t dropped;
+	uint32_t queued;
+	uint32_t dropped;
 };
 
 struct mon_bin_get {
@@ -398,7 +398,7 @@ probe_devices(int bus)
 	struct usbdevfs_ctrltransfer ctrl;
 	struct dirent* data;
 	int ret = 0;
-	char buf[40];
+	char buf[sizeof("/dev/bus/usb/000/") + NAME_MAX];
 	DIR* dir;
 
 	/* scan usb bus directories for device nodes */
@@ -496,6 +496,17 @@ usb_activate(pcap_t* handle)
 {
 	struct pcap_usb_linux *handlep = handle->priv;
 	char 		full_path[USB_LINE_LEN];
+
+	/*
+	 * Turn a negative snapshot value (invalid), a snapshot value of
+	 * 0 (unspecified), or a value bigger than the normal maximum
+	 * value, into the maximum allowed value.
+	 *
+	 * If some application really *needs* a bigger snapshot
+	 * length, we should just increase MAXIMUM_SNAPLEN.
+	 */
+	if (handle->snapshot <= 0 || handle->snapshot > MAXIMUM_SNAPLEN)
+		handle->snapshot = MAXIMUM_SNAPLEN;
 
 	/* Initialize some components of the pcap structure. */
 	handle->bufsize = handle->snapshot;

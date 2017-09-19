@@ -20,13 +20,10 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
 #include <sys/param.h>			/* optionally get BSD define */
-#ifdef HAVE_ZEROCOPY_BPF
-#include <sys/mman.h>
-#endif
 #include <sys/socket.h>
 #include <time.h>
 /*
@@ -57,10 +54,6 @@ static const char usbus_prefix[] = "usbus";
 #include <dirent.h>
 #endif
 
-#ifdef HAVE_ZEROCOPY_BPF
-#include <machine/atomic.h>
-#endif
-
 #include <net/if.h>
 
 #ifdef _AIX
@@ -81,6 +74,16 @@ static const char usbus_prefix[] = "usbus";
 #undef _AIX
 #include <net/bpf.h>
 #define _AIX
+
+/*
+ * If both BIOCROTZBUF and BPF_BUFMODE_ZBUF are defined, we have
+ * zero-copy BPF.
+ */
+#if defined(BIOCROTZBUF) && defined(BPF_BUFMODE_ZBUF)
+  #define HAVE_ZEROCOPY_BPF
+  #include <sys/mman.h>
+  #include <machine/atomic.h>
+#endif
 
 #include <net/if_types.h>		/* for IFT_ values */
 #include <sys/sysconfig.h>
@@ -455,7 +458,7 @@ pcap_create_interface(const char *device _U_, char *ebuf)
 	p->tstamp_precision_count = 2;
 	p->tstamp_precision_list = malloc(2 * sizeof(u_int));
 	if (p->tstamp_precision_list == NULL) {
-		snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
+		pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
 		    pcap_strerror(errno));
 		free(p);
 		return (NULL);
@@ -473,13 +476,11 @@ pcap_create_interface(const char *device _U_, char *ebuf)
 static int
 bpf_open(char *errbuf)
 {
-	int fd;
-#ifdef HAVE_CLONING_BPF
-	static const char device[] = "/dev/bpf";
-#else
+	int fd = -1;
+	static const char cloning_device[] = "/dev/bpf";
 	int n = 0;
 	char device[sizeof "/dev/bpf0000000000"];
-#endif
+	static int no_cloning_bpf = 0;
 
 #ifdef _AIX
 	/*
@@ -491,40 +492,56 @@ bpf_open(char *errbuf)
 		return (PCAP_ERROR);
 #endif
 
-#ifdef HAVE_CLONING_BPF
-	if ((fd = open(device, O_RDWR)) == -1 &&
-	    (errno != EACCES || (fd = open(device, O_RDONLY)) == -1)) {
-		if (errno == EACCES)
-			fd = PCAP_ERROR_PERM_DENIED;
-		else
-			fd = PCAP_ERROR;
-		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-		  "(cannot open device) %s: %s", device, pcap_strerror(errno));
-	}
-#else
 	/*
-	 * Go through all the minors and find one that isn't in use.
+	 * First, unless we've already tried opening /dev/bpf and
+	 * gotten ENOENT, try opening /dev/bpf.
+	 * If it fails with ENOENT, remember that, so we don't try
+	 * again, and try /dev/bpfN.
 	 */
-	do {
-		(void)pcap_snprintf(device, sizeof(device), "/dev/bpf%d", n++);
+	if (!no_cloning_bpf &&
+	    (fd = open(cloning_device, O_RDWR)) == -1 &&
+	    ((errno != EACCES && errno != ENOENT) ||
+	     (fd = open(cloning_device, O_RDONLY)) == -1)) {
+		if (errno != ENOENT) {
+			if (errno == EACCES)
+				fd = PCAP_ERROR_PERM_DENIED;
+			else
+				fd = PCAP_ERROR;
+			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+			  "(cannot open device) %s: %s", cloning_device,
+			  pcap_strerror(errno));
+			return (fd);
+		}
+		no_cloning_bpf = 1;
+	}
+
+	if (no_cloning_bpf) {
 		/*
-		 * Initially try a read/write open (to allow the inject
-		 * method to work).  If that fails due to permission
-		 * issues, fall back to read-only.  This allows a
-		 * non-root user to be granted specific access to pcap
-		 * capabilities via file permissions.
-		 *
-		 * XXX - we should have an API that has a flag that
-		 * controls whether to open read-only or read-write,
-		 * so that denial of permission to send (or inability
-		 * to send, if sending packets isn't supported on
-		 * the device in question) can be indicated at open
-		 * time.
+		 * We don't have /dev/bpf.
+		 * Go through all the /dev/bpfN minors and find one
+		 * that isn't in use.
 		 */
-		fd = open(device, O_RDWR);
-		if (fd == -1 && errno == EACCES)
-			fd = open(device, O_RDONLY);
-	} while (fd < 0 && errno == EBUSY);
+		do {
+			(void)pcap_snprintf(device, sizeof(device), "/dev/bpf%d", n++);
+			/*
+			 * Initially try a read/write open (to allow the inject
+			 * method to work).  If that fails due to permission
+			 * issues, fall back to read-only.  This allows a
+			 * non-root user to be granted specific access to pcap
+			 * capabilities via file permissions.
+			 *
+			 * XXX - we should have an API that has a flag that
+			 * controls whether to open read-only or read-write,
+			 * so that denial of permission to send (or inability
+			 * to send, if sending packets isn't supported on
+			 * the device in question) can be indicated at open
+			 * time.
+			 */
+			fd = open(device, O_RDWR);
+			if (fd == -1 && errno == EACCES)
+				fd = open(device, O_RDONLY);
+		} while (fd < 0 && errno == EBUSY);
+	}
 
 	/*
 	 * XXX better message for all minors used
@@ -577,7 +594,6 @@ bpf_open(char *errbuf)
 			break;
 		}
 	}
-#endif
 
 	return (fd);
 }
@@ -1672,6 +1688,17 @@ pcap_activate_bpf(pcap_t *p)
 		goto bad;
 	}
 
+	/*
+	 * Turn a negative snapshot value (invalid), a snapshot value of
+	 * 0 (unspecified), or a value bigger than the normal maximum
+	 * value, into the maximum allowed value.
+	 *
+	 * If some application really *needs* a bigger snapshot
+	 * length, we should just increase MAXIMUM_SNAPLEN.
+	 */
+	if (p->snapshot <= 0 || p->snapshot > MAXIMUM_SNAPLEN)
+		p->snapshot = MAXIMUM_SNAPLEN;
+
 #if defined(LIFNAMSIZ) && defined(ZONENAME_MAX) && defined(lifr_zoneid)
 	/*
 	 * Retrieve the zoneid of the zone we are currently executing in.
@@ -2417,7 +2444,7 @@ pcap_activate_bpf(pcap_t *p)
 #ifdef BIOCSTSTAMP
 	v = BPF_T_BINTIME;
 	if (ioctl(p->fd, BIOCSTSTAMP, &v) < 0) {
-		snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "BIOCSTSTAMP: %s",
+		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "BIOCSTSTAMP: %s",
 		    pcap_strerror(errno));
 		status = PCAP_ERROR;
 		goto bad;
@@ -3148,4 +3175,19 @@ pcap_set_datalink_bpf(pcap_t *p, int dlt)
 	}
 #endif
 	return (0);
+}
+
+#include "pcap_version.h"
+
+/*
+ * Platform-specific information.
+ */
+const char *
+pcap_lib_version(void)
+{
+#ifdef HAVE_ZEROCOPY_BPF
+	return (PCAP_VERSION_STRING " (with zerocopy support)");
+#else
+	return (PCAP_VERSION_STRING);
+#endif
 }

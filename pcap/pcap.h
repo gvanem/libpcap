@@ -69,15 +69,16 @@
 #ifndef lib_pcap_pcap_h
 #define lib_pcap_pcap_h
 
-#include <pcap/export-defs.h>
+#include <pcap/funcattrs.h>
 
 #if defined(_WIN32)
-  #include <pcap-stdinc.h>
+  #include <winsock2.h>		/* u_int, u_char etc. */
+  #include <io.h>		/* _get_osfhandle() */
 #elif defined(MSDOS)
-  #include <sys/types.h>
-  #include <sys/socket.h>  /* u_int, u_char etc. */
+  #include <sys/types.h>	/* u_int, u_char etc. */
+  #include <sys/socket.h>
 #else /* UN*X */
-  #include <sys/types.h>
+  #include <sys/types.h>	/* u_int, u_char etc. */
   #include <sys/time.h>
 #endif /* _WIN32/MSDOS/UN*X */
 
@@ -309,7 +310,14 @@ typedef void (*pcap_handler)(u_char *, const struct pcap_pkthdr *,
  */
 #define PCAP_NETMASK_UNKNOWN	0xffffffff
 
-PCAP_API char	*pcap_lookupdev(char *);
+/*
+ * We're deprecating pcap_lookupdev() for various reasons (not
+ * thread-safe, can behave weirdly with WinPcap).  Callers
+ * should use pcap_findalldevs() and use the first device.
+ */
+PCAP_API char	*pcap_lookupdev(char *)
+PCAP_DEPRECATED(pcap_lookupdev, "use 'pcap_findalldevs' and use the first device");
+
 PCAP_API int	pcap_lookupnet(const char *, bpf_u_int32 *, bpf_u_int32 *, char *);
 
 PCAP_API pcap_t	*pcap_create(const char *, char *);
@@ -330,6 +338,10 @@ PCAP_API void	pcap_free_tstamp_types(int *);
 PCAP_API int	pcap_tstamp_type_name_to_val(const char *);
 PCAP_API const char *pcap_tstamp_type_val_to_name(int);
 PCAP_API const char *pcap_tstamp_type_val_to_description(int);
+
+#ifdef __linux__
+PCAP_API int	pcap_set_protocol(pcap_t *, int);
+#endif
 
 /*
  * Time stamp types.
@@ -394,7 +406,16 @@ PCAP_API pcap_t	*pcap_open_offline(const char *, char *);
   PCAP_API pcap_t  *pcap_hopen_offline(intptr_t, char *);
   /*
    * If we're building libpcap, these are internal routines in savefile.c,
-   * so we mustn't define them as macros.
+   * so we must not define them as macros.
+   *
+   * If we're not building libpcap, given that the version of the C runtime
+   * with which libpcap was built might be different from the version
+   * of the C runtime with which an application using libpcap was built,
+   * and that a FILE structure may differ between the two versions of the
+   * C runtime, calls to _fileno() must use the version of _fileno() in
+   * the C runtime used to open the FILE *, not the version in the C
+   * runtime with which libpcap was built.  (Maybe once the Universal CRT
+   * rules the world, this will cease to be a problem.)
    */
   #ifndef BUILDING_PCAP
     #define pcap_fopen_offline_with_tstamp_precision(f,p,b) \
@@ -465,6 +486,21 @@ PCAP_API void	pcap_dump(u_char *, const struct pcap_pkthdr *, const u_char *);
 PCAP_API int	pcap_findalldevs(pcap_if_t **, char *);
 PCAP_API void	pcap_freealldevs(pcap_if_t *);
 
+/*
+ * We return a pointer to the version string, rather than exporting the
+ * version string directly.
+ *
+ * On at least some UNIXes, if you import data from a shared library into
+ * an program, the data is bound into the program binary, so if the string
+ * in the version of the library with which the program was linked isn't
+ * the same as the string in the version of the library with which the
+ * program is being run, various undesirable things may happen (warnings,
+ * the string being the one from the version of the library with which the
+ * program was linked, or even weirder things, such as the string being the
+ * one from the library but being truncated).
+ *
+ * On Windows, the string is constructed at run time.
+ */
 PCAP_API const char *pcap_lib_version(void);
 
 /*

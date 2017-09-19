@@ -22,22 +22,10 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
 
-#ifdef _WIN32
-#include <pcap-stdinc.h>
-#else /* _WIN32 */
-#if HAVE_INTTYPES_H
-#include <inttypes.h>
-#elif HAVE_STDINT_H
-#include <stdint.h>
-#endif
-#ifdef HAVE_SYS_BITYPES_H
-#include <sys/bitypes.h>
-#endif
-#include <sys/types.h>
-#endif /* _WIN32 */
+#include <pcap-types.h>
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -127,7 +115,7 @@ struct vmapinfo {
 	bpf_int32 const_val;
 };
 
-struct _opt_state {
+typedef struct {
 	/*
 	 * A flag to indicate that further optimization is needed.
 	 * Iterative passes are continued until a given pass yields no
@@ -210,7 +198,7 @@ struct _opt_state {
 	struct vmapinfo *vmap;
 	struct valnode *vnode_base;
 	struct valnode *next_vnode;
-};
+} opt_state_t;
 
 typedef struct {
 	/*
@@ -590,7 +578,7 @@ F(opt_state_t *opt_state, int code, int v0, int v1)
 static inline void
 vstore(struct stmt *s, int *valp, int newval, int alter)
 {
-	if (alter && *valp == newval)
+	if (alter && newval != VAL_UNKNOWN && *valp == newval)
 		s->code = NOP;
 	else
 		*valp = newval;
@@ -1254,8 +1242,9 @@ opt_blk(compiler_state_t *cstate, struct icode *ic, opt_state_t *opt_state,
 	 * block, can we eliminate it?
 	 */
 	if (do_stmts &&
-	    ((b->out_use == 0 && aval != 0 && b->val[A_ATOM] == aval &&
-	      xval != 0 && b->val[X_ATOM] == xval) ||
+	    ((b->out_use == 0 &&
+	      aval != VAL_UNKNOWN && b->val[A_ATOM] == aval &&
+	      xval != VAL_UNKNOWN && b->val[X_ATOM] == xval) ||
 	     BPF_CLASS(b->s.code) == BPF_RET)) {
 		if (b->stmts != 0) {
 			b->stmts = 0;
@@ -2287,7 +2276,7 @@ dot_dump_node(struct icode *ic, struct block *block, struct bpf_program *prog,
 	}
 	fprintf(out, "\" tooltip=\"");
 	for (i = 0; i < BPF_MEMWORDS; i++)
-		if (block->val[i] != 0)
+		if (block->val[i] != VAL_UNKNOWN)
 			fprintf(out, "val[%d]=%d ", i, block->val[i]);
 	fprintf(out, "val[A]=%d ", block->val[A_ATOM]);
 	fprintf(out, "val[X]=%d", block->val[X_ATOM]);
@@ -2346,10 +2335,8 @@ dot_dump(compiler_state_t *cstate, struct icode *ic)
 	f.bf_insns = icode_to_fcode(cstate, ic, ic->root, &f.bf_len);
 
 	fprintf(out, "digraph BPF {\n");
-	ic->cur_mark = 0;
 	unMarkAll(ic);
 	dot_dump_node(ic, ic->root, &f, out);
-	ic->cur_mark = 0;
 	unMarkAll(ic);
 	dot_dump_edge(ic, ic->root, out);
 	fprintf(out, "}\n");

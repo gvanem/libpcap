@@ -30,8 +30,10 @@
  */
 
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include <config.h>
 #endif
+
+#include "ftmacros.h"
 
 #include <pcap.h>		// for libpcap/WinPcap calls
 #include <errno.h>		// for the errno variable
@@ -564,7 +566,7 @@ int daemon_checkauth(SOCKET sockctrl, int nullAuthAllowed, char *errbuf)
 				retcode = -1;
 				goto error;
 			}
-			totread = nread;
+			totread += nread;
 			nread = sock_recv(sockctrl, string2, len2,
 			    SOCK_RECEIVEALL_YES, errbuf, PCAP_ERRBUF_SIZE);
 			if (nread == -1)
@@ -1195,7 +1197,7 @@ static struct session *daemon_startcapture(SOCKET sockctrl, pthread_t *threaddat
 	pthread_attr_setdetachstate(&detachedAttribute, PTHREAD_CREATE_DETACHED);
 	
 	// Now we have to create a new thread to receive packets
-	if (pthread_create(threaddata, &detachedAttribute, (void *) daemon_thrdatamain, (void *) session))
+	if (pthread_create(threaddata, &detachedAttribute, daemon_thrdatamain, (void *) session))
 	{
 		snprintf(errbuf, PCAP_ERRBUF_SIZE, "Error creating the data thread");
 		pthread_attr_destroy(&detachedAttribute);

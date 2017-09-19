@@ -39,6 +39,8 @@
  * flavors of UN*X.
  */
 
+#include "pcap/funcattrs.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -85,25 +87,16 @@ extern "C" {
  #endif
 #endif
 
-/*
- * For flagging arguments as format strings in MSVC.
- */
-#if _MSC_VER >= 1400
- #include <sal.h>
- #if _MSC_VER > 1400
-  #define FORMAT_STRING(p) _Printf_format_string_ p
- #else
-  #define FORMAT_STRING(p) __format_string p
- #endif
-#else
- #define FORMAT_STRING(p) p
-#endif
-
 #ifdef _MSC_VER
-  #ifndef _DEBUG
+  /*
+   * If <crtdbg.h> has been included, and _DEBUG is defined, and
+   * __STDC__ is zero, <crtdbg.h> will define strdup() to call
+   * _strdup_dbg().  So if it's already defined, don't redefine
+   * it.
+   */
+  #ifndef strdup
   #define strdup	_strdup
   #endif
-  #define sscanf	sscanf_s
   #define setbuf(x, y) \
 	setvbuf((x), (y), _IONBF, 0)
   #define fopen(x, y) \
@@ -148,11 +141,8 @@ extern "C" {
 #ifdef HAVE_SNPRINTF
 #define pcap_snprintf snprintf
 #else
-extern int pcap_snprintf(char *, size_t, FORMAT_STRING(const char *), ...)
-#ifdef __ATTRIBUTE___FORMAT_OK
-    __attribute__((format (printf, 3, 4)))
-#endif /* __ATTRIBUTE___FORMAT_OK */
-    ;
+extern int pcap_snprintf(char *, size_t, PCAP_FORMAT_STRING(const char *), ...)
+    PCAP_PRINTFLIKE(3, 4);
 #endif
 
 #ifdef HAVE_VSNPRINTF
@@ -179,50 +169,6 @@ extern int pcap_vsnprintf(char *, size_t, const char *, va_list ap);
 #endif /* HAVE_STRTOK_R */
 
 #ifdef _WIN32
-  /*
-   * These may be defined by <inttypes.h>.
-   *
-   * XXX - for MSVC, we always want the _MSC_EXTENSIONS versions.
-   * What about other compilers?  If, as the MinGW Web site says MinGW
-   * does, the other compilers just use Microsoft's run-time library,
-   * then they should probably use the _MSC_EXTENSIONS even if the
-   * compiler doesn't define _MSC_EXTENSIONS.
-   *
-   * XXX - we currently aren't using any of these, but this allows
-   * their use in the future.
-   */
-  #ifndef PRId64
-    #ifdef _MSC_EXTENSIONS
-      #define PRId64	"I64d"
-    #else
-      #define PRId64	"lld"
-    #endif
-  #endif /* PRId64 */
-
-  #ifndef PRIo64
-    #ifdef _MSC_EXTENSIONS
-      #define PRIo64	"I64o"
-    #else
-      #define PRIo64	"llo"
-    #endif
-  #endif /* PRIo64 */
-
-  #ifndef PRIx64
-    #ifdef _MSC_EXTENSIONS
-      #define PRIx64	"I64x"
-    #else
-      #define PRIx64	"llx"
-    #endif
-  #endif
-
-  #ifndef PRIu64
-    #ifdef _MSC_EXTENSIONS
-      #define PRIu64	"I64u"
-    #else
-      #define PRIu64	"llu"
-    #endif
-  #endif
-
   #if !defined(__cplusplus)
     #define inline __inline
   #endif
