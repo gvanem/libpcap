@@ -1295,7 +1295,7 @@ pcap_can_set_rfmon_npf(pcap_t *p)
 }
 
 pcap_t *
-pcap_create_interface(const char *device, char *ebuf)
+pcap_create_interface(const char *device _U_, char *ebuf)
 {
 	pcap_t *p;
 
@@ -1659,10 +1659,31 @@ get_if_flags(const char *name, bpf_u_int32 *flags, char *errbuf)
 		case NdisPhysicalMediumBluetooth:
 		case NdisPhysicalMediumUWB:
 		case NdisPhysicalMediumIrda:
+		case NdisPhysicalMediumWiMax:
 			/*
 			 * Wireless.
 			 */
 			*flags |= PCAP_IF_WIRELESS;
+			break;
+
+		case NdisPhysicalMediumUnspecified:
+		case NdisPhysicalMediumCableModem:
+		case NdisPhysicalMediumPhoneLine:
+		case NdisPhysicalMediumPowerLine:
+		case NdisPhysicalMediumDSL:
+		case NdisPhysicalMediumFibreChannel:
+		case NdisPhysicalMedium1394:
+		case NdisPhysicalMediumInfiniband:
+		case NdisPhysicalMedium802_3:
+		case NdisPhysicalMedium802_5:
+		case NdisPhysicalMediumWiredWAN:
+		case NdisPhysicalMediumWiredCoWan:
+		case NdisPhysicalMediumOther:
+		case NdisPhysicalMediumNative802_15_4:
+		case NdisPhysicalMediumMax:
+			/*
+			 * Not wireless.
+			 */
 			break;
 		}
 	}
@@ -1690,6 +1711,12 @@ get_if_flags(const char *name, bpf_u_int32 *flags, char *errbuf)
 			 * It's disconnected.
 			 */
 			*flags |= PCAP_IF_CONNECTION_STATUS_DISCONNECTED;
+			break;
+
+			/*
+			 * It's neither.
+			 */
+		case MediaConnectStateUnknown:
 			break;
 		}
 	}
