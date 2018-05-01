@@ -120,9 +120,9 @@
 
 /*
  * 18 is used for DLT_PFSYNC in OpenBSD, NetBSD, DragonFly BSD and
- * Mac OS X; don't use it for anything else.  (FreeBSD uses 121,
- * which collides with DLT_HHDLC, even though it doesn't use 18
- * for anything and doesn't appear to have ever used it for anything.)
+ * macOS; don't use it for anything else.  (FreeBSD uses 121, which
+ * collides with DLT_HHDLC, even though it doesn't use 18 for
+ * anything and doesn't appear to have ever used it for anything.)
  *
  * We define it as 18 on those platforms; it is, unfortunately, used
  * for DLT_CIP in Suse 6.3, so we don't define it as DLT_PFSYNC
@@ -340,7 +340,7 @@
  *
  * FreeBSD's libpcap won't map a link-layer header type of 18 - i.e.,
  * DLT_PFSYNC files from OpenBSD and possibly older versions of NetBSD,
- * DragonFly BSD, and OS X - to DLT_PFSYNC, so code built with FreeBSD's
+ * DragonFly BSD, and macOS - to DLT_PFSYNC, so code built with FreeBSD's
  * libpcap won't treat those files as DLT_PFSYNC files.
  *
  * Other libpcaps won't map a link-layer header type of 121 to DLT_PFSYNC;
@@ -740,8 +740,13 @@
  * nothing); requested by Mikko Saarnivala <mikko.saarnivala@sensinode.com>.
  * For this one, we expect the FCS to be present at the end of the frame;
  * if the frame has no FCS, DLT_IEEE802_15_4_NOFCS should be used.
+ *
+ * We keep the name DLT_IEEE802_15_4 as an alias for backwards
+ * compatibility, but, again, this should *only* be used for 802.15.4
+ * frames that include the FCS.
  */
-#define DLT_IEEE802_15_4	195
+#define DLT_IEEE802_15_4_WITHFCS	195
+#define DLT_IEEE802_15_4		DLT_IEEE802_15_4_WITHFCS
 
 /*
  * Various link-layer types, with a pseudo-header, for SITA
@@ -1229,7 +1234,7 @@
  * So I'll just give them one; hopefully this will show up in a
  * libpcap release in time for them to get this into 10.10 Big Sur
  * or whatever Mavericks' successor is called.  LINKTYPE_PKTAP
- * will be 258 *even on OS X*; that is *intentional*, so that
+ * will be 258 *even on macOS*; that is *intentional*, so that
  * PKTAP files look the same on *all* OSes (different OSes can have
  * different numerical values for a given DLT_, but *MUST NOT* have
  * different values for what goes in a file, as files can be moved
@@ -1241,9 +1246,9 @@
  * and that will continue to be DLT_USER2 on Darwin-based OSes. That way,
  * binary compatibility with Mavericks is preserved for programs using
  * this version of libpcap.  This does mean that if you were using
- * DLT_USER2 for some capture device on OS X, you can't do so with
+ * DLT_USER2 for some capture device on macOS, you can't do so with
  * this version of libpcap, just as you can't with Apple's libpcap -
- * on OS X, they define DLT_PKTAP to be DLT_USER2, so programs won't
+ * on macOS, they define DLT_PKTAP to be DLT_USER2, so programs won't
  * be able to distinguish between PKTAP and whatever you were using
  * DLT_USER2 for.
  *
@@ -1343,6 +1348,26 @@
 #define DLT_NORDIC_BLE		272
 
 /*
+ * Excentis DOCSIS 3.1 RF sniffer (XRA-31)
+ *   per: bruno.verstuyft at excentis.com
+ *        http://www.xra31.com/xra-header
+ */
+#define DLT_DOCSIS31_XRA31	273
+
+/*
+ * mPackets, as specified by IEEE 802.3br Figure 99-4, starting
+ * with the preamble and always ending with a CRC field.
+ */
+#define DLT_ETHERNET_MPACKET	274
+
+/*
+ * DisplayPort AUX channel monitoring data as specified by VESA
+ * DisplayPort(DP) Standard preceeded by a pseudo-header.
+ *    per dirk.eibach at gdsys.cc
+ */
+#define DLT_DISPLAYPORT_AUX	275
+
+/*
  * In case the code that includes this file (directly or indirectly)
  * has also included OS files that happen to define DLT_MATCHING_MAX,
  * with a different value (perhaps because that OS hasn't picked up
@@ -1352,7 +1377,7 @@
 #ifdef DLT_MATCHING_MAX
 #undef DLT_MATCHING_MAX
 #endif
-#define DLT_MATCHING_MAX	272	/* highest value in the "matching" range */
+#define DLT_MATCHING_MAX	275	/* highest value in the "matching" range */
 
 /*
  * DLT and savefile link type values are split into a class and

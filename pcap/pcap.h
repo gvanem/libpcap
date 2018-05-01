@@ -71,6 +71,8 @@
 
 #include <pcap/funcattrs.h>
 
+#include <pcap/pcap-inttypes.h>
+
 #if defined(_WIN32)
   #include <winsock2.h>		/* u_int, u_char etc. */
   #include <io.h>		/* _get_osfhandle() */
@@ -211,41 +213,10 @@ struct pcap_stat {
 	u_int ps_capt;		/* number of packets that reach the application */
 	u_int ps_sent;		/* number of packets sent by the server on the network */
 	u_int ps_netdrop;	/* number of packets lost on the network */
+#elif defined(MSDOS)
+	u_int ps_tx_err;	/* number of errors in transmit */
 #endif /* _WIN32 */
 };
-
-#ifdef MSDOS
-/*
- * As returned by the pcap_stats_ex()
- */
-struct pcap_stat_ex {
-       u_long  rx_packets;        /* total packets received       */
-       u_long  tx_packets;        /* total packets transmitted    */
-       u_long  rx_bytes;          /* total bytes received         */
-       u_long  tx_bytes;          /* total bytes transmitted      */
-       u_long  rx_errors;         /* bad packets received         */
-       u_long  tx_errors;         /* packet transmit problems     */
-       u_long  rx_dropped;        /* no space in Rx buffers       */
-       u_long  tx_dropped;        /* no space available for Tx    */
-       u_long  multicast;         /* multicast packets received   */
-       u_long  collisions;
-
-       /* detailed rx_errors: */
-       u_long  rx_length_errors;
-       u_long  rx_over_errors;    /* receiver ring buff overflow  */
-       u_long  rx_crc_errors;     /* recv'd pkt with crc error    */
-       u_long  rx_frame_errors;   /* recv'd frame alignment error */
-       u_long  rx_fifo_errors;    /* recv'r fifo overrun          */
-       u_long  rx_missed_errors;  /* recv'r missed packet         */
-
-       /* detailed tx_errors */
-       u_long  tx_aborted_errors;
-       u_long  tx_carrier_errors;
-       u_long  tx_fifo_errors;
-       u_long  tx_heartbeat_errors;
-       u_long  tx_window_errors;
-     };
-#endif
 
 /*
  * Item in a list of interfaces.
@@ -261,6 +232,12 @@ struct pcap_if {
 #define PCAP_IF_LOOPBACK	0x00000001	/* interface is loopback */
 #define PCAP_IF_UP		0x00000002	/* interface is up */
 #define PCAP_IF_RUNNING		0x00000004	/* interface is running */
+#define PCAP_IF_WIRELESS				0x00000008	/* interface is wireless (*NOT* necessarily Wi-Fi!) */
+#define PCAP_IF_CONNECTION_STATUS			0x000000F0	/* connection status mask: */
+#define PCAP_IF_CONNECTION_STATUS_UNKNOWN		0x00000010	/* unknown */
+#define PCAP_IF_CONNECTION_STATUS_CONNECTED		0x00000020	/* connected */
+#define PCAP_IF_CONNECTION_STATUS_DISCONNECTED		0x00000040	/* disconnected */
+#define PCAP_IF_CONNECTION_STATUS_NOT_APPLICABLE	0x00000080	/* not applicable */
 
 /*
  * Representation of an interface address.
@@ -479,6 +456,7 @@ PCAP_API pcap_dumper_t *pcap_dump_fopen(pcap_t *, FILE *fp);
 PCAP_API pcap_dumper_t *pcap_dump_open_append(pcap_t *, const char *);
 PCAP_API FILE	*pcap_dump_file(pcap_dumper_t *);
 PCAP_API long	pcap_dump_ftell(pcap_dumper_t *);
+PCAP_API int64_t	pcap_dump_ftell64(pcap_dumper_t *);
 PCAP_API int	pcap_dump_flush(pcap_dumper_t *);
 PCAP_API void	pcap_dump_close(pcap_dumper_t *);
 PCAP_API void	pcap_dump(u_char *, const struct pcap_pkthdr *, const u_char *);
@@ -583,7 +561,6 @@ PCAP_API void	bpf_dump(const struct bpf_program *, int);
    * MS-DOS definitions
    */
 
-  PCAP_API int  pcap_stats_ex (pcap_t *, struct pcap_stat_ex *);
   PCAP_API void pcap_set_wait (pcap_t *p, void (*yield)(void), int wait);
   PCAP_API u_long pcap_mac_packets (void);
 
@@ -594,6 +571,7 @@ PCAP_API void	bpf_dump(const struct bpf_program *, int);
    */
 
   PCAP_API int	pcap_get_selectable_fd(pcap_t *);
+  PCAP_API struct timeval *pcap_get_required_select_timeout(pcap_t *);
 
 #endif /* _WIN32/MSDOS/UN*X */
 
@@ -944,7 +922,12 @@ PCAP_API struct pcap_samp *pcap_setsampling(pcap_t *p);
    * in UN*X, it's -1.
    * We define INVALID_SOCKET to be -1 on UN*X, so that it can be used on
    * both platforms.
+   *
+   * Also defined in <sys/socket.h> for MSDOS (i.e Watt-32). But it is only
+   * used in Remote capture code which seems impossible (?) on MSDOS.
+   * Hence this value doesn't really matter.
    */
+  #undef  INVALID_SOCKET
   #define INVALID_SOCKET -1
 #endif
 

@@ -77,12 +77,17 @@ extern "C" {
 /* BSD style release date */
 #define BPF_RELEASE 199606
 
-#ifdef MSDOS /* must be 32-bit */
-typedef long          bpf_int32;
-typedef unsigned long bpf_u_int32;
+#if defined(MSDOS) && !defined(DJGPP) && !defined(__HIGHC__)
+  /*
+   * DJGPP/HighC are already 32-bit environments on a 16-bit OS.
+   * The other compilers (Watcom) is assumed to be 16-bit.
+   */
+  typedef long          bpf_int32;
+  typedef unsigned long bpf_u_int32;
+
 #else
-typedef	int bpf_int32;
-typedef	u_int bpf_u_int32;
+  typedef int   bpf_int32;
+  typedef u_int bpf_u_int32;
 #endif
 
 /*

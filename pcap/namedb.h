@@ -52,6 +52,12 @@ struct pcap_etherent {
 	u_char addr[6];
 	char name[122];
 };
+
+#ifdef _WIN32
+PCAP_API const char *pcap_etc_subpath (const char *file);
+#define PCAP_ETHERS_FILE pcap_etc_subpath("ethers")
+#endif
+
 #ifndef PCAP_ETHERS_FILE
 #define PCAP_ETHERS_FILE "/etc/ethers"
 #endif
@@ -60,9 +66,7 @@ PCAP_API u_char *pcap_ether_hostton(const char*);
 PCAP_API u_char *pcap_ether_aton(const char *);
 
 PCAP_API bpf_u_int32 **pcap_nametoaddr(const char *);
-#ifdef INET6
 PCAP_API struct addrinfo *pcap_nametoaddrinfo(const char *);
-#endif
 PCAP_API bpf_u_int32 pcap_nametonetaddr(const char *);
 
 PCAP_API int	pcap_nametoport(const char *, int *, int *);
@@ -70,6 +74,29 @@ PCAP_API int	pcap_nametoportrange(const char *, int *, int *, int *);
 PCAP_API int	pcap_nametoproto(const char *);
 PCAP_API int	pcap_nametoeproto(const char *);
 PCAP_API int	pcap_nametollc(const char *);
+
+PCAP_API struct servent *pcap_getservent (void);
+PCAP_API void            pcap_setservent (int f);
+PCAP_API void            pcap_endservent (void);
+
+PCAP_API struct netent  *pcap_getnetent (void);
+PCAP_API void            pcap_setnetent (int f);
+PCAP_API void            pcap_endnetent (void);
+
+PCAP_API struct netent  *pcap_getnetbyname (const char *name);
+
+#if !defined(LIBPCAP_NO_EXTRAS) && !defined(_NETDB_H_) && !defined(__NETDB_H_) && !defined(__NETDB_H)
+  #define getservent()       pcap_getservent()
+  #define setservent(f)      pcap_setservent(f)
+  #define endservent()       pcap_endservent()
+
+  #define getnetent()        pcap_getnetent()
+  #define setnetent(f)       pcap_setnetent(f)
+  #define endnetent()        pcap_endnetent()
+
+  #define getnetbyname(name) pcap_getnetbyname (name)
+#endif
+
 /*
  * If a protocol is unknown, PROTO_UNDEF is returned.
  * Also, pcap_nametoport() returns the protocol along with the port number.

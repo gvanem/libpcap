@@ -35,6 +35,8 @@
 #ifndef lib_pcap_funcattrs_h
 #define lib_pcap_funcattrs_h
 
+#include <pcap/compiler-tests.h>
+
 /*
  * Attributes to apply to functions and their arguments, using various
  * compiler-specific extensions.
@@ -50,113 +52,78 @@
  * exported from libpcap; PCAP_API_DEF won't work on all platforms.
  */
 
-/*
- * This was introduced by Clang:
- *
- *     http://clang.llvm.org/docs/LanguageExtensions.html#has-attribute
- *
- * in some version (which version?); it has been picked up by GCC 5.0.
- */
-#ifndef __has_attribute
-  /*
-   * It's a macro, so you can check whether it's defined to check
-   * whether it's supported.
-   *
-   * If it's not, define it to always return 0, so that we move on to
-   * the fallback checks.
-   */
-  #define __has_attribute(x) 0
-#endif
-
-/*
- * Check whether this is GCC major.minor or a later release, or some
- * compiler that claims to be "just like GCC" of that version or a
- * later release.
- */
-#define PCAP_IS_AT_LEAST_GNUC_VERSION(major, minor) \
-	(defined(__GNUC__) && \
-	    (__GNUC__ > (major) || \
-	     (__GNUC__ == (major) && __GNUC_MINOR__ >= (minor))))
-
-/*
- * Check wehether this is Sun C/SunPro C/Oracle Studio major.minor
- * or a later release.
- *
- * The version number in __SUNPRO_C is encoded in hex BCD, with the
- * uppermost hex digit being the major version number, the next
- * one or two hex digits being the minor version number, and
- * the last digit being the patch version.
- *
- * It represents the *compiler* version, not the product version;
- * see
- *
- *    https://sourceforge.net/p/predef/wiki/Compilers/
- *
- * for a partial mapping, which we assume continues for later
- * 12.x product releases.
- */
-#define PCAP_SUNPRO_VERSION_TO_BCD(major, minor) \
-	(((minor) >= 10) ? \
-	    (((major) << 12) | (((minor)/10) << 8) | (((minor)%10) << 4)) : \
-	    (((major) << 8) | ((minor) << 4)))
-#define PCAP_IS_AT_LEAST_SUNC_VERSION(major, minor) \
-	(defined(__SUNPRO_C) && \
-	    (__SUNPRO_C >= PCAP_SUNPRO_VERSION_TO_BCD((major), (minor))))
-
-/*
- * Check wehether this is IBM XL C major.minor or a later release.
- *
- * The version number in __xlC__ has the major version in the
- * upper 8 bits and the minor version in the lower 8 bits.
- */
-#define PCAP_IS_AT_LEAST_XL_C_VERSION(major, minor) \
-	(defined(__xlC__) && __xlC__ >= (((major) << 8) | (minor)))
-
-/*
- * Check wehether this is Sun C/SunPro C/Oracle Studio major.minor
- * or a later release.
- *
- * The version number in __HP_aCC is encoded in zero-padded decimal BCD,
- * with the "A." stripped off, the uppermost two decimal digits being
- * the major version number, the next two decimal digits being the minor
- * version number, and the last two decimal digits being the patch version.
- * (Strip off the A., remove the . between the major and minor version
- * number, and add two digits of patch.)
- */
-#define PCAP_IS_AT_LEAST_HP_C_VERSION(major, minor) \
-	(defined(__HP_aCC) && \
-	    (__HP_aCC >= ((major)*10000 + (minor)*100)))
-
 #if defined(_WIN32)
-  #ifdef BUILDING_PCAP
+  /*
+   * For Windows:
+   *
+   *    when building libpcap:
+   *
+   *       if we're building it as a DLL, we have to declare API
+   *       functions with __declspec(dllexport);
+   *
+   *       if we're building it as a static library, we don't want
+   *       to do so.
+   *
+   *    when using libpcap:
+   *
+   *       if we're using the DLL, calls to its functions are a
+   *       little more efficient if they're declared with
+   *       __declspec(dllimport);
+   *
+   *       if we're not using the dll, we don't want to declare
+   *       them that way.
+   *
+   * So:
+   *
+   *    if pcap_EXPORTS is defined, we define PCAP_API_DEF as
+   *     __declspec(dllexport);
+   *
+   *    if PCAP_DLL is defined, we define PCAP_API_DEF as
+   *    __declspec(dllimport);
+   *
+   *    otherwise, we define PCAP_API_DEF as nothing.
+   */
+  #if defined(pcap_EXPORTS)
     /*
-     * We're compiling libpcap, so we should export functions in our
-     * API.
+     * We're compiling libpcap as a DLL, so we should export functions
+     * in our API.
      */
     #define PCAP_API_DEF	__declspec(dllexport)
-  #else
+  #elif defined(PCAP_DLL)
+    /*
+     * We're using libpcap as a DLL, so the calls will be a little more
+     * efficient if we explicitly import the functions.
+     */
     #define PCAP_API_DEF	__declspec(dllimport)
+  #else
+    /*
+     * Either we're building libpcap as a static library, or we're using
+     * it as a static library, or we don't know for certain that we're
+     * using it as a dynamic library, so neither import nor export the
+     * functions explicitly.
+     */
+    #define PCAP_API_DEF
   #endif
 #elif defined(MSDOS)
   /* XXX - does this need special treatment? */
   #define PCAP_API_DEF
 #else /* UN*X */
-  #ifdef BUILDING_PCAP
+  #ifdef pcap_EXPORTS
     /*
-     * We're compiling libpcap, so we should export functions in our API.
-     * The compiler might be configured not to export functions from a
-     * shared library by default, so we might have to explicitly mark
-     * functions as exported.
+     * We're compiling libpcap as a (dynamic) shared library, so we should
+     * export functions in our API.  The compiler might be configured not
+     * to export functions from a shared library by default, so we might
+     * have to explicitly mark functions as exported.
      */
-    #if PCAP_IS_AT_LEAST_GNUC_VERSION(3, 4) \
-        || PCAP_IS_AT_LEAST_XL_C_VERSION(12, 0)
+    #if PCAP_IS_AT_LEAST_GNUC_VERSION(3,4) \
+        || PCAP_IS_AT_LEAST_XL_C_VERSION(12,0)
       /*
        * GCC 3.4 or later, or some compiler asserting compatibility with
        * GCC 3.4 or later, or XL C 13.0 or later, so we have
        * __attribute__((visibility()).
        */
       #define PCAP_API_DEF	__attribute__((visibility("default")))
-    #elif PCAP_IS_AT_LEAST_SUNC_VERSION(5, 5)
+    #elif PCAP_IS_AT_LEAST_SUNC_VERSION(5,5)
       /*
        * Sun C 5.5 or later, so we have __global.
        * (Sun C 5.9 and later also have __attribute__((visibility()),
@@ -184,12 +151,18 @@
  * never returns".  (It must go before the function declaration, e.g.
  * "extern PCAP_NORETURN func(...)" rather than after the function
  * declaration, as the MSVC version has to go before the declaration.)
+ *
+ * PCAP_NORETURN_DEF, before a function *definition*, means "this
+ * function never returns"; it would be used only for static functions
+ * that are defined before any use, and thus have no declaration.
+ * (MSVC doesn't support that; I guess the "decl" in "__declspec"
+ * means "declaration", and __declspec doesn't work with definitions.)
  */
 #if __has_attribute(noreturn) \
-    || PCAP_IS_AT_LEAST_GNUC_VERSION(2, 5) \
-    || PCAP_IS_AT_LEAST_SUNC_VERSION(5, 9) \
-    || PCAP_IS_AT_LEAST_XL_C_VERSION(10, 1) \
-    || PCAP_IS_AT_LEAST_HP_C_VERSION(6, 10)
+    || PCAP_IS_AT_LEAST_GNUC_VERSION(2,5) \
+    || PCAP_IS_AT_LEAST_SUNC_VERSION(5,9) \
+    || PCAP_IS_AT_LEAST_XL_C_VERSION(10,1) \
+    || PCAP_IS_AT_LEAST_HP_C_VERSION(6,10)
   /*
    * Compiler with support for __attribute((noreturn)), or GCC 2.5 and
    * later, or Solaris Studio 12 (Sun C 5.9) and later, or IBM XL C 10.1
@@ -197,13 +170,16 @@
    * HP aCC A.06.10 and later.
    */
   #define PCAP_NORETURN __attribute((noreturn))
+  #define PCAP_NORETURN_DEF __attribute((noreturn))
 #elif defined(_MSC_VER)
   /*
    * MSVC.
    */
   #define PCAP_NORETURN __declspec(noreturn)
+  #define PCAP_NORETURN_DEF
 #else
   #define PCAP_NORETURN
+  #define PCAP_NORETURN_DEF
 #endif
 
 /*
@@ -213,9 +189,9 @@
  * string".
  */
 #if __has_attribute(__format__) \
-    || PCAP_IS_AT_LEAST_GNUC_VERSION(2, 3) \
-    || PCAP_IS_AT_LEAST_XL_C_VERSION(10, 1) \
-    || PCAP_IS_AT_LEAST_HP_C_VERSION(6, 10)
+    || PCAP_IS_AT_LEAST_GNUC_VERSION(2,3) \
+    || PCAP_IS_AT_LEAST_XL_C_VERSION(10,1) \
+    || PCAP_IS_AT_LEAST_HP_C_VERSION(6,10)
   /*
    * Compiler with support for it, or GCC 2.3 and later, or IBM XL C 10.1
    * and later (do any earlier versions of XL C support this?),
@@ -236,8 +212,8 @@
  * (Thank you, Microsoft, for requiring the function name.)
  */
 #if __has_attribute(deprecated) \
-    || PCAP_IS_AT_LEAST_GNUC_VERSION(4, 5) \
-    || PCAP_IS_AT_LEAST_SUNC_VERSION(5, 13)
+    || PCAP_IS_AT_LEAST_GNUC_VERSION(4,5) \
+    || PCAP_IS_AT_LEAST_SUNC_VERSION(5,13)
   /*
    * Compiler that supports __has_attribute and __attribute__((deprecated)),
    * or GCC 4.5 and later, or Sun/Oracle C 12.4 (Sun C 5.13) or later.
@@ -247,7 +223,7 @@
    * recent enough to support __attribute__((deprecated(msg)))).
    */
   #define PCAP_DEPRECATED(func, msg)	__attribute__((deprecated(msg)))
-#elif PCAP_IS_AT_LEAST_GNUC_VERSION(3, 1)
+#elif PCAP_IS_AT_LEAST_GNUC_VERSION(3,1)
   /*
    * GCC 3.1 through 4.4.
    *
@@ -271,7 +247,7 @@
 /*
  * For flagging arguments as format strings in MSVC.
  */
-#if _MSC_VER >= 1400
+#ifdef _MSC_VER
  #include <sal.h>
  #if _MSC_VER > 1400
   #define PCAP_FORMAT_STRING(p) _Printf_format_string_ p
