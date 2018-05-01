@@ -1,15 +1,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-/*
- * Allthough these '*printf()' functions are not part of the "official"
- * Wpcap functions, we'll export them unconditionally here.
- *
- * Because if a Wpcap.dll built for a compiler with these function
- * and in an application (using that Wpcap.dll) without these functions,
- * that application would fail to load due to missing imports.
- */
-PCAP_API int
+int
 pcap_vsnprintf(char *str, size_t str_size, const char *format, va_list args)
 {
 	int ret;
@@ -26,7 +18,7 @@ pcap_vsnprintf(char *str, size_t str_size, const char *format, va_list args)
 	return (ret);
 }
 
-PCAP_API int
+int
 pcap_snprintf(char *str, size_t str_size, const char *format, ...)
 {
 	va_list args;
