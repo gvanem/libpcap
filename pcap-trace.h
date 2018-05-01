@@ -13,8 +13,10 @@
 /* \todo: Use 'g_cfg.color.file' and 'g_cfg.color.text'
  *        set from %HOME%/wpcap.cfg.
  */
-#define TRACE_COLOUR_GREEN (FOREGROUND_INTENSITY | 2)
-#define TRACE_COLOUR_WHITE (FOREGROUND_INTENSITY | 7)
+#define TRACE_COLOUR_GREEN  (FOREGROUND_INTENSITY | 2)
+#define TRACE_COLOR_MAGENTA (FOREGROUND_INTENSITY | 5)
+#define TRACE_COLOR_YELLOW  (FOREGROUND_INTENSITY | 6)
+#define TRACE_COLOUR_WHITE  (FOREGROUND_INTENSITY | 7)
 
 #ifndef TRACE_COLOR_START
 #define TRACE_COLOR_START  TRACE_COLOUR_GREEN
@@ -62,8 +64,6 @@
                                          }                                        \
                                        } while (0)
 
-  static const char *last_fmt _U_;
-
   /* The generated grammar.c has this:
    *   ifndef YYFPRINTF
    *    include <stdio.h> // INFRINGES ON USER NAME SPACE
@@ -75,24 +75,25 @@
    * All in shining colours.
    */
   #undef  YYFPRINTF
-  #define YYFPRINTF(stream_ignore, fmt, ...)               \
-          do {                                             \
-            if (_pcap_trace_level() >= 1) {                \
-              int add_prefix = !last_fmt ||                \
-                   (last_fmt[strlen(last_fmt)-1] == '\n'); \
-                                                           \
-              last_fmt = fmt;                              \
-              if (add_prefix) {                            \
-                _pcap_trace_color (TRACE_COLOUR_GREEN);    \
-                printf ("grammar.c(%u): ", __LINE__);      \
-                _pcap_trace_color (TRACE_COLOUR_WHITE);    \
-                printf (fmt, ## __VA_ARGS__);              \
-              }                                            \
-              else                                         \
-                printf (fmt, ## __VA_ARGS__);              \
-              fflush (stdout);                             \
-              _pcap_trace_color (0);                       \
-            }                                              \
+  #define YYFPRINTF(stream_ignore, fmt, ...)            \
+          do {                                          \
+            static const char *last_fmt;                \
+            static int         add_prefix;              \
+                                                        \
+            if (_pcap_trace_level() >= 1) {             \
+              /* Should be start a new trace-prefix? */ \
+              add_prefix = !last_fmt ||                 \
+                (last_fmt[strlen(last_fmt)-1] == '\n'); \
+              fflush (stdout);                          \
+              last_fmt = fmt;                           \
+              if (add_prefix) {                         \
+                _pcap_trace_color (TRACE_COLOUR_GREEN); \
+                printf ("grammar.c(%u): ", __LINE__);   \
+                _pcap_trace_color (TRACE_COLOUR_WHITE); \
+              }                                         \
+              printf (fmt, ## __VA_ARGS__);             \
+              _pcap_trace_color (0);                    \
+            }                                           \
           } while (0)
 
 #else

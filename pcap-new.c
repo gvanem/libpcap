@@ -44,7 +44,6 @@
 #include "pcap-int.h"	// for the details of the pcap_t structure
 #include "pcap-rpcap.h"
 #include "rpcap-protocol.h"
-#include "pcap-rpcap-int.h"
 #include <errno.h>		// for the errno variable
 #include <stdlib.h>		// for malloc(), free(), ...
 #include <string.h>		// for strstr, etc
@@ -73,9 +72,12 @@ int pcap_findalldevs_ex(char *source, struct pcap_rmtauth *auth, pcap_if_t **all
 	char name[PCAP_BUF_SIZE], path[PCAP_BUF_SIZE], filename[PCAP_BUF_SIZE];
 	pcap_t *fp;
 	char tmpstring[PCAP_BUF_SIZE + 1];		/* Needed to convert names and descriptions from 'old' syntax to the 'new' one */
-	pcap_if_t *dev;		/* Previous device into the pcap_if_t chain */
+	pcap_if_t *lastdev;	/* Last device in the pcap_if_t list */
+	pcap_if_t *dev;		/* Device we're adding to the pcap_if_t list */
 
+	/* List starts out empty. */
 	(*alldevs) = NULL;
+	lastdev = NULL;
 
 	if (strlen(source) > PCAP_BUF_SIZE)
 	{
@@ -108,7 +110,7 @@ int pcap_findalldevs_ex(char *source, struct pcap_rmtauth *auth, pcap_if_t **all
 		if (pcap_findalldevs(alldevs, errbuf) == -1)
 			return -1;
 
-		if ((alldevs == NULL) || (*alldevs == NULL))
+		if (*alldevs == NULL)
 		{
 			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
 				"No interfaces found! Make sure libpcap/WinPcap is properly installed"
@@ -132,7 +134,10 @@ int pcap_findalldevs_ex(char *source, struct pcap_rmtauth *auth, pcap_if_t **all
 			dev->name = strdup(tmpstring);
 			if (dev->name == NULL)
 			{
-				pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "malloc() failed: %s", pcap_strerror(errno));
+				pcap_fmt_errmsg_for_errno(errbuf,
+				    PCAP_ERRBUF_SIZE, errno,
+				    "malloc() failed");
+				pcap_freealldevs(*alldevs);
 				return -1;
 			}
 
@@ -151,7 +156,10 @@ int pcap_findalldevs_ex(char *source, struct pcap_rmtauth *auth, pcap_if_t **all
 			dev->description = strdup(tmpstring);
 			if (dev->description == NULL)
 			{
-				pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "malloc() failed: %s", pcap_strerror(errno));
+				pcap_fmt_errmsg_for_errno(errbuf,
+				    PCAP_ERRBUF_SIZE, errno,
+				    "malloc() failed");
+				pcap_freealldevs(*alldevs);
 				return -1;
 			}
 
@@ -225,6 +233,7 @@ int pcap_findalldevs_ex(char *source, struct pcap_rmtauth *auth, pcap_if_t **all
 		}
 #endif
 
+		/* Add all files we find to the list. */
 		do
 		{
 
@@ -239,37 +248,54 @@ int pcap_findalldevs_ex(char *source, struct pcap_rmtauth *auth, pcap_if_t **all
 			if (fp)
 			{
 				/* allocate the main structure */
-				if (*alldevs == NULL)	/* This is in case it is the first file */
-				{
-					(*alldevs) = (pcap_if_t *)malloc(sizeof(pcap_if_t));
-					dev = (*alldevs);
-				}
-				else
-				{
-					dev->next = (pcap_if_t *)malloc(sizeof(pcap_if_t));
-					dev = dev->next;
-				}
-
-				/* check that the malloc() didn't fail */
+				dev = (pcap_if_t *)malloc(sizeof(pcap_if_t));
 				if (dev == NULL)
 				{
-					pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "malloc() failed: %s", pcap_strerror(errno));
+					pcap_fmt_errmsg_for_errno(errbuf,
+					    PCAP_ERRBUF_SIZE, errno,
+					    "malloc() failed");
+					pcap_freealldevs(*alldevs);
 					return -1;
 				}
 
 				/* Initialize the structure to 'zero' */
 				memset(dev, 0, sizeof(pcap_if_t));
 
+				/* Append it to the list. */
+				if (lastdev == NULL)
+				{
+					/*
+					 * List is empty, so it's also
+					 * the first device.
+					 */
+					*alldevs = dev;
+				}
+				else
+				{
+					/*
+					 * Append after the last device.
+					 */
+					lastdev->next = dev;
+				}
+				/* It's now the last device. */
+				lastdev = dev;
+
 				/* Create the new source identifier */
 				if (pcap_createsrcstr(tmpstring, PCAP_SRC_FILE, NULL, NULL, filename, errbuf) == -1)
+				{
+					pcap_freealldevs(*alldevs);
 					return -1;
+				}
 
 				stringlen = strlen(tmpstring);
 
 				dev->name = (char *)malloc(stringlen + 1);
 				if (dev->name == NULL)
 				{
-					pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "malloc() failed: %s", pcap_strerror(errno));
+					pcap_fmt_errmsg_for_errno(errbuf,
+					    PCAP_ERRBUF_SIZE, errno,
+					    "malloc() failed");
+					pcap_freealldevs(*alldevs);
 					return -1;
 				}
 
@@ -287,7 +313,10 @@ int pcap_findalldevs_ex(char *source, struct pcap_rmtauth *auth, pcap_if_t **all
 
 				if (dev->description == NULL)
 				{
-					pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "malloc() failed: %s", pcap_strerror(errno));
+					pcap_fmt_errmsg_for_errno(errbuf,
+					    PCAP_ERRBUF_SIZE, errno,
+					    "malloc() failed");
+					pcap_freealldevs(*alldevs);
 					return -1;
 				}
 

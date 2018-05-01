@@ -14,20 +14,23 @@ dnl
 # config.sub.
 #
 
-AC_PREREQ(2.61)
-AC_INIT(pcap.c)
+AC_PREREQ(2.64)
+
+AC_INIT(pcap, m4_esyscmd_s([cat VERSION]))
+AC_CONFIG_SRCDIR(pcap.c)
+AC_SUBST(PACKAGE_NAME)
 
 AC_CANONICAL_SYSTEM
 
 AC_LBL_C_INIT_BEFORE_CC(V_CCOPT, V_INCLS)
-AC_PROG_CC
+#
+# Try to enable as many C99 features as we can.
+# At minimum, we want C++/C99-style // comments.
+#
+AC_PROG_CC_C99
 AC_LBL_C_INIT(V_CCOPT, V_INCLS)
 AC_LBL_SHLIBS_INIT
 AC_LBL_C_INLINE
-AC_C___ATTRIBUTE__
-if test "$ac_cv___attribute__" = "yes"; then
-	AC_C___ATTRIBUTE___UNUSED
-fi
 
 #
 # Try to arrange for large file support.
@@ -67,25 +70,6 @@ if test "$ac_cv_header_net_pfvar_h" = yes; then
 	    ],
 	    AC_MSG_RESULT(no))
 fi
-AC_CHECK_HEADERS(netinet/if_ether.h, , , [#include <sys/types.h>
-#include <sys/socket.h>])
-if test "$ac_cv_header_netinet_if_ether_h" != yes; then
-	#
-	# The simple test didn't work.
-	# Do we need to include <net/if.h> first?
-	# Unset ac_cv_header_netinet_if_ether_h so we don't
-	# treat the previous failure as a cached value and
-	# suppress the next test.
-	#
-	AC_MSG_NOTICE([Rechecking with some additional includes])
-	unset ac_cv_header_netinet_if_ether_h
-	AC_CHECK_HEADERS(netinet/if_ether.h, , , [#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-struct mbuf;
-struct rtentry;
-#include <net/if.h>])
-fi
 
 case "$host_os" in
 linux*|uclinux*)
@@ -99,7 +83,7 @@ esac
 
 AC_LBL_FIXINCLUDES
 
-AC_CHECK_FUNCS(strerror strlcpy strlcat)
+AC_CHECK_FUNCS(strerror strerror_r strerror_s strlcpy strlcat)
 
 needsnprintf=no
 AC_CHECK_FUNCS(vsnprintf snprintf,,
@@ -116,31 +100,298 @@ if test $needstrtok_r = yes; then
 fi
 
 #
+# Do we have ffs(), and is it declared in <strings.h>?
+#
+AC_CHECK_FUNCS(ffs)
+if test "$ac_cv_func_ffs" = yes; then
+	#
+	# We have ffs(); is it declared in <strings.h>?
+	#
+	# This test fails if we don't have <strings.h> or if we do
+	# but it doesn't declare ffs().
+	#
+	AC_CHECK_DECL(ffs,
+	    [
+		AC_DEFINE(STRINGS_H_DECLARES_FFS,,
+		    [Define to 1 if strings.h declares `ffs'])
+	    ],,
+	    [
+#include <strings.h>
+	    ])
+fi
+
+#
 # Do this before checking for ether_hostton(), as it's a
-# "gethostbyname() -ish function".
+# "getaddrinfo()-ish function".
 #
 AC_LBL_LIBRARY_NET
 
 #
+# Check for reentrant versions of getnetbyname_r(), as provided by
+# Linux (glibc), Solaris/IRIX, and AIX (with three different APIs!).
+# If we don't find one, we just use getnetbyname(), which uses
+# thread-specific data on many platforms, but doesn't use it on
+# NetBSD or OpenBSD, and may not use it on older versions of other
+# platforms.
+#
+# Only do the check if we have a declaration of getnetbyname_r();
+# without it, we can't check which API it has.  (We assume that
+# if there's a declaration, it has a prototype, so that the API
+# can be checked.)
+#
+AC_CHECK_DECL(getnetbyname_r,
+    [
+	AC_MSG_CHECKING([for the Linux getnetbyname_r()])
+	AC_TRY_LINK(
+	    [#include <netdb.h>],
+	    [
+		struct netent netent_buf;
+		char buf[1024];
+		struct netent *resultp;
+		int h_errnoval;
+
+		return getnetbyname_r((const char *)0, &netent_buf, buf, sizeof buf, &resultp, &h_errnoval);
+	    ],
+	    [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_LINUX_GETNETBYNAME_R, 1,
+		    [define if we have the Linux getnetbyname_r()])
+	    ],
+	    [
+		AC_MSG_RESULT(no)
+
+		AC_MSG_CHECKING([for Solaris/IRIX getnetbyname_r()])
+		AC_TRY_LINK(
+		    [#include <netdb.h>],
+		    [
+			struct netent netent_buf;
+			char buf[1024];
+
+			return getnetbyname_r((const char *)0, &netent_buf, buf, (int)sizeof buf) != NULL;
+		    ],
+		    [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_SOLARIS_IRIX_GETNETBYNAME_R, 1,
+			    [define if we have the Solaris/IRIX getnetbyname_r()])
+		    ],
+		    [
+			AC_MSG_RESULT(no)
+
+			AC_MSG_CHECKING([for AIX getnetbyname_r()])
+			AC_TRY_LINK(
+			    [#include <netdb.h>],
+			    [
+				struct netent netent_buf;
+				struct netent_data net_data;
+
+				return getnetbyname_r((const char *)0, &netent_buf, &net_data);
+			    ],
+			    [
+				AC_MSG_RESULT(yes)
+				AC_DEFINE(HAVE_AIX_GETNETBYNAME_R, 1,
+				    [define if we have the AIX getnetbyname_r()])
+			    ],
+			    [
+				AC_MSG_RESULT(no)
+			    ])
+		    ])
+	    ])
+    ],,[#include <netdb.h>])
+
+#
+# Check for reentrant versions of getprotobyname_r(), as provided by
+# Linux (glibc), Solaris/IRIX, and AIX (with three different APIs!).
+# If we don't find one, we just use getprotobyname(), which uses
+# thread-specific data on many platforms, but doesn't use it on
+# NetBSD or OpenBSD, and may not use it on older versions of other
+# platforms.
+#
+# Only do the check if we have a declaration of getprotobyname_r();
+# without it, we can't check which API it has.  (We assume that
+# if there's a declaration, it has a prototype, so that the API
+# can be checked.)
+#
+AC_CHECK_DECL(getprotobyname_r,
+    [
+	AC_MSG_CHECKING([for the Linux getprotobyname_r()])
+	AC_TRY_LINK(
+	    [#include <netdb.h>],
+	    [
+		struct protoent protoent_buf;
+		char buf[1024];
+		struct protoent *resultp;
+
+		return getprotobyname_r((const char *)0, &protoent_buf, buf, sizeof buf, &resultp);
+	    ],
+	    [
+		AC_MSG_RESULT(yes)
+		AC_DEFINE(HAVE_LINUX_GETPROTOBYNAME_R, 1,
+		    [define if we have the Linux getprotobyname_r()])
+	    ],
+	    [
+		AC_MSG_RESULT(no)
+
+		AC_MSG_CHECKING([for Solaris/IRIX getprotobyname_r()])
+		AC_TRY_LINK(
+		    [#include <netdb.h>],
+		    [
+			struct protoent protoent_buf;
+			char buf[1024];
+
+			return getprotobyname_r((const char *)0, &protoent_buf, buf, (int)sizeof buf) != NULL;
+		    ],
+		    [
+			AC_MSG_RESULT(yes)
+			AC_DEFINE(HAVE_SOLARIS_IRIX_GETPROTOBYNAME_R, 1,
+			    [define if we have the Solaris/IRIX getprotobyname_r()])
+		    ],
+		    [
+			AC_MSG_RESULT(no)
+
+			AC_MSG_CHECKING([for AIX getprotobyname_r()])
+			AC_TRY_LINK(
+			    [#include <netdb.h>],
+			    [
+				struct protoent protoent_buf;
+				struct protoent_data proto_data;
+
+				return getprotobyname_r((const char *)0, &protoent_buf, &proto_data);
+			    ],
+			    [
+				AC_MSG_RESULT(yes)
+				AC_DEFINE(HAVE_AIX_GETPROTOBYNAME_R, 1,
+				    [define if we have the AIX getprotobyname_r()])
+			    ],
+			    [
+				AC_MSG_RESULT(no)
+			    ])
+		    ])
+	    ])
+    ],,[#include <netdb.h>])
+
+#
 # You are in a twisty little maze of UN*Xes, all different.
 # Some might not have ether_hostton().
-# Some might have it, but not declare it in any header file.
-# Some might have it, but declare it in <netinet/if_ether.h>.
-# Some might have it, but declare it in <netinet/ether.h>
-# (And some might have it but document it as something declared in
-# <netinet/ethernet.h>, although <netinet/if_ether.h> appears to work.)
+# Some might have it and declare it in <net/ethernet.h>.
+# Some might have it and declare it in <netinet/ether.h>
+# Some might have it and declare it in <sys/ethernet.h>.
+# Some might have it and declare it in <arpa/inet.h>.
+# Some might have it and declare it in <netinet/if_ether.h>.
+# Some might have it and not declare it in any header file.
 #
 # Before you is a C compiler.
 #
 AC_CHECK_FUNCS(ether_hostton)
 if test "$ac_cv_func_ether_hostton" = yes; then
 	#
-	# OK, we have ether_hostton().  Do we have <netinet/if_ether.h>?
+	# OK, we have ether_hostton().  Is it declared in <net/ethernet.h>?
 	#
-	if test "$ac_cv_header_netinet_if_ether_h" = yes; then
+	# This test fails if we don't have <net/ethernet.h> or if we do
+	# but it doesn't declare ether_hostton().
+	#
+	AC_CHECK_DECL(ether_hostton,
+	    [
+		AC_DEFINE(NET_ETHERNET_H_DECLARES_ETHER_HOSTTON,,
+		    [Define to 1 if net/ethernet.h declares `ether_hostton'])
+	    ],,
+	    [
+#include <net/ethernet.h>
+	    ])
+	#
+	# Did that succeed?
+	#
+	if test "$ac_cv_have_decl_ether_hostton" != yes; then
 		#
-		# Yes.  Does it declare ether_hostton()?
+		# No, how about <netinet/ether.h>, as on Linux?
 		#
+		# This test fails if we don't have <netinet/ether.h>
+		# or if we do but it doesn't declare ether_hostton().
+		#
+		# Unset ac_cv_have_decl_ether_hostton so we don't
+		# treat the previous failure as a cached value and
+		# suppress the next test.
+		#
+		unset ac_cv_have_decl_ether_hostton
+		AC_CHECK_DECL(ether_hostton,
+		    [
+			AC_DEFINE(NETINET_ETHER_H_DECLARES_ETHER_HOSTTON,,
+			    [Define to 1 if netinet/ether.h declares `ether_hostton'])
+		    ],,
+		    [
+#include <netinet/ether.h>
+		    ])
+	fi
+	#
+	# Did that succeed?
+	#
+	if test "$ac_cv_have_decl_ether_hostton" != yes; then
+		#
+		# No, how about <sys/ethernet.h>, as on Solaris 10
+		# and later?
+		#
+		# This test fails if we don't have <sys/ethernet.h>
+		# or if we do but it doesn't declare ether_hostton().
+		#
+		# Unset ac_cv_have_decl_ether_hostton so we don't
+		# treat the previous failure as a cached value and
+		# suppress the next test.
+		#
+		unset ac_cv_have_decl_ether_hostton
+		AC_CHECK_DECL(ether_hostton,
+		    [
+			AC_DEFINE(SYS_ETHERNET_H_DECLARES_ETHER_HOSTTON,,
+			    [Define to 1 if sys/ethernet.h declares `ether_hostton'])
+		    ],,
+		    [
+#include <sys/ethernet.h>
+		    ])
+	fi
+	#
+	# Did that succeed?
+	#
+	if test "$ac_cv_have_decl_ether_hostton" != yes; then
+		#
+		# No, how about <arpa/inet.h>, as in AIX?
+		#
+		# This test fails if we don't have <arpa/inet.h>
+		# (if we have ether_hostton(), we should have
+		# networking, and if we have networking, we should
+		# have <arapa/inet.h>) or if we do but it doesn't
+		# declare ether_hostton().
+		#
+		# Unset ac_cv_have_decl_ether_hostton so we don't
+		# treat the previous failure as a cached value and
+		# suppress the next test.
+		#
+		unset ac_cv_have_decl_ether_hostton
+		AC_CHECK_DECL(ether_hostton,
+		    [
+			AC_DEFINE(ARPA_INET_H_DECLARES_ETHER_HOSTTON,,
+			    [Define to 1 if arpa/inet.h declares `ether_hostton'])
+		    ],,
+		    [
+#include <arpa/inet.h>
+		    ])
+	fi
+	#
+	# Did that succeed?
+	#
+	if test "$ac_cv_have_decl_ether_hostton" != yes; then
+		#
+		# No, how about <netinet/if_ether.h>?
+		# On some platforms, it requires <net/if.h> and
+		# <netinet/in.h>, and we always include it with
+		# both of them, so test it with both of them.
+		#
+		# This test fails if we don't have <netinet/if_ether.h>
+		# and the headers we include before it, or if we do but
+		# <netinet/if_ether.h> doesn't declare ether_hostton().
+		#
+		# Unset ac_cv_have_decl_ether_hostton so we don't
+		# treat the previous failure as a cached value and
+		# suppress the next test.
+		#
+		unset ac_cv_have_decl_ether_hostton
 		AC_CHECK_DECL(ether_hostton,
 		    [
 			AC_DEFINE(NETINET_IF_ETHER_H_DECLARES_ETHER_HOSTTON,,
@@ -149,68 +400,93 @@ if test "$ac_cv_func_ether_hostton" = yes; then
 		    [
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-struct mbuf;
-struct rtentry;
 #include <net/if.h>
+#include <netinet/in.h>
 #include <netinet/if_ether.h>
 		    ])
 	fi
 	#
-	# Did that succeed?
+	# After all that, is ether_hostton() declared?
 	#
-	if test "$ac_cv_have_decl_ether_hostton" != yes; then
+	if test "$ac_cv_have_decl_ether_hostton" = yes; then
 		#
-		# No, how about <netinet/ether.h>, as on Linux?
+		# Yes.
 		#
-		AC_CHECK_HEADERS(netinet/ether.h)
-		if test "$ac_cv_header_netinet_ether_h" = yes; then
-			#
-			# We have it - does it declare ether_hostton()?
-			# Unset ac_cv_have_decl_ether_hostton so we don't
-			# treat the previous failure as a cached value and
-			# suppress the next test.
-			#
-			unset ac_cv_have_decl_ether_hostton
-			AC_CHECK_DECL(ether_hostton,
-			    [
-				AC_DEFINE(NETINET_ETHER_H_DECLARES_ETHER_HOSTTON,,
-				    [Define to 1 if netinet/ether.h declares `ether_hostton'])
-			    ],,
-			    [
-#include <netinet/ether.h>
-			    ])
-		fi
-	fi
-	#
-	# Is ether_hostton() declared?
-	#
-	if test "$ac_cv_have_decl_ether_hostton" != yes; then
+		AC_DEFINE(HAVE_DECL_ETHER_HOSTTON, 1,
+		    [Define to 1 if you have the declaration of `ether_hostton'])
+        else
 		#
 		# No, we'll have to declare it ourselves.
-		# Do we have "struct ether_addr"?
+		# Do we have "struct ether_addr" if we include
+		# <netinet/if_ether.h>?
 		#
 		AC_CHECK_TYPES(struct ether_addr,,,
 		    [
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-struct mbuf;
-struct rtentry;
-#include <net/if.h>
-#include <netinet/if_ether.h>
+			#include <sys/types.h>
+			#include <sys/socket.h>
+			#include <net/if.h>
+			#include <netinet/in.h>
+			#include <netinet/if_ether.h>
 		    ])
-		AC_DEFINE(HAVE_DECL_ETHER_HOSTTON, 0,
-		    [Define to 1 if you have the declaration of `ether_hostton', and to 0 if you
-don't.])
-	else
-		AC_DEFINE(HAVE_DECL_ETHER_HOSTTON, 1,
-		    [Define to 1 if you have the declaration of `ether_hostton', and to 0 if you
-don't.])
 	fi
 fi
+
+#
+# For various things that might use pthreads.
+#
+AC_CHECK_HEADER(pthread.h,
+    [
+	#
+	# OK, we have pthread.h.  Do we have pthread_create in the
+	# system libraries?
+	#
+	AC_CHECK_FUNC(pthread_create,
+	    [
+		#
+		# Yes.
+		#
+		ac_lbl_have_pthreads="found"
+	    ],
+	    [
+		#
+		# No - do we have it in -lpthreads?
+		#
+		AC_CHECK_LIB(pthreads, pthread_create,
+		    [
+			#
+			# Yes - add -lpthreads.
+			#
+			ac_lbl_have_pthreads="found"
+			PTHREAD_LIBS="$PTHREAD_LIBS -lpthreads"
+		    ],
+		    [
+			#
+			# No - do we have it in -lpthread?
+			#
+			AC_CHECK_LIB(pthread, pthread_create,
+			    [
+				#
+				# Yes - add -lpthread.
+				#
+                                ac_lbl_have_pthreads="found"
+				PTHREAD_LIBS="$PTHREAD_LIBS -lpthread"
+			    ],
+			    [
+				#
+				# No.
+				#
+				ac_lbl_have_pthreads="not found"
+			    ])
+		    ])
+	    ])
+    ],
+    [
+	#
+	# We didn't find pthread.h.
+	#
+	ac_lbl_have_pthreads="not found"
+    ]
+)
 
 dnl to pacify those who hate protochain insn
 AC_MSG_CHECKING(if --disable-protochain option is specified)
@@ -232,7 +508,7 @@ AC_MSG_RESULT(${enable_protochain})
 # only tests with BPF and PF_PACKET sockets; only enable it if
 # we have BPF or PF_PACKET sockets.
 #
-VALGRINDTEST=
+VALGRINDTEST_SRC=
 
 #
 # SITA support is mutually exclusive with native capture support;
@@ -248,17 +524,6 @@ AC_HELP_STRING([--with-sita],[include SITA support]),
 	fi
 ],
 [
-dnl
-dnl Not all versions of test support -c (character special) but it's a
-dnl better way of testing since the device might be protected. So we
-dnl check in our normal order using -r and then check the for the /dev
-dnl guys again using -c.
-dnl
-dnl XXX This could be done for cross-compiling, but for now it's not.
-dnl
-if test -z "$with_pcap" && test "$cross_compiling" = yes; then
-	AC_MSG_ERROR(pcap type not determined when cross-compiling; use --with-pcap=...)
-fi
 AC_ARG_WITH(pcap,
 AC_HELP_STRING([--with-pcap=TYPE],[use packet capture TYPE]))
 if test ! -z "$with_pcap" ; then
@@ -268,11 +533,59 @@ else
 	# Check for a bunch of headers for various packet
 	# capture mechanisms.
 	#
-	AC_CHECK_HEADERS(net/bpf.h net/pfilt.h net/enet.h)
+	AC_CHECK_HEADERS(net/bpf.h)
+	if test "$ac_cv_header_net_bpf_h" = yes; then
+		#
+		# Does it define BIOCSETIF?
+		# I.e., is it a header for an LBL/BSD-style capture
+		# mechanism, or is it just a header for a BPF filter
+		# engine?  Some versions of Arch Linux, for example,
+		# have a net/bpf.h that doesn't define BIOCSETIF;
+		# as it's a Linux, it should use packet sockets,
+		# instead.
+		#
+		# We need:
+		#
+		#  sys/types.h, because FreeBSD 10's net/bpf.h
+		#  requires that various BSD-style integer types
+		#  be defined;
+		#
+		#  sys/ioctl.h and, if we have it, sys/ioccom.h,
+		#  because net/bpf.h defines ioctls;
+		#
+		#  net/if.h, because it defines some structures
+		#  used in ioctls defined by net/bpf.h;
+		#
+		#  sys/socket.h, because OpenBSD 5.9's net/bpf.h
+		#  defines some structure fields as being
+		#  struct sockaddrs;
+		#
+		# and net/bpf.h doesn't necessarily include all
+		# of those headers itself.
+		#
+		AC_MSG_CHECKING(if net/bpf.h defines BIOCSETIF)
+		AC_CACHE_VAL(ac_cv_lbl_bpf_h_defines_biocsetif,
+			AC_TRY_COMPILE(
+[
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#ifdef HAVE_SYS_IOCCOM_H
+#include <sys/ioccom.h>
+#endif
+#include <net/bpf.h>
+#include <net/if.h>
+],
+			[u_int i = BIOCSETIF;],
+			ac_cv_lbl_bpf_h_defines_biocsetif=yes,
+			ac_cv_lbl_bpf_h_defines_biocsetif=no))
+		AC_MSG_RESULT($ac_cv_lbl_bpf_h_defines_biocsetif)
+	fi
+	AC_CHECK_HEADERS(net/pfilt.h net/enet.h)
 	AC_CHECK_HEADERS(net/nit.h sys/net/nit.h)
 	AC_CHECK_HEADERS(linux/socket.h net/raw.h sys/dlpi.h)
 
-	if test "$ac_cv_header_net_bpf_h" = yes; then
+	if test "$ac_cv_lbl_bpf_h_defines_biocsetif" = yes; then
 		#
 		# BPF.
 		# Check this before DLPI, so that we pick BPF on
@@ -282,15 +595,26 @@ else
 
 		#
 		# We have BPF, so build valgrindtest with "make test"
-		# on macOS, FreeBSD, and Linux (add your OS once
-		# there's a valgrind for it).
+		# on macOS and FreeBSD (add your OS once there's a
+		# valgrind for it).
 		#
 		case "$host_os" in
 
 		freebsd*|darwin*|linux*)
-			VALGRINDTEST=valgrindtest
+			VALGRINDTEST_SRC=valgrindtest.c
 			;;
 		esac
+	elif test "$ac_cv_header_linux_socket_h" = yes; then
+		#
+		# No prizes for guessing this one.
+		#
+		V_PCAP=linux
+
+		#
+		# XXX - this won't work with older kernels that have
+		# SOCK_PACKET sockets but not PF_PACKET sockets.
+		#
+		VALGRINDTEST_SRC=valgrindtest.c
 	elif test "$ac_cv_header_net_pfilt_h" = yes; then
 	        #
 	        # DEC OSF/1, Digital UNIX, Tru64 UNIX
@@ -311,17 +635,6 @@ else
 		# Pre-SunOS 4.x non-STREAMS NIT.
 		#
 		V_PCAP=nit
-	elif test "$ac_cv_header_linux_socket_h" = yes; then
-		#
-		# No prizes for guessing this one.
-		#
-		V_PCAP=linux
-
-		#
-		# XXX - this won't work with older kernels that have
-		# SOCK_PACKET sockets but not PF_PACKET sockets.
-		#
-		VALGRINDTEST=valgrindtest
 	elif test "$ac_cv_header_net_raw_h" = yes; then
 		#
 		# IRIX snoop.
@@ -337,11 +650,13 @@ else
 		# Nothing we support.
 		#
 		V_PCAP=null
+		AC_MSG_WARN(cannot determine packet capture interface)
+		AC_MSG_WARN((see the INSTALL doc for more info))
 	fi
 fi
 AC_MSG_CHECKING(packet capture type)
 AC_MSG_RESULT($V_PCAP)
-AC_SUBST(VALGRINDTEST)
+AC_SUBST(VALGRINDTEST_SRC)
 
 #
 # Do capture-mechanism-dependent tests.
@@ -401,10 +716,16 @@ dlpi)
 	fi
 
 	#
-	# This check is for Solaris with DLPI support for passive modes.
+	# Check to see if Solaris has the dl_passive_req_t struct defined
+	# in <sys/dlpi.h>.
+	# This check is for DLPI support for passive modes.
 	# See dlpi(7P) for more details.
 	#
-	AC_LBL_DL_PASSIVE_REQ_T
+	AC_CHECK_TYPES(dl_passive_req_t,,,
+	    [
+		#include <sys/types.h>
+		#include <sys/dlpi.h>
+	    ])
 	;;
 
 linux)
@@ -423,17 +744,25 @@ linux)
 	#
 	AC_ARG_WITH(libnl,
 	AC_HELP_STRING([--without-libnl],[disable libnl support @<:@default=yes, on Linux, if present@:>@]),
-		with_libnl=$withval,,)
+		with_libnl=$withval,with_libnl=if_available)
 
 	if test x$with_libnl != xno ; then
 		have_any_nl="no"
 
                 incdir=-I/usr/include/libnl3
                 libnldir=
-                if test x$withval != x ; then
-                  libnldir=-L${withval}/lib/.libs
-                  incdir=-I${withval}/include
-                fi
+                case "$with_libnl" in
+
+                yes|if_available)
+                  ;;
+
+                *)
+                  if test -d $withval; then
+                    libnldir=-L${withval}/lib/.libs
+                    incdir=-I${withval}/include
+                  fi
+                  ;;
+                esac
 
 		#
 		# Try libnl 3.x first.
@@ -500,8 +829,32 @@ linux)
 AC_INCLUDES_DEFAULT
 #include <linux/types.h>
 	    ])
-	AC_LBL_TPACKET_STATS
-	AC_LBL_LINUX_TPACKET_AUXDATA_TP_VLAN_TCI
+
+	#
+	# Check to see if struct tpacket_stats is defined in
+	# <linux/if_packet.h>.  If so, then pcap-linux.c can use this
+	# to report proper statistics.
+	#
+	# -Scott Barron
+	#
+	AC_CHECK_TYPES(struct tpacket_stats,,,
+	    [
+		#include <linux/if_packet.h>
+	    ])
+
+	#
+	# Check to see if the tpacket_auxdata struct has a tp_vlan_tci member.
+	#
+	# NOTE: any failure means we conclude that it doesn't have that
+	# member, so if we don't have tpacket_auxdata, we conclude it
+	# doesn't have that member (which is OK, as either we won't be
+	# using code that would use that member, or we wouldn't compile
+	# in any case).
+	AC_CHECK_MEMBERS([struct tpacket_auxdata.tp_vlan_tci],,,
+	    [
+		#include <sys/types.h>
+		#include <linux/if_packet.h>
+	    ])
 	;;
 
 bpf)
@@ -510,18 +863,18 @@ bpf)
 	#
 	AC_CHECK_HEADERS(net/if_media.h)
 
-	    #
-	    # Check whether we have struct BPF_TIMEVAL.
-	    #
-	    AC_CHECK_TYPES(struct BPF_TIMEVAL,,,
-		[
-#include <sys/types.h>
-#include <sys/ioctl.h>
-#ifdef HAVE_SYS_IOCCOM_H
-#include <sys/ioccom.h>
-#endif
-#include <net/bpf.h>
-		    ])
+	#
+	# Check whether we have struct BPF_TIMEVAL.
+	#
+	AC_CHECK_TYPES(struct BPF_TIMEVAL,,,
+	    [
+		#include <sys/types.h>
+		#include <sys/ioctl.h>
+		#ifdef HAVE_SYS_IOCCOM_H
+		#include <sys/ioccom.h>
+		#endif
+		#include <net/bpf.h>
+	    ])
 	;;
 
 dag)
@@ -552,8 +905,6 @@ snf)
 	;;
 
 null)
-	AC_MSG_WARN(cannot determine packet capture interface)
-	AC_MSG_WARN((see the INSTALL doc for more info))
 	;;
 
 *)
@@ -593,97 +944,82 @@ then
 		])
 	],[
 		#
-		# Well, we don't have "getifaddrs()", so we have to use
-		# some other mechanism; determine what that mechanism is.
+		# Well, we don't have "getifaddrs()", at least not with the
+		# libraries with which we've decided we need to link
+		# libpcap with, so we have to use some other mechanism.
 		#
-		# The first thing we use is the type of capture mechanism,
-		# which is somewhat of a proxy for the OS we're using.
+		# Note that this may happen on Solaris, which has
+		# getifaddrs(), but in -lsocket, not in -lxnet, so we
+		# won't find it if we link with -lxnet, which we want
+		# to do for other reasons.
 		#
-		case "$V_PCAP" in
-
-		dlpi|libdlpi)
-			#
-			# This might be Solaris 8 or later, with
-			# SIOCGLIFCONF, or it might be some other OS
-			# or some older version of Solaris, with
-			# just SIOCGIFCONF.
-			#
-			AC_MSG_CHECKING(whether we have SIOCGLIFCONF)
-			AC_CACHE_VAL(ac_cv_lbl_have_siocglifconf,
-			    AC_TRY_COMPILE(
-				[#include <sys/param.h>
-				#include <sys/file.h>
-				#include <sys/ioctl.h>
-				#include <sys/socket.h>
-				#include <sys/sockio.h>],
-				[ioctl(0, SIOCGLIFCONF, (char *)0);],
-				ac_cv_lbl_have_siocglifconf=yes,
-				ac_cv_lbl_have_siocglifconf=no))
-			AC_MSG_RESULT($ac_cv_lbl_have_siocglifconf)
-			if test $ac_cv_lbl_have_siocglifconf = yes ; then
-				V_FINDALLDEVS=fad-glifc.c
-			else
-				V_FINDALLDEVS=fad-gifc.c
-			fi
-			;;
-
-		*)
-			#
-			# Assume we just have SIOCGIFCONF.
-			# (XXX - on at least later Linux kernels, there's
-			# another mechanism, and we should be using that
-			# instead.)
-			#
+		# For now, we use either the SIOCGIFCONF ioctl or the
+		# SIOCGLIFCONF ioctl, preferring the latter if we have
+		# it; the latter is a Solarisism that first appeared
+		# in Solaris 8.  (Solaris's getifaddrs() appears to
+		# be built atop SIOCGLIFCONF; using it directly
+		# avoids a not-all-that-useful middleman.)
+		#
+		AC_MSG_CHECKING(whether we have SIOCGLIFCONF)
+		AC_CACHE_VAL(ac_cv_lbl_have_siocglifconf,
+		    AC_TRY_COMPILE(
+			[#include <sys/param.h>
+			#include <sys/file.h>
+			#include <sys/ioctl.h>
+			#include <sys/socket.h>
+			#include <sys/sockio.h>],
+			[ioctl(0, SIOCGLIFCONF, (char *)0);],
+			ac_cv_lbl_have_siocglifconf=yes,
+			ac_cv_lbl_have_siocglifconf=no))
+		AC_MSG_RESULT($ac_cv_lbl_have_siocglifconf)
+		if test $ac_cv_lbl_have_siocglifconf = yes ; then
+			V_FINDALLDEVS=fad-glifc.c
+		else
 			V_FINDALLDEVS=fad-gifc.c
-			;;
-		esac])
+		fi
+	])
 fi
 ])
 
-AC_MSG_CHECKING(for socklen_t)
-AC_TRY_COMPILE([
+dnl check for hardware timestamp support
+case "$host_os" in
+linux*)
+	AC_CHECK_HEADERS([linux/net_tstamp.h])
+	;;
+*)
+	AC_MSG_NOTICE(no hardware timestamp support implemented for $host_os)
+	;;
+esac
+
+AC_ARG_ENABLE([packet-ring],
+[AC_HELP_STRING([--enable-packet-ring],[enable packet ring support on Linux @<:@default=yes@:>@])],
+,enable_packet_ring=yes)
+
+if test "x$enable_packet_ring" != "xno" ; then
+	AC_DEFINE(PCAP_SUPPORT_PACKET_RING, 1, [use packet ring capture support on Linux if available])
+	AC_SUBST(PCAP_SUPPORT_PACKET_RING)
+fi
+
+#
+# Check for socklen_t.
+#
+AC_CHECK_TYPES(socklen_t,,,
+    [
 	#include <sys/types.h>
 	#include <sys/socket.h>
-	],
-	[ socklen_t x; ],
-	have_socklen_t=yes,
-	have_socklen_t=no)
-if test "x$have_socklen_t" = "xyes"; then
-	AC_DEFINE(HAVE_SOCKLEN_T, 1, [define if socklen_t is defined])
-fi
-AC_MSG_RESULT($have_socklen_t)
+    ])
 
 AC_ARG_ENABLE(ipv6,
-AC_HELP_STRING([--enable-ipv6],[build IPv6-capable version @<:@default=yes, if getaddrinfo available@:>@]),
+AC_HELP_STRING([--enable-ipv6],[build IPv6-capable version @<:@default=yes@:>@]),
     [],
-    [enable_ipv6=ifavailable])
+    [enable_ipv6=yes])
 if test "$enable_ipv6" != "no"; then
-	AC_CHECK_FUNC(getaddrinfo,
-	    [
-		AC_DEFINE(INET6,1,[IPv6])
-	    ],
-	    [
-		if test "$enable_ipv6" != "ifavailable"; then
-			AC_MSG_FAILURE([--enable-ipv6 was given, but getaddrinfo isn't available])
-		fi
-	    ])
+	#
+	# We've already made sure we have getaddrinfo above in
+	# AC_LBL_LIBRARY_NET.
+	#
+	AC_DEFINE(INET6,1,[IPv6])
 fi
-
-AC_MSG_CHECKING(whether to build optimizer debugging code)
-AC_ARG_ENABLE(optimizer-dbg,
-AC_HELP_STRING([--enable-optimizer-dbg],[build optimizer debugging code]))
-if test "$enable_optimizer_dbg" = "yes"; then
-	AC_DEFINE(BDEBUG,1,[Enable optimizer debugging])
-fi
-AC_MSG_RESULT(${enable_optimizer_dbg-no})
-
-AC_MSG_CHECKING(whether to build parser debugging code)
-AC_ARG_ENABLE(yydebug,
-AC_HELP_STRING([--enable-yydebug],[build parser debugging code]))
-if test "$enable_yydebug" = "yes"; then
-	AC_DEFINE(YYDEBUG,1,[Enable parser debugging])
-fi
-AC_MSG_RESULT(${enable_yydebug-no})
 
 # Check for Endace DAG card support.
 AC_ARG_WITH([dag],
@@ -770,11 +1106,14 @@ if test "$want_dag" != no; then
 			 SSRC="$SSRC pcap-dag.c"
 		fi
 
-		# See if we can find a general version string.
+		# Check for various DAG API functions.
 		# Don't need to save and restore LIBS to prevent -ldag being
 		# included if there's a found-action (arg 3).
 		saved_ldflags=$LDFLAGS
 		LDFLAGS="-L$dag_lib_dir"
+		AC_CHECK_LIB([dag], [dag_attach_stream],
+		    [],
+		    [AC_MSG_ERROR(DAG library lacks streams support)])
 		AC_CHECK_LIB([dag], [dag_attach_stream64], [dag_large_streams="1"], [dag_large_streams="0"])
 		AC_CHECK_LIB([dag],[dag_get_erf_types], [
 			AC_DEFINE(HAVE_DAG_GET_ERF_TYPES, 1, [define if you have dag_get_erf_types()])])
@@ -783,15 +1122,18 @@ if test "$want_dag" != no; then
 
 		LDFLAGS=$saved_ldflags
 
+		LIBS="$LIBS -ldag"
+		LDFLAGS="$LDFLAGS -L$dag_lib_dir"
+
 		if test "$dag_large_streams" = 1; then
 			AC_DEFINE(HAVE_DAG_LARGE_STREAMS_API, 1, [define if you have large streams capable DAG API])
-			LIBS="$LIBS -ldag"
-			LDFLAGS="$LDFLAGS -L$dag_lib_dir"
-
 			AC_CHECK_LIB([vdag],[vdag_set_device_info], [ac_dag_have_vdag="1"], [ac_dag_have_vdag="0"])
 			if test "$ac_dag_have_vdag" = 1; then
 				AC_DEFINE(HAVE_DAG_VDAG, 1, [define if you have vdag_set_device_info()])
-				LIBS="$LIBS -lpthread"
+				if test "$ac_lbl_have_pthreads" != "found"; then
+					AC_MSG_ERROR([DAG requires pthreads, but we didn't find them])
+				fi
+				LIBS="$LIBS $PTHREAD_LIBS"
 			fi
 		fi
 
@@ -1067,6 +1409,92 @@ if test "$want_turbocap" != no; then
 	fi
 fi
 
+dnl
+dnl Allow the user to enable remote capture.
+dnl It's off by default, as that increases the attack surface of
+dnl libpcap, exposing it to malicious servers.
+dnl
+AC_MSG_CHECKING([whether to enable remote packet capture])
+AC_ARG_ENABLE(remote,
+[  --enable-remote         enable remote packet capture @<:@default=no@:>@
+  --disable-remote        disable remote packet capture],,
+   enableval=no)
+case "$enableval" in
+yes)	AC_MSG_RESULT(yes)
+	AC_WARN([Remote packet capture may expose libpcap-based applications])
+	AC_WARN([to attacks by malicious remote capture servers!])
+	#
+	# rpcapd requires pthreads on UN*X.
+	#
+	if test "$ac_lbl_have_pthreads" != "found"; then
+		AC_MSG_ERROR([rpcapd requires pthreads, but we didn't find them])
+	fi
+	#
+	# It also requires crypt().
+	# Do we have it in the system libraries?
+	#
+	AC_CHECK_FUNC(crypt,,
+	    [
+		#
+		# No.  Do we have it in -lcrypt?
+		#
+		AC_CHECK_LIB(crypt, crypt,
+		    [
+			#
+			# Yes; add -lcrypt to the libraries for rpcapd.
+			#
+			RPCAPD_LIBS="$RPCAPD_LIBS -lcrypt"
+		    ],
+		    [
+			AC_MSG_ERROR([rpcapd requires crypt(), but we didn't find it])
+		    ])
+	    ])
+
+	#
+	# OK, we have crypt().  Do we have getspnam()?
+	#
+	AC_CHECK_FUNCS(getspnam)
+
+	#
+	# Check for various members of struct msghdr.
+	#
+	AC_CHECK_MEMBERS([struct msghdr.msg_control],,,
+	    [
+		#include "ftmacros.h"
+		#include <sys/socket.h>
+	    ])
+	AC_CHECK_MEMBERS([struct msghdr.msg_flags],,,
+	    [
+		#include "ftmacros.h"
+		#include <sys/socket.h>
+	    ])
+
+	AC_DEFINE(ENABLE_REMOTE,,
+	    [Define to 1 if remote packet capture is to be supported])
+	SSRC="$SSRC pcap-new.c pcap-rpcap.c rpcap-protocol.c sockutils.c"
+	BUILD_RPCAPD=build-rpcapd
+	INSTALL_RPCAPD=install-rpcapd
+	;;
+*)	AC_MSG_RESULT(no)
+	;;
+esac
+
+AC_MSG_CHECKING(whether to build optimizer debugging code)
+AC_ARG_ENABLE(optimizer-dbg,
+AC_HELP_STRING([--enable-optimizer-dbg],[build optimizer debugging code]))
+if test "$enable_optimizer_dbg" = "yes"; then
+	AC_DEFINE(BDEBUG,1,[Enable optimizer debugging])
+fi
+AC_MSG_RESULT(${enable_optimizer_dbg-no})
+
+AC_MSG_CHECKING(whether to build parser debugging code)
+AC_ARG_ENABLE(yydebug,
+AC_HELP_STRING([--enable-yydebug],[build parser debugging code]))
+if test "$enable_yydebug" = "yes"; then
+	AC_DEFINE(YYDEBUG,1,[Enable parser debugging])
+fi
+AC_MSG_RESULT(${enable_yydebug-no})
+
 #
 # Look for {f}lex.
 #
@@ -1110,39 +1538,18 @@ if test $tcpdump_cv_capable_yacc = insufficient ; then
  libpcap requires Bison, Berkeley YACC, or another YACC compatible with them.])
 fi
 
-dnl
-dnl Allow the user to enable remote capture.
-dnl It's off by default, as that increases the attack surface of
-dnl libpcap, exposing it to malicious servers.
-dnl
-AC_MSG_CHECKING([whether to enable remote packet capture])
-AC_ARG_ENABLE(remote,
-[  --enable-remote         enable remote packet capture @<:@default=no@:>@
-  --disable-remote        disable remote packet capture],,
-   enableval=no)
-case "$enableval" in
-yes)	AC_MSG_RESULT(yes)
-	AC_WARN([Remote packet capture may expose libpcap-based applications])
-	AC_WARN([to attacks by malicious remote capture servers!])
-	AC_DEFINE(HAVE_REMOTE,,
-	    [Define to 1 if remote packet capture is to be supported])
-	SSRC="$SSRC pcap-new.c pcap-rpcap.c sockutils.c"
-	RPCAPD=rpcapd
-	INSTALL_RPCAPD=install-rpcapd
-	;;
-*)	AC_MSG_RESULT(no)
-	;;
-esac
-
 #
-# Assume, by default, no support for shared libraries and V7/BSD convention
-# for man pages (file formats in section 5, miscellaneous info in section 7).
+# Do various checks for various OSes and versions of those OSes.
+#
+# Assume, by default, no support for shared libraries and V7/BSD
+# convention for man pages (file formats in section 5, miscellaneous
+# info in section 7, administrative commands and daemons in section 8).
 # Individual cases can override this.
 #
 DYEXT="none"
 MAN_FILE_FORMATS=5
 MAN_MISC_INFO=7
-MAN_USERMOD_SECTION=8
+MAN_ADMIN_COMMANDS=8
 case "$host_os" in
 
 aix*)
@@ -1279,6 +1686,7 @@ hpux9*)
 	#
 	# Use System V conventions for man pages.
 	#
+	MAN_ADMIN_COMMANDS=1m
 	MAN_FILE_FORMATS=4
 	MAN_MISC_INFO=5
 	;;
@@ -1288,6 +1696,7 @@ hpux10.0*)
 	#
 	# Use System V conventions for man pages.
 	#
+	MAN_ADMIN_COMMANDS=1m
 	MAN_FILE_FORMATS=4
 	MAN_MISC_INFO=5
 	;;
@@ -1297,6 +1706,7 @@ hpux10.1*)
 	#
 	# Use System V conventions for man pages.
 	#
+	MAN_ADMIN_COMMANDS=1m
 	MAN_FILE_FORMATS=4
 	MAN_MISC_INFO=5
 	;;
@@ -1330,7 +1740,9 @@ hpux*)
 
 irix*)
 	#
-	# Use System V conventions for man pages.
+	# Use IRIX conventions for man pages; they're the same as the
+	# System V conventions, except that they use section 8 for
+	# administrative commands and daemons.
 	#
 	MAN_FILE_FORMATS=4
 	MAN_MISC_INFO=5
@@ -1352,7 +1764,10 @@ osf*)
 	DYEXT="so"
 
 	#
-	# Use System V conventions for man pages.
+	# DEC OSF/1, a/k/a Digial UNIX, a/k/a Tru64 UNIX.
+	# Use Tru64 UNIX conventions for man pages; they're the same as
+	# the System V conventions except that they use section 8 for
+	# administrative commands and daemons.
 	#
 	MAN_FILE_FORMATS=4
 	MAN_MISC_INFO=5
@@ -1377,6 +1792,16 @@ solaris*)
 
 	DYEXT="so"
 
+	#
+	# Make sure errno is thread-safe, in case we're called in
+	# a multithreaded program.  We don't guarantee that two
+	# threads can use the *same* pcap_t safely, but the
+	# current version does guarantee that you can use different
+	# pcap_t's in different threads, and even that pcap_compile()
+	# is thread-safe (it wasn't thread-safe in some older versions).
+	#
+	V_CCOPT="$V_CCOPT -D_TS_ERRNO"
+
 	case "`uname -r`" in
 
 	5.12)
@@ -1386,7 +1811,7 @@ solaris*)
 		#
 		# Use System V conventions for man pages.
 		#
-		MAN_USERMOD_SECTION=1m
+		MAN_ADMIN_COMMANDS=1m
 		MAN_FILE_FORMATS=4
 		MAN_MISC_INFO=5
 	esac
@@ -1405,11 +1830,41 @@ AC_SUBST(LN_S)
 
 AC_LBL_DEVEL(V_CCOPT)
 
-AC_LBL_SOCKADDR_SA_LEN
+#
+# Check to see if the sockaddr struct has the 4.4 BSD sa_len member.
+#
+AC_CHECK_MEMBERS([struct sockaddr.sa_len],,,
+    [
+	#include <sys/types.h>
+	#include <sys/socket.h>
+    ])
 
-AC_LBL_SOCKADDR_STORAGE
+#
+# Check to see if there's a sockaddr_storage structure.
+#
+AC_CHECK_TYPES(struct sockaddr_storage,,,
+    [
+	#include <sys/types.h>
+	#include <sys/socket.h>
+    ])
 
-AC_LBL_HP_PPA_INFO_T_DL_MODULE_ID_1
+#
+# Check to see if the dl_hp_ppa_info_t struct has the HP-UX 11.00
+# dl_module_id_1 member.
+#
+# NOTE: any failure means we conclude that it doesn't have that member,
+# so if we don't have DLPI, don't have a <sys/dlpi_ext.h> header, or
+# have one that doesn't declare a dl_hp_ppa_info_t type, we conclude
+# it doesn't have that member (which is OK, as either we won't be
+# using code that would use that member, or we wouldn't compile in
+# any case).
+#
+AC_CHECK_MEMBERS([dl_hp_ppa_info_t.dl_module_id_1],,,
+    [
+	#include <sys/types.h>
+	#include <sys/dlpi.h>
+	#include <sys/dlpi_ext.h>
+    ])
 
 AC_LBL_UNALIGNED_ACCESS
 
@@ -1422,6 +1877,7 @@ AC_SUBST(V_FINDALLDEVS)
 AC_SUBST(V_INCLS)
 AC_SUBST(V_LEX)
 AC_SUBST(V_PCAP)
+AC_SUBST(V_SHLIB_CCOPT)
 AC_SUBST(V_SHLIB_CMD)
 AC_SUBST(V_SHLIB_OPT)
 AC_SUBST(V_SONAME_OPT)
@@ -1433,12 +1889,15 @@ AC_SUBST(SSRC)
 AC_SUBST(DYEXT)
 AC_SUBST(MAN_FILE_FORMATS)
 AC_SUBST(MAN_MISC_INFO)
-AC_SUBST(MAN_USERMOD_SECTION)
-AC_SUBST(RPCAPD)
+AC_SUBST(MAN_ADMIN_COMMANDS)
+AC_SUBST(PTHREAD_LIBS)
+AC_SUBST(BUILD_RPCAPD)
 AC_SUBST(INSTALL_RPCAPD)
+AC_SUBST(RPCAPD_LIBS)
+AC_SUBST(EXTRA_NETWORK_LIBS)
 
 AC_ARG_ENABLE([usb],
-[AC_HELP_STRING([--enable-usb],[enable nusb support @<:@default=yes, if support available@:>@])],
+[AC_HELP_STRING([--enable-usb],[enable USB capture support @<:@default=yes, if support available@:>@])],
     [],
     [enable_usb=yes])
 
@@ -1482,22 +1941,14 @@ if test "x$enable_usb" != "xno" ; then
 	  # "value", rather than "bRequestType", "bRequest", and
 	  # "wValue".
 	  #
-	  AC_MSG_CHECKING(if usbdevfs_ctrltransfer struct has bRequestType member)
-	  AC_CACHE_VAL(ac_cv_usbdevfs_ctrltransfer_has_bRequestType,
-	    AC_TRY_COMPILE([
-AC_INCLUDES_DEFAULT
-#ifdef HAVE_LINUX_COMPILER_H
-#include <linux/compiler.h>
-#endif
-#include <linux/usbdevice_fs.h>],
-	      [u_int i = sizeof(((struct usbdevfs_ctrltransfer *)0)->bRequestType)],
-	      ac_cv_usbdevfs_ctrltransfer_has_bRequestType=yes,
-	      ac_cv_usbdevfs_ctrltransfer_has_bRequestType=no))
-	    AC_MSG_RESULT($ac_cv_usbdevfs_ctrltransfer_has_bRequestType)
-	    if test $ac_cv_usbdevfs_ctrltransfer_has_bRequestType = yes ; then
-	      AC_DEFINE(HAVE_USBDEVFS_CTRLTRANSFER_BREQUESTTYPE,1,
-	        [if struct usbdevfs_ctrltransfer has bRequestType])
-	    fi
+	  AC_CHECK_MEMBERS([struct usbdevfs_ctrltransfer.bRequestType],,,
+	      [
+		  AC_INCLUDES_DEFAULT
+		  #ifdef HAVE_LINUX_COMPILER_H
+		  #include <linux/compiler.h>
+		  #endif
+		  #include <linux/usbdevice_fs.h>
+	      ])
 	fi
 	;;
     freebsd*)
@@ -1609,67 +2060,67 @@ if test "x$enable_bluetooth" != "xno" ; then
 	case "$host_os" in
 	linux*)
 		AC_CHECK_HEADER(bluetooth/bluetooth.h,
-		[
-		  AC_DEFINE(PCAP_SUPPORT_BT, 1, [target host supports Bluetooth sniffing])
-		  BT_SRC=pcap-bt-linux.c
-		  AC_MSG_NOTICE(Bluetooth sniffing is supported)
+		    [
+			#
+			# We have bluetooth.h, so we support Bluetooth
+			# sniffing.
+			#
+			AC_DEFINE(PCAP_SUPPORT_BT, 1, [target host supports Bluetooth sniffing])
+			BT_SRC=pcap-bt-linux.c
+			AC_MSG_NOTICE(Bluetooth sniffing is supported)
+			ac_lbl_bluetooth_available=yes
 
-		  #
-		  # OK, does struct sockaddr_hci have an hci_channel
-		  # member?
-		  #
-		  AC_MSG_CHECKING(if struct sockaddr_hci has hci_channel member)
-		  AC_CACHE_VAL(ac_cv_lbl_sockaddr_hci_has_hci_channel,
-		    AC_TRY_COMPILE(
-[
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-],
-		      [u_int i = sizeof(((struct sockaddr_hci *)0)->hci_channel)],
-		      ac_cv_lbl_sockaddr_hci_has_hci_channel=yes,
-		      ac_cv_lbl_sockaddr_hci_has_hci_channel=no))
-		    AC_MSG_RESULT($ac_cv_lbl_sockaddr_hci_has_hci_channel)
-		    if test $ac_cv_lbl_sockaddr_hci_has_hci_channel = yes ; then
-		      AC_DEFINE(SOCKADDR_HCI_HAS_HCI_CHANNEL,,
-			[if struct sockaddr_hci has hci_channel member])
-
-		      #
-		      # OK, is HCI_CHANNEL_MONITOR defined?
-		      #
-		      AC_MSG_CHECKING(if HCI_CHANNEL_MONITOR is defined)
-		      AC_CACHE_VAL(ac_cv_lbl_hci_channel_monitor_is_defined,
-		      AC_TRY_COMPILE(
-[
-#include <bluetooth/bluetooth.h>
-#include <bluetooth/hci.h>
-],
-			[u_int i = HCI_CHANNEL_MONITOR],
-			ac_cv_lbl_hci_channel_monitor_is_defined=yes,
-			ac_cv_lbl_hci_channel_monitor_is_defined=no))
-		      AC_MSG_RESULT($ac_cv_lbl_hci_channel_monitor_is_defined)
-		      if test $ac_cv_lbl_hci_channel_monitor_is_defined = yes ; then
-			AC_DEFINE(PCAP_SUPPORT_BT_MONITOR,,
-			  [target host supports Bluetooth Monitor])
-			BT_MONITOR_SRC=pcap-bt-monitor-linux.c
-		      fi
-		    fi
-		    ac_lbl_bluetooth_available=yes
-		],
-		ac_lbl_bluetooth_available=no
-		)
-		if test "x$ac_lbl_bluetooth_available" == "xno" ; then
-		    if test "x$enable_bluetooth" = "xyes" ; then
-			AC_MSG_ERROR(Bluetooth sniffing is not supported; install bluez-lib devel to enable it)
-		    else
-			AC_MSG_NOTICE(Bluetooth sniffing is not supported; install bluez-lib devel to enable it)
-		    fi
-		fi
+			#
+			# OK, does struct sockaddr_hci have an hci_channel
+			# member?
+			#
+			AC_CHECK_MEMBERS([struct sockaddr_hci.hci_channel],
+			    [
+				#
+				# Yes; is HCI_CHANNEL_MONITOR defined?
+				#
+				AC_MSG_CHECKING(if HCI_CHANNEL_MONITOR is defined)
+				AC_CACHE_VAL(ac_cv_lbl_hci_channel_monitor_is_defined,
+				    AC_TRY_COMPILE(
+					[
+					    #include <bluetooth/bluetooth.h>
+					    #include <bluetooth/hci.h>
+					],
+					[
+					    u_int i = HCI_CHANNEL_MONITOR;
+					],
+					[
+					    AC_MSG_RESULT(yes)
+					    AC_DEFINE(PCAP_SUPPORT_BT_MONITOR,,
+					      [target host supports Bluetooth Monitor])
+					    BT_MONITOR_SRC=pcap-bt-monitor-linux.c
+					],
+					[
+					    AC_MSG_RESULT(no)
+					]))
+			    ],,
+			    [
+				#include <bluetooth/bluetooth.h>
+				#include <bluetooth/hci.h>
+			    ])
+		    ],
+		    [
+			#
+			# We don't have bluetooth.h, so we don't support
+			# Bluetooth sniffing.
+			#
+			if test "x$enable_bluetooth" = "xyes" ; then
+				AC_MSG_ERROR(Bluetooth sniffing is not supported; install bluez-lib devel to enable it)
+			else
+				AC_MSG_NOTICE(Bluetooth sniffing is not supported; install bluez-lib devel to enable it)
+			fi
+		    ])
 		;;
 	*)
 		if test "x$enable_bluetooth" = "xyes" ; then
-		    AC_MSG_ERROR(no Bluetooth sniffing support implemented for $host_os)
+			AC_MSG_ERROR(no Bluetooth sniffing support implemented for $host_os)
 		else
-		    AC_MSG_NOTICE(no Bluetooth sniffing support implemented for $host_os)
+			AC_MSG_NOTICE(no Bluetooth sniffing support implemented for $host_os)
 		fi
 		;;
 	esac
@@ -1767,34 +2218,6 @@ if test "x$enable_dbus" != "xno"; then
 	AC_SUBST(DBUS_SRC)
 fi
 
-dnl check for hardware timestamp support
-case "$host_os" in
-linux*)
-	AC_CHECK_HEADERS([linux/net_tstamp.h])
-	;;
-*)
-	AC_MSG_NOTICE(no hardware timestamp support implemented for $host_os)
-	;;
-esac
-
-dnl The packet ring capture facility of Linux, described in
-dnl Documentation/networking/packet_mmap.txt, is not 32/64-bit compatible before
-dnl version 2.6.27. A 32-bit kernel requires a 32-bit userland, and likewise for
-dnl 64-bit. The effect of this is that a 32-bit libpcap binary will not run
-dnl correctly on a 64-bit kernel (the binary will use the wrong offsets into a
-dnl kernel struct). This problem was solved in Linux 2.6.27. Use
-dnl --disable-packet-ring whenever a 32-bit application must run on a 64-bit
-dnl target host, and either the build host or the target host run Linux 2.6.26
-dnl or earlier.
-AC_ARG_ENABLE([packet-ring],
-[AC_HELP_STRING([--enable-packet-ring],[enable Linux packet ring support @<:@default=yes@:>@])],
-,enable_packet_ring=yes)
-
-if test "x$enable_packet_ring" != "xno" ; then
-	AC_DEFINE(PCAP_SUPPORT_PACKET_RING, 1, [use Linux packet ring capture if available])
-	AC_SUBST(PCAP_SUPPORT_PACKET_RING)
-fi
-
 AC_ARG_ENABLE([rdma],
 [AC_HELP_STRING([--enable-rdma],[enable RDMA capture support @<:@default=yes, if support available@:>@])],
     [],
@@ -1809,6 +2232,17 @@ fi
 if test "x$enable_rdmasniff" != "xno"; then
 	AC_CHECK_LIB(ibverbs, ibv_get_device_list, [
 		AC_CHECK_HEADER(infiniband/verbs.h, [
+			#
+			# ibv_create_flow may be defined as a static inline
+			# function in infiniband/verbs.h, so we can't
+			# use AC_CHECK_LIB.
+			#
+			# Too bad autoconf has no AC_SYMBOL_EXISTS()
+			# macro that works like CMake's check_symbol_exists()
+			# function, to check do a compile check like
+			# this (they do a clever trick to avoid having
+			# to know the function's signature).
+			#
 			AC_MSG_CHECKING(whether libibverbs defines ibv_create_flow)
 			AC_TRY_LINK(
 				[
@@ -1849,5 +2283,6 @@ AC_OUTPUT(Makefile pcap-filter.manmisc pcap-linktype.manmisc
 	pcap_get_tstamp_precision.3pcap pcap_list_datalinks.3pcap
 	pcap_list_tstamp_types.3pcap pcap_open_dead.3pcap
 	pcap_open_offline.3pcap pcap_set_tstamp_precision.3pcap
-	pcap_set_tstamp_type.3pcap rpcapd/Makefile)
+	pcap_set_tstamp_type.3pcap rpcapd/Makefile rpcapd/rpcapd.manadmin
+	testprogs/Makefile)
 exit 0

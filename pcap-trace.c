@@ -31,13 +31,6 @@ int _pcap_trace_level (void)
 
 void _pcap_trace_color (unsigned short col)
 {
-#if 0
-  /*
-   * Ensure '_pcap_trace_level()' was called
-   */
-  assert (g_trace_crit.OwningThread);
-#endif
-
   fflush (stdout);
   if (col == 0)
        SetConsoleTextAttribute (stdout_hnd, console_info.wAttributes);

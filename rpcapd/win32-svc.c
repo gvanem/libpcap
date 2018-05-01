@@ -2,48 +2,49 @@
  * Copyright (c) 2002 - 2003
  * NetGroup, Politecnico di Torino (Italy)
  * All rights reserved.
- * 
- * Redistribution and use in source and binary forms, with or without 
- * modification, are permitted provided that the following conditions 
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
  * are met:
- * 
- * 1. Redistributions of source code must retain the above copyright 
+ *
+ * 1. Redistributions of source code must retain the above copyright
  * notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright 
- * notice, this list of conditions and the following disclaimer in the 
- * documentation and/or other materials provided with the distribution. 
- * 3. Neither the name of the Politecnico di Torino nor the names of its 
- * contributors may be used to endorse or promote products derived from 
- * this software without specific prior written permission. 
- * 
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT 
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR 
- * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT 
- * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
- * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT 
- * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, 
- * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY 
- * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT 
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+ * 2. Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ * 3. Neither the name of the Politecnico di Torino nor the names of its
+ * contributors may be used to endorse or promote products derived from
+ * this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+ * OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+ * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+ * LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- * 
+ *
  */
 
 
 #include "rpcapd.h"
-#include <signal.h>
-#define	_WINSOCKAPI_
-#include "windows.h"
 #include <pcap.h>		// for PCAP_ERRBUF_SIZE
-#include "sockutils.h"	// for SOCK_ASSERT
+#include "sockutils.h"		// for SOCK_DEBUG_MESSAGE
+#include "portability.h"
+#include "varattrs.h"     // for _U_
 #include "fileconf.h"
+#include "win32-svc.h"
 
-SERVICE_STATUS_HANDLE service_status_handle;
-SERVICE_STATUS service_status;
+static SERVICE_STATUS_HANDLE service_status_handle;
+static SERVICE_STATUS service_status;
 
-void svc_geterr(char *str);
-void WINAPI svc_main(DWORD argc, char **argv);
+static void svc_geterr(char *str);
+static void WINAPI svc_main(DWORD argc, char **argv);
+static void update_svc_status(DWORD state, DWORD progress_indicator);
 
 int svc_start(void)
 {
@@ -62,7 +63,7 @@ int svc_start(void)
 	return rc; // FALSE if this is not started as a service
 }
 
-void svc_geterr(char *str)
+static void svc_geterr(char *str)
 {
 	char message[PCAP_ERRBUF_SIZE];
 	char string[PCAP_ERRBUF_SIZE];
@@ -74,34 +75,33 @@ void svc_geterr(char *str)
 				  NULL, val, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 				  (LPSTR) string, PCAP_ERRBUF_SIZE, NULL);
 
-	snprintf(message, PCAP_ERRBUF_SIZE, "%s failed with error %d: %s", str, val, string);
+	pcap_snprintf(message, PCAP_ERRBUF_SIZE, "%s failed with error %d: %s", str, val, string);
 
-	SOCK_ASSERT(message, 1);
+	SOCK_DEBUG_MESSAGE(message);
 }
 
-void WINAPI svc_control_handler(DWORD Opcode)
+static void WINAPI svc_control_handler(DWORD Opcode)
 {
-	service_status.dwWin32ExitCode = 0;
-	service_status.dwCheckPoint = 0;
-	service_status.dwWaitHint = 0;
-
 	switch(Opcode)
 	{
 		case SERVICE_CONTROL_STOP:
-			service_status.dwCurrentState = SERVICE_STOPPED;
+			//
+			// XXX - is this sufficient to clean up the service?
+			// To be really honest, only the main socket and
+			// such these stuffs are cleared; however the threads
+			// that are running are not stopped.
+			// This can be seen by placing a breakpoint at the
+			// end of svc_main(), in which you will see that is
+			// never reached. However, as soon as you set the
+			// service status to "stopped",	the
+			// StartServiceCtrlDispatcher() returns and the main
+			// thread ends. Then, Win32 has a good automatic
+			// cleanup, so that all the threads which are still
+			// running are stopped when the main thread ends.
+			//
+			send_shutdown_notification();
 
-			/*
-				Uses ABORT to clean up the service. To be really honest, only the main socket and 
-				such these stuffs are cleared; however the thread which are running are not stopped.
-				This can be seen by placing a breakpoint at the end of svc_main(), in which you will 
-				see that is never reached. However, as soon as you set the service status to "stopped",
-				the StartServiceCtrlDispatcher() returns and the main thread ends. Then, Win32 has a good
-				authomatic cleanup, so that all the threads which are still running are stopped
-				when the main thread ends.
-			*/
-			raise(SIGABRT);
-
-			SetServiceStatus(service_status_handle, &service_status);
+			update_svc_status(SERVICE_STOP_PENDING, 0);
 			break;
 
 		/*
@@ -115,21 +115,29 @@ void WINAPI svc_control_handler(DWORD Opcode)
 			can be needed according to the new configuration.
 		*/
 		case SERVICE_CONTROL_PAUSE:
-			service_status.dwCurrentState = SERVICE_PAUSED;
-			SetServiceStatus(service_status_handle, &service_status);
+			update_svc_status(SERVICE_PAUSED, 0);
 			break;
-		
+
 		case SERVICE_CONTROL_CONTINUE:
-			service_status.dwCurrentState = SERVICE_RUNNING;
-			SetServiceStatus(service_status_handle, &service_status);
-			fileconf_read(0);
+			update_svc_status(SERVICE_RUNNING, 0);
+			//
+			// Tell the main loop to re-read the configuration.
+			//
+			send_reread_configuration_notification();
 			break;
 
 		case SERVICE_CONTROL_INTERROGATE:
 			// Fall through to send current status.
 			//	WARNING: not implemented
-			SetServiceStatus(service_status_handle, &service_status);
+			update_svc_status(SERVICE_RUNNING, 0);
 			MessageBox(NULL, "Not implemented", "warning", MB_OK);
+			break;
+
+		case SERVICE_CONTROL_PARAMCHANGE:
+			//
+			// Tell the main loop to re-read the configuration.
+			//
+			send_reread_configuration_notification();
 			break;
 	}
 
@@ -137,7 +145,7 @@ void WINAPI svc_control_handler(DWORD Opcode)
 	return;
 }
 
-void WINAPI svc_main(DWORD argc, char **argv)
+void WINAPI svc_main(DWORD argc _U_, char **argv _U_)
 {
 	service_status_handle = RegisterServiceCtrlHandler(PROGRAM_NAME, svc_control_handler);
 
@@ -145,17 +153,29 @@ void WINAPI svc_main(DWORD argc, char **argv)
 		return;
 
 	service_status.dwServiceType = SERVICE_WIN32_OWN_PROCESS | SERVICE_INTERACTIVE_PROCESS;
-	service_status.dwCurrentState = SERVICE_RUNNING;
-	service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PAUSE_CONTINUE;
+	service_status.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_PAUSE_CONTINUE | SERVICE_ACCEPT_PARAMCHANGE;
 	// | SERVICE_ACCEPT_SHUTDOWN ;
-	service_status.dwWin32ExitCode = 0;
-	service_status.dwServiceSpecificExitCode = 0;
-	service_status.dwCheckPoint = 0;
-	service_status.dwWaitHint = 0;
+	update_svc_status(SERVICE_RUNNING, 0);
 
-	SetServiceStatus(service_status_handle, &service_status);
-
+	//
+	// Service requests until we're told to stop.
+	//
 	main_startup();
+
+	//
+	// It returned, so we were told to stop.
+	//
+	update_svc_status(SERVICE_STOPPED, 0);
+}
+
+static void
+update_svc_status(DWORD state, DWORD progress_indicator)
+{
+	service_status.dwWin32ExitCode = NO_ERROR;
+	service_status.dwCurrentState = state;
+	service_status.dwCheckPoint = progress_indicator;
+	service_status.dwWaitHint = 0;
+	SetServiceStatus(service_status_handle, &service_status);
 }
 
 /*

@@ -220,8 +220,8 @@ pcap_activate_libdlpi(pcap_t *p)
 	 */
 	if (ioctl(p->fd, I_FLUSH, FLUSHR) != 0) {
 		status = PCAP_ERROR;
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "FLUSHR: %s",
-		    pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "FLUSHR");
 		goto bad;
 	}
 
@@ -287,6 +287,29 @@ is_dlpi_interface(const char *name _U_)
 	return (1);
 }
 
+static int
+get_if_flags(const char *name _U_, bpf_u_int32 *flags _U_, char *errbuf _U_)
+{
+	/*
+	 * Nothing we can do other than mark loopback devices as "the
+	 * connected/disconnected status doesn't apply".
+	 *
+	 * XXX - on Solaris, can we do what the dladm command does,
+	 * i.e. get a connected/disconnected indication from a kstat?
+	 * (Note that you can also get the link speed, and possibly
+	 * other information, from a kstat as well.)
+	 */
+	if (*flags & PCAP_IF_LOOPBACK) {
+		/*
+		 * Loopback devices aren't wireless, and "connected"/
+		 * "disconnected" doesn't apply to them.
+		 */
+		*flags |= PCAP_IF_CONNECTION_STATUS_NOT_APPLICABLE;
+		return (0);
+	}
+	return (0);
+}
+
 /*
  * In Solaris, the "standard" mechanism" i.e SIOCGLIFCONF will only find
  * network links that are plumbed and are up. dlpi_walk(3DLPI) will find
@@ -305,7 +328,7 @@ pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 	 * Get the list of regular interfaces first.
 	 */
 	if (pcap_findalldevs_interfaces(devlistp, errbuf,
-	    is_dlpi_interface) == -1)
+	    is_dlpi_interface, get_if_flags) == -1)
 		return (-1);	/* failure */
 
 	/* dlpi_walk() for loopback will be added here. */
@@ -320,8 +343,8 @@ pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 	dlpi_walk(list_interfaces, &lw, 0);
 
 	if (lw.lw_err != 0) {
-		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-		    "dlpi_walk: %s", pcap_strerror(lw.lw_err));
+		pcap_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
+		    lw.lw_err, "dlpi_walk");
 		retv = -1;
 		goto done;
 	}
@@ -332,8 +355,8 @@ pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 		 * If it isn't already in the list of devices, try to
 		 * add it.
 		 */
-		if (find_or_add_dev(devlistp, entry->linkname, 0, NULL,
-		    errbuf) == NULL)
+		if (find_or_add_dev(devlistp, entry->linkname, 0, get_if_flags,
+		    NULL, errbuf) == NULL)
 			retv = -1;
 	}
 done:
@@ -461,8 +484,6 @@ pcap_create_interface(const char *device _U_, char *ebuf)
 	p->activate_op = pcap_activate_libdlpi;
 	return (p);
 }
-
-#include "pcap_version.h"
 
 /*
  * Libpcap version string.

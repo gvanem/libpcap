@@ -51,10 +51,11 @@ LN_S = @LN_S@
 MKDEP = @MKDEP@
 CCOPT = @V_CCOPT@
 INCLS = -I. -I.. -I@srcdir@ -I@srcdir@/.. @V_INCLS@
-DEFS = -DBUILDING_PCAP @DEFS@ @V_DEFS@
+DEFS = @DEFS@ @V_DEFS@
 ADDLOBJS = @ADDLOBJS@
 ADDLARCHIVEOBJS = @ADDLARCHIVEOBJS@
 LIBS = @LIBS@
+PTHREAD_LIBS = @PTHREAD_LIBS@
 CROSSFLAGS=
 CFLAGS = @CFLAGS@   ${CROSSFLAGS}
 LDFLAGS = @LDFLAGS@ ${CROSSFLAGS}
@@ -62,6 +63,7 @@ DYEXT = @DYEXT@
 V_RPATH_OPT = @V_RPATH_OPT@
 DEPENDENCY_CFLAG = @DEPENDENCY_CFLAG@
 PROG=libpcap
+RPCAPD_LIBS = @RPCAPD_LIBS@
 
 # Standard CFLAGS
 FULL_CFLAGS = $(CCOPT) $(INCLS) $(DEFS) $(CFLAGS)
@@ -79,47 +81,50 @@ INSTALL_DATA = @INSTALL_DATA@
 
 SRC =	daemon.c \
 	fileconf.c \
-	rpcapd.c \
-	utils.c
+	log-stderr.c \
+	rpcapd.c
 
-OBJ =	$(SRC:.c=.o)
+OBJ =	$(SRC:.c=.o) ../rpcap-protocol.o ../sockutils.o ../fmtutils.o
 PUBHDR =
 
-HDR = $(PUBHDR)
+HDR = $(PUBHDR) log.h
 
 TAGFILES = \
 	$(SRC) $(HDR)
 
 CLEANFILES = $(OBJ) rpcapd
 
-MAN8 =
-
-
-EXTRA_DIST = \
-	CMakeLists.txt \
-	Makefile.in \
-	Makefile-devel-adds
+MANADMIN = \
+	rpcapd.manadmin.in
 
 rpcapd: $(OBJ) ../libpcap.a
-	$(CC) $(LDFLAGS) -o $@ $(OBJ) ../libpcap.a $(LIBS)
+	$(CC) $(CCOPT) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJ) ../libpcap.a $(LIBS) $(RPCAPD_LIBS) $(PTHREAD_LIBS)
 clean:
 	rm -f $(CLEANFILES)
 
 distclean: clean
 	rm -f Makefile config.cache config.log config.status \
 	    config.h stamp-h stamp-h.in
+	rm -f $(MANADMIN:.in=)
 	rm -rf autom4te.cache
 
 install: rpcapd
 	[ -d $(DESTDIR)$(sbindir) ] || \
 	    (mkdir -p $(DESTDIR)$(sbindir); chmod 755 $(DESTDIR)$(sbindir))
 	$(INSTALL_PROGRAM) rpcapd $(DESTDIR)$(sbindir)/rpcapd
+	[ -d $(DESTDIR)$(mandir)/man@MAN_ADMIN_COMMANDS@ ] || \
+	    (mkdir -p $(DESTDIR)$(mandir)/man@MAN_ADMIN_COMMANDS@; chmod 755 $(DESTDIR)$(mandir)/man@MAN_ADMIN_COMMANDS@)
+	for i in $(MANADMIN); do \
+		$(INSTALL_DATA) `echo $$i | sed 's/.manadmin.in/.manadmin/'` \
+		    $(DESTDIR)$(mandir)/man@MAN_ADMIN_COMMANDS@/`echo $$i | sed 's/.manadmin.in/.@MAN_ADMIN_COMMANDS@/'`; done
 
 uninstall:
 	rm -f $(DESTDIR)$(sbindir)/rpcapd
+	for i in $(MANADMIN); do \
+		rm -f $(DESTDIR)$(mandir)/man@MAN_ADMIN_COMMANDS@/`echo $$i | sed 's/.manadmin.in/.@MAN_ADMIN_COMMANDS@/'`; done
 
 tags: $(TAGFILES)
 	ctags -wtd $(TAGFILES)
 
 depend:
-	../$(MKDEP) -c $(CC) -m $(CFLAGS) $(DEPENDENCY_CFLAG) $(DEFS) $(INCLS) $(SRC)
+	../$(MKDEP) -c "$(CC)" -m "$(DEPENDENCY_CFLAG)" $(CFLAGS) $(DEFS) $(INCLS) $(SRC)

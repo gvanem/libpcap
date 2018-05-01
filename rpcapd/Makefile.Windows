@@ -1,0 +1,398 @@
+#
+# GNU Makefile for the remote capture daemon.
+# Targeting MinGW, clang-cl and MSVC (32+64 bits).
+#
+# By G. Vanem <gvanem@yahoo.no> 2014.
+#
+THIS_FILE = Makefile.Windows
+VPATH     = ../missing
+
+define USAGE
+
+  Usage: "$(MAKE) -f $(THIS_FILE) <CPU=x86 | x64> CC=[cl | clang-cl | gcc] [all | clean | vclean | realclean | depend]"
+endef
+
+#
+# Root directories. Change to suite.
+#
+WINPCAP_ROOT ?= ../WinPcap
+VC_ROOT      ?= $(realpath $(VCHOME))
+CLANG32_ROOT ?= f:/ProgramFiler/LLVM-6-32bit
+CLANG64_ROOT ?= f:/ProgramFiler/LLVM-6-64bit
+
+#
+# Use wpcap as a .DLL or a static library.
+#
+USE_WPCAP_DLL ?= 1
+
+#
+# Use the tracing Wsock_trace lib (and not ws2_32.lib).
+# Currently works best for MSVC/clang-cl.
+#   Ref: https://github.com/gvanem/wsock-trace/
+#
+USE_WSOCK_TRACE ?= 1
+
+#
+# If '$(CPU)=x64', build rpcapd_64.exe.
+# Otherwise build 32-bit rpcapd.exe.
+#
+ifeq ($(CPU),)
+  CPU := x86
+endif
+
+#
+# GNU Make handles environment variables in a case-sensitive manner.
+#
+ifeq ($(CPU),X64)
+  BITS = 64
+  X64  = _64
+else ifeq ($(CPU),x64)
+  BITS = 64
+  X64  = _64
+else ifeq ($(CPU),x86)
+  BITS = 32
+  X64  =
+else ifeq ($(CPU),X86)
+  BITS = 32
+  X64  =
+else
+  $(error Unsupported $$(CPU)=$(CPU))
+endif
+
+ifeq ($(CC),cl)
+  lib_select = $(1)
+  O          = obj
+  CFLAGS     = -nologo -MD -Zi -W3 -O2
+  LDFLAGS    = -nologo -debug -map -verbose -machine:$(CPU) -incremental:no
+  RCFLAGS    = -nologo -D_MSC_VER -r
+
+  #
+  # Select correct cl.exe and link.exe based on $(CPU) without
+  # the 'vcvarsall.bat' non-sense.
+  #
+  # Note: This assumes you have Visual-Studio 2017 where %VCHOME%
+  #       defines the base directory for the tools.
+  #
+  # Note: 'rc.exe' doesn't care about bitness.
+  #
+  CL_CC   = $(VC_ROOT)/bin/HostX86/$(CPU)/cl.exe
+  CL_LINK = $(VC_ROOT)/bin/HostX86/$(CPU)/link.exe
+
+else ifeq ($(CC),clang-cl)
+  export CL=
+  lib_select = $(1)
+  O          = obj
+  CFLAGS     = -nologo -MD -Zi -O2 -Wall
+  LDFLAGS    = -nologo -debug -map -verbose -machine:$(CPU) -incremental:no
+  RCFLAGS    = -nologo -D__clang__ -r
+
+  CFLAGS += -Wno-reserved-id-macro               \
+            -Wno-nonportable-system-include-path \
+            -Wno-sign-conversion                 \
+            -Wno-cast-align                      \
+            -Wno-cast-qual                       \
+            -Wno-bad-function-cast               \
+            -Wno-unreachable-code-break          \
+            -Wno-covered-switch-default
+
+  #
+  # Select correct clang-cl.exe and link.exe based on $(CPU).
+  # The linker is always from MSVC.
+  # See 'CLANGxx_ROOT' above.
+  #
+  CL_CC   = $(CLANG$(BITS)_ROOT)/bin/clang-cl.exe
+  CL_LINK = $(VC_ROOT)/bin/HostX86/$(CPU)/link.exe
+
+else ifeq ($(CC),gcc)
+  #
+  # Selecting bitness using TDM-gcc is trivial; simply '-m$(BITS)'.
+  #
+  lib_select = $(2)
+  O          = o
+  CFLAGS     = -m$(BITS) -g -Wall
+  LDFLAGS    = -m$(BITS) -s -Wl,--print-map,--sort-common
+  RCFLAGS    = -O COFF -D__MINGW32__
+  ifeq ($(BITS),64)
+    RCFLAGS += --target=pe-x86-64
+  else
+    RCFLAGS += --target=pe-i386
+  endif
+
+else
+  $(error $(USAGE))
+endif
+
+RCFLAGS += -I.
+CFLAGS  += -I. -I.. -I../missing -DHAVE_SNPRINTF=1 -DHAVE_VSNPRINTF=1
+
+EX_LIBS = $(call lib_select, user32.lib advapi32.lib, \
+                            -ladvapi32 -lws2_32)
+
+CFLAGS += -I$(WINPCAP_ROOT)/include \
+          -DHAVE_CONFIG_H -D_libpcap_CONFIG_H
+
+#
+# Select the correct library paths for MSVC or clang-cl.
+#
+ifneq ($(CC),gcc)
+  #
+  # The paths for the CRT library (msvcrt.lib):
+  #
+  LDFLAGS += -libpath:$(VC_ROOT)/lib/$(CPU)
+
+  #
+  # 'WindowsKits' root is in $(WK_ROOT) and
+  # 'WindowsKits' version is in $(WK_VER).
+  #
+  # Hence the User-Mode libraries for 'x86' is in:
+  #   $(WK_ROOT)/Lib/$(WK_VER)/um/x86/
+  #
+  LDFLAGS += -libpath:$(realpath $(WK_ROOT)/Lib/$(WK_VER)/um/$(CPU))
+
+  #
+  # Ditto mess for the UCRT libraries: for 'x86' the UCRT libs are in:
+  #   $(WK_ROOT)/Lib/$(WK_VER)/ucrt/x86/
+  #
+  LDFLAGS += -libpath:$(realpath $(WK_ROOT)/Lib/$(WK_VER)/ucrt/$(CPU))
+
+  ifeq ($(USE_WSOCK_TRACE),1)
+    #
+    # These MUST be in %LIB%-path.
+    #
+    ifeq ($(BITS),64)
+      EX_LIBS += wsock_trace_x64.lib
+    else
+      EX_LIBS += wsock_trace.lib
+    endif
+  else
+    EX_LIBS += ws2_32.lib
+  endif
+endif
+
+#
+# Use dynamic version wpcap.
+#
+ifeq ($(USE_WPCAP_DLL),1)
+  PCAP_LIB = $(call lib_select, ../wpcap2$(X64).lib, \
+                                ../libwpcap2$(X64).a)
+
+  #
+  # These are in $(PCAP_LIB) if it was built with 'ENABLE_REMOTE'
+  # AND we're using a static $(PCAP_LIB).
+  #
+  # If we're using the import library, we must compile these
+  # .c-files here since their functions are not exported from
+  # wpcap2$(X64).dll.
+  #
+  VPATH     += ..
+  C_SOURCES += ../rpcap-protocol.c ../sockutils.c ../fmtutils.c
+else
+  CFLAGS  += -DPCAP_STATIC=1
+  EX_LIBS += $(call lib_select, version.lib iphlpapi.lib, \
+                              -lversion    -liphlpapi)
+
+  PCAP_LIB = $(call lib_select, ../wpcap2$(X64)_static.lib, \
+                                ../libwpcap2$(X64)_static.a)
+endif
+
+C_SOURCES += rpcapd.c     \
+             daemon.c     \
+             fileconf.c   \
+             log-stderr.c \
+             win32-svc.c  \
+             ../missing/getopt.c
+
+OBJECTS = $(notdir $(C_SOURCES:.c=.$(O))) rpcapd$(X64).res
+
+all: rpcapd$(X64).exe
+
+%.obj: %.c | ./config.h
+	$(CL_CC) $(CFLAGS) -c -Fo./$@ $<
+	@echo
+
+%.o: %.c | ./config.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+	@echo
+
+rpcapd$(X64).res: rpcapd.rc | ./config.h
+	$(call make_res, $<, $@)
+
+%.i: %.c FORCE cpp_filter.py
+	$(CC) $(CFLAGS) -E $< | python cpp_filter.py | indent -st > $@
+	@echo
+
+FORCE:
+
+rpcapd$(X64).exe: $(OBJECTS) $(PCAP_LIB)
+	$(call link_EXE, $@, $(OBJECTS) $(PCAP_LIB) $(EX_LIBS))
+
+clean:
+	rm -f $(OBJECTS) rpcap-protocol.$(O) sockutils.$(O)
+	rm -f rpcapd$(X64).res rpcapd$(X64).map ./config.h cpp_filter.py link.tmp
+
+realclean vclean: clean
+	rm -f rpcapd$(X64).exe .depend.Windows
+ifneq ($(CC),gcc)
+	rm -f rpcapd$(X64).pdb vc1*.pdb
+endif
+
+./config.h: $(THIS_FILE)
+	$(call Generate_file, $@)
+	$(file >> $@,#ifndef _rpcapd_CONFIG_H)
+	$(file >> $@,#define _rpcapd_CONFIG_H)
+	$(file >> $@,$(RPCAPD_CONFIG_H))
+	$(file >> $@,#endif /* _rpcapd_CONFIG_H */)
+	@echo
+
+#
+# A simple ./config.h for both Pthreads and Pcap.
+# Just define what's needed for building 'rpcapd$(X64).exe'.
+#
+define RPCAPD_CONFIG_H
+  #define _WIN32_WINNT            _WIN32_WINNT_VISTA  /* Needed for 'inet_ntop()' */
+  #define MINGW_HAS_SECURE_API    1
+  #define _CRT_SECURE_NO_WARNINGS 1
+
+  #include <string.h>
+
+  #define HAVE_REMOTE    1  /* Duh! */
+  #define HAVE_LIMITS_H  1
+
+  #if defined(RC_INVOKED)
+    #define PACKAGE_VERSION      "1.0"
+    #define PACKAGE_VERSION_DLL   1,0,0,0
+  #endif
+
+  #if defined(_MSC_VER) || defined(__clang__)
+    #define ssize_t     int
+    #define _SSIZE_T_DEFINED
+  #endif
+endef
+
+#
+# Create a file with header.
+#   $(1): file to write to.
+#
+define Generate_file
+  $(info Generating $(1) ...)
+  $(file  > $(1), /*)
+  $(file >> $(1),  * Generated $(strip $(1)) for MinGW + MSVC.)
+  $(file >> $(1),  * DO NOT EDIT. Edit $(realpath $(THIS_FILE)) instead.)
+  $(file >> $(1),  */)
+endef
+
+#
+# EXE-link macro:
+#   $(1): The name of the produced EXE.
+#   $(2): The rest of the link arguments.
+#
+define link_EXE
+  $(info Building $(1))
+  $(call link_EXE_$(CC), $(1), $(2))
+  @echo
+endef
+
+define link_EXE_cl
+  $(CL_LINK) $(LDFLAGS) -out:$(strip $(1)) $(2) > link.tmp
+  cat link.tmp >> $(1:.exe=.map)
+  @rm -f link.tmp $(1:.exe=.exp) $(1:.exe=.lib)
+endef
+
+link_EXE_clang-cl = $(call link_EXE_cl, $(1), $(2))
+link_EXE_gcc      = $(CC) $(LDFLAGS) -o $(1) $(2) > $(1:.exe=.map)
+
+#
+# arg1, $(1): The output .RES.
+# arg2, $(2): The input .RC file.
+#
+make_res_cl       = rc -fo $(2) $(1)
+make_res_clang-cl = rc -fo $(2) $(1)
+make_res_gcc      = windres -fo $(2) $(1)
+
+define make_res
+  $(call make_res_$(CC), $(RCFLAGS) $(1), $(2))
+  @echo
+endef
+
+#
+# For cpp_filter.py used in .c -> .i rule.
+#
+define CPP_FILTER_PY
+  import sys, os
+
+  try:
+    import ntpath
+  except ImportError, e:
+    print ("Failed to import ntpath: %s" % e)
+    sys.exit(1)
+
+  def _win32_abspath (path):
+    path = ntpath.abspath (path)
+    return path.replace ('\\', '/')
+
+  def skip_cwd (s1, s2):
+    ''' Skip the leading part that is in common with s1 and s2
+    '''
+    i = 0
+    while i < len(s1) and s1[i] == s2[i]:
+       i += 1
+    return s2[i:]
+
+  cwd = _win32_abspath (os.getcwd()) + '/'
+
+  last_line  = '??'
+  last_fname = '??'
+  empty_lines = 0
+
+  while True:
+    line = sys.stdin.readline()
+    if not line:
+      break
+    if line.startswith('\n') or line.startswith('\r'):
+      empty_lines += 1
+      continue
+
+    # print ("orig: \"%s\"" % line)
+
+    line = line.replace ("\\\\", "/")
+    fname = None
+    quote = line.find ('\"')
+
+    if line.startswith ("#line ") and quote > 0:
+      fname = _win32_abspath (line[quote:])
+      last_fname = fname
+
+    if line.strip() != '' and last_line != '':
+      if fname is None or fname != last_fname:
+        print (line, end="")
+      if line.strip() == '}' or line.strip() == '};':  # Print a newline after a functions or structs
+        print ("")
+
+    last_line = line
+
+  if empty_lines > 0:
+    sys.stderr.write ("Removed %d empty lines." % empty_lines)
+
+endef
+
+cpp_filter.py: $(THIS_FILE)
+	@echo 'Generating $@...'
+	$(file >  $@,#!/usr/env/python)
+	$(file >> $@,#)
+	$(file >> $@,# DO NOT EDIT! This file was generated automatically)
+	$(file >> $@,# from $(realpath $(THIS_FILE)). Edit that file instead.)
+	$(file >> $@,#)
+	$(file >> $@,from __future__ import print_function)
+	$(file >> $@,if 1:)
+	$(file >> $@,$(CPP_FILTER_PY))
+
+REPLACE = sed -e 's@\(.*\)\.o: @\n\1.$$(O): @'
+
+depend: ./config.h
+	@echo -e '#\n'                                                        \
+	         '# DO NOT EDIT! This file was generated automatically\n'     \
+	         '# from $(realpath $(THIS_FILE)). Edit that file instead.\n' \
+	         '#' > .depend.Windows
+	gcc -MM $(filter -D% -I%, $(CFLAGS)) $(C_SOURCES) | $(REPLACE) >> .depend.Windows
+
+-include .depend.Windows

@@ -185,6 +185,8 @@ struct pcap_dag {
 	int	dag_timeout;	/* timeout specified to pcap_open_live.
 				 * Same as in linux above, introduce
 				 * generally? */
+	struct timeval required_select_timeout;
+				/* Timeout caller must use in event loops */
 };
 
 typedef struct pcap_dag_node {
@@ -749,20 +751,22 @@ static int dag_activate(pcap_t* p)
 	struct timeval poll;
 
 	if (device == NULL) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "device is NULL: %s", pcap_strerror(errno));
+		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "device is NULL");
 		return -1;
 	}
 
 	/* Initialize some components of the pcap structure. */
 	newDev = (char *)malloc(strlen(device) + 16);
 	if (newDev == NULL) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "Can't allocate string for device name: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "Can't allocate string for device name");
 		goto fail;
 	}
 
 	/* Parse input name to get dag device and stream number if provided */
 	if (dag_parse_name(device, newDev, strlen(device) + 16, &pd->dag_stream) < 0) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_parse_name: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_parse_name");
 		goto fail;
 	}
 	device = newDev;
@@ -774,13 +778,15 @@ static int dag_activate(pcap_t* p)
 
 	/* setup device parameters */
 	if((p->fd = dag_open((char *)device)) < 0) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_open %s: %s", device, pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_open %s", device);
 		goto fail;
 	}
 
 	/* Open requested stream. Can fail if already locked or on error */
 	if (dag_attach_stream64(p->fd, pd->dag_stream, 0, 0) < 0) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_attach_stream: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_attach_stream");
 		goto failclose;
 	}
 
@@ -789,9 +795,17 @@ static int dag_activate(pcap_t* p)
 	 */
 	if (dag_get_stream_poll64(p->fd, pd->dag_stream,
 				&mindata, &maxwait, &poll) < 0) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_get_stream_poll: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_get_stream_poll");
 		goto faildetach;
 	}
+
+	/* Use the poll time as the required select timeout for callers
+	 * who are using select()/etc. in an event loop waiting for
+	 * packets to arrive.
+	 */
+	pd->required_select_timeout = poll;
+	p->required_select_timeout = &pd->required_select_timeout;
 
 	/*
 	 * Turn a negative snapshot value (invalid), a snapshot value of
@@ -825,7 +839,8 @@ static int dag_activate(pcap_t* p)
 
 	if (dag_set_stream_poll64(p->fd, pd->dag_stream,
 				mindata, &maxwait, &poll) < 0) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_set_stream_poll: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_set_stream_poll");
 		goto faildetach;
 	}
 
@@ -846,7 +861,8 @@ static int dag_activate(pcap_t* p)
 #endif
 
 	if(dag_start_stream(p->fd, pd->dag_stream) < 0) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_start_stream %s: %s", device, pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_start_stream %s", device);
 		goto faildetach;
 	}
 
@@ -908,7 +924,8 @@ static int dag_activate(pcap_t* p)
 	p->bufsize = 0;
 
 	if (new_pcap_dag(p) < 0) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "new_pcap_dag %s: %s", device, pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "new_pcap_dag %s", device);
 		goto failstop;
 	}
 
@@ -1021,8 +1038,8 @@ pcap_t *dag_create(const char *device, char *ebuf, int *is_ours)
 	p->tstamp_precision_count = 2;
 	p->tstamp_precision_list = malloc(2 * sizeof(u_int));
 	if (p->tstamp_precision_list == NULL) {
-		pcap_snprintf(ebuf, PCAP_ERRBUF_SIZE, "malloc: %s",
-		    pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(ebuf, PCAP_ERRBUF_SIZE,
+		    errno, "malloc");
 		pcap_close(p);
 		return NULL;
 	}
@@ -1053,7 +1070,6 @@ int
 dag_findalldevs(pcap_if_list_t *devlistp, char *errbuf)
 {
 	char name[12];	/* XXX - pick a size */
-	int ret = 0;
 	int c;
 	char dagname[DAGNAME_BUFSIZE];
 	int dagstream;
@@ -1069,31 +1085,40 @@ dag_findalldevs(pcap_if_list_t *devlistp, char *errbuf)
 		{
 			(void) pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
 			    "dag: device name %s can't be parsed", name);
-			return -1;
+			return (-1);
 		}
 		if ( (dagfd = dag_open(dagname)) >= 0 ) {
 			description = NULL;
 			if ((inf = dag_pciinfo(dagfd)))
 				description = dag_device_name(inf->device_code, 1);
+			/*
+			 * XXX - is there a way to determine whether
+			 * the card is plugged into a network or not?
+			 * If so, we should check that and set
+			 * PCAP_IF_CONNECTION_STATUS_CONNECTED or
+			 * PCAP_IF_CONNECTION_STATUS_DISCONNECTED.
+			 *
+			 * Also, are there notions of "up" and "running"?
+			 */
 			if (add_dev(devlistp, name, 0, description, errbuf) == NULL) {
 				/*
 				 * Failure.
 				 */
-				ret = -1;
+				return (-1);
 			}
 			rxstreams = dag_rx_get_stream_count(dagfd);
 			for(stream=0;stream<DAG_STREAM_MAX;stream+=2) {
 				if (0 == dag_attach_stream(dagfd, stream, 0, 0)) {
 					dag_detach_stream(dagfd, stream);
-					
+
 					pcap_snprintf(name,  10, "dag%d:%d", c, stream);
 					if (add_dev(devlistp, name, 0, description, errbuf) == NULL) {
 						/*
 						 * Failure.
 						 */
-						ret = -1;
+						return (-1);
 					}
-					
+
 					rxstreams--;
 					if(rxstreams <= 0) {
 						break;
@@ -1102,9 +1127,9 @@ dag_findalldevs(pcap_if_list_t *devlistp, char *errbuf)
 			}
 			dag_close(dagfd);
 		}
-		
+
 	}
-	return (ret);
+	return (0);
 }
 
 /*
@@ -1158,7 +1183,8 @@ dag_setnonblock(pcap_t *p, int nonblock)
 
 	if (dag_get_stream_poll64(p->fd, pd->dag_stream,
 				&mindata, &maxwait, &poll) < 0) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_get_stream_poll: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_get_stream_poll");
 		return -1;
 	}
 
@@ -1173,7 +1199,8 @@ dag_setnonblock(pcap_t *p, int nonblock)
 
 	if (dag_set_stream_poll64(p->fd, pd->dag_stream,
 				mindata, &maxwait, &poll) < 0) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_set_stream_poll: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_set_stream_poll");
 		return -1;
 	}
 
@@ -1195,7 +1222,8 @@ dag_get_datalink(pcap_t *p)
 	memset(types, 0, 255);
 
 	if (p->dlt_list == NULL && (p->dlt_list = malloc(255*sizeof(*(p->dlt_list)))) == NULL) {
-		(void)pcap_snprintf(p->errbuf, sizeof(p->errbuf), "malloc: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, sizeof(p->errbuf),
+		    errno, "malloc");
 		return (-1);
 	}
 
@@ -1204,7 +1232,8 @@ dag_get_datalink(pcap_t *p)
 #ifdef HAVE_DAG_GET_STREAM_ERF_TYPES
 	/* Get list of possible ERF types for this card */
 	if (dag_get_stream_erf_types(p->fd, pd->dag_stream, types, 255) < 0) {
-		pcap_snprintf(p->errbuf, sizeof(p->errbuf), "dag_get_stream_erf_types: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, sizeof(p->errbuf),
+		    errno, "dag_get_stream_erf_types");
 		return (-1);
 	}
 
@@ -1213,7 +1242,8 @@ dag_get_datalink(pcap_t *p)
 #elif defined HAVE_DAG_GET_ERF_TYPES
 	/* Get list of possible ERF types for this card */
 	if (dag_get_erf_types(p->fd, types, 255) < 0) {
-		pcap_snprintf(p->errbuf, sizeof(p->errbuf), "dag_get_erf_types: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, sizeof(p->errbuf),
+		    errno, "dag_get_erf_types");
 		return (-1);
 	}
 
@@ -1296,7 +1326,7 @@ dag_get_datalink(pcap_t *p)
 			if(!p->linktype)
 				p->linktype = DLT_RAW;
 			break;
-			
+
 		case ERF_TYPE_IPV6:
 			if (p->dlt_list != NULL) {
 				p->dlt_list[dlt_index++] = DLT_RAW;
@@ -1359,8 +1389,6 @@ pcap_create_interface(const char *device, char *errbuf)
 	    "This version of libpcap only supports DAG cards");
 	return NULL;
 }
-
-#include "pcap_version.h"
 
 /*
  * Libpcap version string.

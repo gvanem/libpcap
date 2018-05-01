@@ -38,26 +38,23 @@
 #include "os-proto.h"
 #endif
 
-static inline int xdtoi(int);
 static inline int skip_space(FILE *);
 static inline int skip_line(FILE *);
 
 /* Hex digit to integer. */
-static inline int
-xdtoi(c)
-	register int c;
+static inline u_char
+xdtoi(u_char c)
 {
 	if (isdigit(c))
-		return c - '0';
+		return (u_char)(c - '0');
 	else if (islower(c))
-		return c - 'a' + 10;
+		return (u_char)(c - 'a' + 10);
 	else
-		return c - 'A' + 10;
+		return (u_char)(c - 'A' + 10);
 }
 
 static inline int
-skip_space(f)
-	FILE *f;
+skip_space(FILE *f)
 {
 	int c;
 
@@ -69,8 +66,7 @@ skip_space(f)
 }
 
 static inline int
-skip_line(f)
-	FILE *f;
+skip_line(FILE *f)
 {
 	int c;
 
@@ -84,8 +80,10 @@ skip_line(f)
 struct pcap_etherent *
 pcap_next_etherent(FILE *fp)
 {
-	register int c, d, i;
+	register int c, i;
+	u_char d;
 	char *bp;
+	size_t namesize;
 	static struct pcap_etherent e;
 
 	memset((char *)&e, 0, sizeof(e));
@@ -108,13 +106,13 @@ pcap_next_etherent(FILE *fp)
 
 		/* must be the start of an address */
 		for (i = 0; i < 6; i += 1) {
-			d = xdtoi(c);
+			d = xdtoi((u_char)c);
 			c = getc(fp);
 			if (c == EOF)
 				return (NULL);
 			if (isxdigit(c)) {
 				d <<= 4;
-				d |= xdtoi(c);
+				d |= xdtoi((u_char)c);
 				c = getc(fp);
 				if (c == EOF)
 					return (NULL);
@@ -151,14 +149,14 @@ pcap_next_etherent(FILE *fp)
 
 		/* pick up name */
 		bp = e.name;
-		/* Use 'd' to prevent buffer overflow. */
-		d = sizeof(e.name) - 1;
+		/* Use 'namesize' to prevent buffer overflow. */
+		namesize = sizeof(e.name) - 1;
 		do {
-			*bp++ = c;
+			*bp++ = (u_char)c;
 			c = getc(fp);
 			if (c == EOF)
 				return (NULL);
-		} while (!isspace(c) && --d > 0);
+		} while (!isspace(c) && --namesize != 0);
 		*bp = '\0';
 
 		/* Eat trailing junk */

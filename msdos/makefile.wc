@@ -18,7 +18,7 @@ LIB    = $(OBJDIR)\pcap.lib
 
 .EXTENSIONS: .l .y
 
-DEFS = -dDEBUG -d_U_= -dHAVE_LIMITS_H -dHAVE_STRERROR &
+DEFS = -dDEBUG -d_U_= -dHAVE_FFS -dHAVE_LIMITS_H -dHAVE_STRERROR &
        -dHAVE_SNPRINTF -dHAVE_VSNPRINTF
 
 CC  = wcc386.exe

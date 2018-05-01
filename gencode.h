@@ -343,11 +343,29 @@ struct block *gen_mtp2type_abbrev(compiler_state_t *, int type);
 struct block *gen_mtp3field_code(compiler_state_t *, int, bpf_u_int32,
     bpf_u_int32, int);
 
+#ifndef HAVE_NET_PFVAR_H
+PCAP_NORETURN
+#endif
 struct block *gen_pf_ifname(compiler_state_t *, const char *);
+#ifndef HAVE_NET_PFVAR_H
+PCAP_NORETURN
+#endif
 struct block *gen_pf_rnr(compiler_state_t *, int);
+#ifndef HAVE_NET_PFVAR_H
+PCAP_NORETURN
+#endif
 struct block *gen_pf_srnr(compiler_state_t *, int);
+#ifndef HAVE_NET_PFVAR_H
+PCAP_NORETURN
+#endif
 struct block *gen_pf_ruleset(compiler_state_t *, char *);
+#ifndef HAVE_NET_PFVAR_H
+PCAP_NORETURN
+#endif
 struct block *gen_pf_reason(compiler_state_t *, int);
+#ifndef HAVE_NET_PFVAR_H
+PCAP_NORETURN
+#endif
 struct block *gen_pf_action(compiler_state_t *, int);
 
 struct block *gen_p80211_type(compiler_state_t *, int, int);
@@ -369,7 +387,7 @@ struct icode {
 };
 
 void bpf_optimize(compiler_state_t *, struct icode *ic);
-void bpf_syntax_error(compiler_state_t *, const char *);
+void PCAP_NORETURN bpf_syntax_error(compiler_state_t *, const char *);
 void PCAP_NORETURN bpf_error(compiler_state_t *, const char *, ...)
     PCAP_PRINTFLIKE(2, 3);
 

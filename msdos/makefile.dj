@@ -24,6 +24,18 @@ WATT32_ROOT = $(realpath $(WATT_ROOT))
 OBJ_DIR = djgpp.obj
 
 #
+# Set "HAVE_PCAP_REMOTE=1" to enable remote packet-capture
+# (nearly impossible on DOS).
+#
+HAVE_PCAP_REMOTE ?= 0
+
+#
+# Defines 'BDEBUG' and 'YYDEBUG'.
+# See below.
+#
+PCAP_DEBUG ?= 0
+
+#
 # Set to 1 to create a detailed map-file.
 #
 MAKE_MAPFILE = 1
@@ -54,12 +66,16 @@ else
 endif
 
 ASM  = nasm -fbin -dDEBUG
-YACC = bison
-FLEX = flex
+YACC = bison -p pcap_
+FLEX = flex -P pcap_
 
 CFLAGS = -g -O2 -Wall -I./msdos -I. -I$(WATT32_ROOT)/inc \
          -DHAVE_CONFIG_H -D_U_='__attribute__((unused))' \
          -Wno-unused-variable
+
+ifneq ($(PCAP_DEBUG),0)
+  CFLAGS += -DBDEBUG -DYYDEBUG=1
+endif
 
 PCAP_LIB = msdos/libpcap.a
 
@@ -67,6 +83,7 @@ GEN_FILES = msdos/config.h       \
             msdos/pcap_version.h \
             msdos/pkt_stub.inc   \
             scanner.c            \
+            scanner.h            \
             grammar.c            \
             grammar.h
 
@@ -78,16 +95,21 @@ SOURCES = grammar.c            \
           etherent.c           \
           gencode.c            \
           nametoaddr.c         \
+          optimize.c           \
+          pcap.c               \
           pcap-common.c        \
           pcap-dos.c           \
-          optimize.c           \
           savefile.c           \
-          pcap.c               \
           sf-pcap.c            \
           sf-pcap-ng.c         \
           msdos/pktdrvr.c
 
-OBJECTS  = $(addprefix $(OBJ_DIR)/, $(notdir $(SOURCES:.c=.o)))
+ifeq ($(HAVE_PCAP_REMOTE),1)
+  CFLAGS  += -DHAVE_REMOTE
+  SOURCES += pcap-new.c pcap-rpcap.c sockutils.c
+endif
+
+LIB_OBJ  = $(addprefix $(OBJ_DIR)/, $(notdir $(SOURCES:.c=.o)))
 TEMP_BIN = tmp.bin
 
 TARGETS = $(PCAP_LIB)            \
@@ -95,7 +117,6 @@ TARGETS = $(PCAP_LIB)            \
           capturetest.exe        \
           filtertest.exe         \
           findalldevstest.exe    \
-          nonblocktest.exe       \
           opentest.exe
 
 #
@@ -110,20 +131,19 @@ TEST_OBJ = $(addprefix $(OBJ_DIR)/, \
              capturetest.o          \
              filtertest.o           \
              findalldevstest.o      \
-             nonblocktest.o         \
              opentest.o)
 
 .SECONDARY: $(TEST_OBJ)
 
-all: $(TARGETS)
+all: $(GEN_FILES) $(TARGETS)
 	@echo 'Welcome to libpcap/djgpp with samples.'
 
-$(OBJECTS): $(OBJ_DIR)
+$(LIB_OBJ): $(OBJ_DIR)
 
 $(OBJ_DIR):
 	-mkdir $@
 
-$(PCAP_LIB): msdos/config.h msdos/pcap_version.h $(OBJECTS)
+$(PCAP_LIB): msdos/config.h msdos/pcap_version.h $(LIB_OBJ)
 	rm -f $@
 	ar rs $@ $^
 
@@ -146,29 +166,28 @@ msdos/pkt_stub.inc: msdos/bin2c.exe msdos/pkt_rx1.S
 grammar.h: grammar.c
 
 grammar.c: grammar.y
-	$(YACC) -p pcap_  --yacc --defines grammar.y
+	$(YACC) --yacc --defines grammar.y
 	@mv -f y.tab.c grammar.c
 	@mv -f y.tab.h grammar.h
+	@echo
+
+scanner.c scanner.h: scanner.l
+	$(FLEX) --header-file=scanner.h --outfile=scanner.c $<
 	@echo
 
 msdos/config.h: $(MAKEFILE)
 	$(call Generate_file, $@)
 	$(file >> $@,$(CONFIG_H))
 
-msdos/pcap_version.h: ./VERSION
+msdos/pcap_version.h: $(MAKEFILE) # ./VERSION
 	$(call Generate_file, $@)
 	$(file >> $@,$(PCAP_VERSION_H))
-
-scanner.c: scanner.l
-	$(FLEX) -P pcap_ -7 -t $< > $@
-	@echo
 
 msdos/bin2c.exe: msdos/bin2c.c
 	$(HOST_CC) $< -o $@
 
 clean:
-	rm -f $(OBJECTS) pcap_version.h msdos/pkt_rx1.lst msdos/bin2c.exe msdos/.depend.dj \
-	      $(GEN_FILES)
+	rm -f $(LIB_OBJ) $(TEST_OBJ) $(GEN_FILES) msdos/pkt_rx1.lst msdos/bin2c.exe msdos/.depend.dj
 
 vclean: clean
 	rm -f $(TARGETS) $(TARGETS:.exe=.map)
@@ -176,26 +195,24 @@ vclean: clean
 
 define CONFIG_H
   #define DEBUG          1
+  #define HAVE_FFS       1
   #define HAVE_LIMITS_H  1
   #define HAVE_STRERROR  1
   #define HAVE_STRLCAT   1
   #define HAVE_STRLCPY   1
   #define HAVE_SNPRINTF  1
   #define HAVE_VSNPRINTF 1
-  #define in_addr_t      u_long
-  #define yylval         pcap_lval
+  #define in_addr_t      u_long /* Only needed in tests/filtertest.c */
+//#define yylval         pcap_lval
 
-  #define PCAP_TRACE(level, fmt, ...)  (void)0
+//#define PCAP_TRACE(level, fmt, ...)  (void)0
 endef
 
 define PCAP_VERSION_H
-  /*
-   * For djgpp/MSDOS: Generated from VERSION. Do not edit.
-   */
   #if !defined(MSDOS)
-    #error This file was generated for MSDOS only
+    #error This file is for MSDOS only
   #endif
-  #define PCAP_VERSION_STRING  "libpcap ($(shell cat ./VERSION))"
+  #define PCAP_VERSION_STRING  "libpcap/djgpp ($(shell cat ./VERSION))"
 endef
 
 #
@@ -251,7 +268,8 @@ grammar.y: pcap-int.h gencode.h pcap-namedb.h
 #
 # Generate dependencies.
 #
-REPLACE = sed -e 's/\(.*\)\.o: /\n$$(OBJ_DIR)\/\1.o: /'
+REPLACE = sed -e 's@\(.*\)\.o: @\n$$(OBJ_DIR)\/\1.o: @g' \
+              -e 's@$(WATT32_ROOT)@$$(WATT32_ROOT)@g'
 
 depend: $(GEN_FILES)
 	$(CC) -MM $(CFLAGS) $(SOURCES) | $(REPLACE) > msdos/.depend.dj

@@ -1,0 +1,1468 @@
+ winpcap_usb_plugin
+
+ Timestamp is 5ae89444 (Tue May  1 16:22:28 2018)
+
+ Preferred load address is 10000000
+
+ Start         Length     Name                   Class
+ 0001:00000000 00001fa0H .text                   CODE
+ 0001:00001fa0 0000128eH .text$mn                CODE
+ 0002:00000000 000001acH .idata$5                DATA
+ 0002:000001ac 00000004H .00cfg                  DATA
+ 0002:000001b0 00000004H .CRT$XCA                DATA
+ 0002:000001b4 00000004H .CRT$XCZ                DATA
+ 0002:000001b8 00000004H .CRT$XIA                DATA
+ 0002:000001bc 00000004H .CRT$XIZ                DATA
+ 0002:000001c0 00000004H .CRT$XPA                DATA
+ 0002:000001c4 00000004H .CRT$XPZ                DATA
+ 0002:000001c8 00000004H .CRT$XTA                DATA
+ 0002:000001cc 00000004H .CRT$XTZ                DATA
+ 0002:000001d0 00000000H .gfids$y                DATA
+ 0002:000001d0 000008a0H .rdata                  DATA
+ 0002:00000a70 00000004H .rdata$sxdata           DATA
+ 0002:00000a74 000002a8H .rdata$zzzdbg           DATA
+ 0002:00000d1c 00000004H .rtc$IAA                DATA
+ 0002:00000d20 00000004H .rtc$IZZ                DATA
+ 0002:00000d24 00000004H .rtc$TAA                DATA
+ 0002:00000d28 00000008H .rtc$TZZ                DATA
+ 0002:00000d30 00000080H .xdata$x                DATA
+ 0002:00000db0 00000148H .edata                  DATA
+ 0002:00000ef8 000000b4H .idata$2                DATA
+ 0002:00000fac 00000014H .idata$3                DATA
+ 0002:00000fc0 000001acH .idata$4                DATA
+ 0002:0000116c 00000812H .idata$6                DATA
+ 0003:00000000 00000040H .data                   DATA
+ 0003:00000040 0000041cH .bss                    DATA
+ 0004:00000000 00000060H .rsrc$01                DATA
+ 0004:00000060 00000390H .rsrc$02                DATA
+
+  Address         Publics by Value              Rva+Base       Lib:Object
+
+ 0000:00000000       ___guard_iat_count         00000000     <absolute>
+ 0000:00000000       ___guard_longjmp_table     00000000     <absolute>
+ 0000:00000000       ___hybrid_code_map_count   00000000     <absolute>
+ 0000:00000000       ___hybrid_auxiliary_iat    00000000     <absolute>
+ 0000:00000000       ___guard_fids_count        00000000     <absolute>
+ 0000:00000000       ___guard_iat_table         00000000     <absolute>
+ 0000:00000000       ___dynamic_value_reloc_table 00000000     <absolute>
+ 0000:00000000       ___enclave_config          00000000     <absolute>
+ 0000:00000000       ___guard_fids_table        00000000     <absolute>
+ 0000:00000000       ___hybrid_code_map         00000000     <absolute>
+ 0000:00000000       ___guard_longjmp_count     00000000     <absolute>
+ 0000:00000001       ___safe_se_handler_count   00000001     <absolute>
+ 0000:00000100       ___guard_flags             00000100     <absolute>
+ 0000:00000000       ___ImageBase               10000000     <linker-defined>
+ 0001:00000000       _GetPluginApiVersion       10001000 f   win_usbpcap.obj
+ 0001:00000080       _GetPluginName             10001080 f   win_usbpcap.obj
+ 0001:00000110       _GetDeviceList             10001110 f   win_usbpcap.obj
+ 0001:00000200       _FreeDeviceList            10001200 f   win_usbpcap.obj
+ 0001:000002a0       _OpenInstance              100012a0 f   win_usbpcap.obj
+ 0001:00000370       _CloseInstance             10001370 f   win_usbpcap.obj
+ 0001:000003e0       _GetLinkType               100013e0 f   win_usbpcap.obj
+ 0001:00000450       _GetSupportedDlts          10001450 f   win_usbpcap.obj
+ 0001:000004f0       _SetDatalink               100014f0 f   win_usbpcap.obj
+ 0001:00000520       _GetStats                  10001520 f   win_usbpcap.obj
+ 0001:000005b0       _SetReadTimeout            100015b0 f   win_usbpcap.obj
+ 0001:00000640       _DllMain@12                10001640 f   win_usbpcap.obj
+ 0001:00000740       _printf                    10001740 f i win_usbpcap.obj
+ 0001:00000780       _snprintf                  10001780 f i win_usbpcap.obj
+ 0001:000007d0       ___local_stdio_printf_options 100017d0 f i win_usbpcap.obj
+ 0001:000007e0       __pcap_trace_level         100017e0 f   pcap-trace.obj
+ 0001:00000840       __pcap_trace_color         10001840 f   pcap-trace.obj
+ 0001:00000890       __pcap_trace_basename      10001890 f   pcap-trace.obj
+ 0001:000008e0       _enumerate_attached_devices 100018e0 f   enum.obj
+ 0001:00001170       _wprintf                   10002170 f i enum.obj
+ 0001:000011b0       _filters_initialize        100021b0 f   filters.obj
+ 0001:00001530       _filters_free              10002530 f   filters.obj
+ 0001:00001590       _is_usbpcap_upper_filter_installed 10002590 f   filters.obj
+ 0001:000016b0       _init_non_standard_roothub_hwid 100026b0 f   roothubs.obj
+ 0001:00001b20       _restart_all_usb_devices   10002b20 f   roothubs.obj
+ 0001:00001d40       _read_thread@4             10002d40 f   thread.obj
+ 0001:00001fa0       _CM_Locate_DevNodeA@12     10002fa0 f   setupapi:SETUPAPI.dll
+ 0001:00001fa6       _CM_Get_DevNode_Registry_PropertyA@24 10002fa6 f   setupapi:SETUPAPI.dll
+ 0001:00001fac       _CM_Get_Child@12           10002fac f   setupapi:SETUPAPI.dll
+ 0001:00001fb2       _CM_Get_Sibling@12         10002fb2 f   setupapi:SETUPAPI.dll
+ 0001:00001fb8       _CM_Get_Parent@12          10002fb8 f   setupapi:SETUPAPI.dll
+ 0001:00001fbe       _CM_Get_DevNode_Registry_PropertyW@24 10002fbe f   setupapi:SETUPAPI.dll
+ 0001:00001fc4       _SetupDiGetClassDevsExA@28 10002fc4 f   setupapi:SETUPAPI.dll
+ 0001:00001fca       _SetupDiGetDeviceInfoListDetailA@8 10002fca f   setupapi:SETUPAPI.dll
+ 0001:00001fd0       _SetupDiEnumDeviceInfo@12  10002fd0 f   setupapi:SETUPAPI.dll
+ 0001:00001fd6       _SetupDiDestroyDeviceInfoList@4 10002fd6 f   setupapi:SETUPAPI.dll
+ 0001:00001fdc       _CM_Get_Device_ID_ExA@20   10002fdc f   setupapi:SETUPAPI.dll
+ 0001:00001fe2       _SetupDiSetClassInstallParamsA@16 10002fe2 f   setupapi:SETUPAPI.dll
+ 0001:00001fe8       _SetupDiCallClassInstaller@12 10002fe8 f   setupapi:SETUPAPI.dll
+ 0001:00001fee       _SetupDiGetDeviceInstallParamsA@12 10002fee f   setupapi:SETUPAPI.dll
+ 0001:00001ff4       _RegOpenKeyExA@20          10002ff4 f   advapi32:ADVAPI32.dll
+ 0001:00001ffa       _RegQueryValueExA@24       10002ffa f   advapi32:ADVAPI32.dll
+ 0001:00002000       _RegCloseKey@4             10003000 f   advapi32:ADVAPI32.dll
+ 0001:00002006       _RegSetValueExA@24         10003006 f   advapi32:ADVAPI32.dll
+ 0001:0000200c       ??$__crt_fast_decode_pointer@PAP6AXXZ@@YAPAP6AXXZQAP6AXXZ@Z 1000300c f i msvcrt:utility.obj
+ 0001:00002020       ??$__crt_fast_encode_pointer@PAP6AXXZ@@YAPAP6AXXZQAP6AXXZ@Z 10003020 f i msvcrt:utility.obj
+ 0001:0000203d       ?__crt_rotate_pointer_value@@YAIIH@Z 1000303d f i msvcrt:utility.obj
+ 0001:0000204a       ?configure_argv@__scrt_narrow_argv_policy@@SAHXZ 1000304a f i msvcrt:utility.obj
+ 0001:0000209b       ?initialize_environment@__scrt_narrow_environment_policy@@SAHXZ 1000309b f i msvcrt:utility.obj
+ 0001:000020d3       _NtCurrentTeb              100030d3 f i msvcrt:utility.obj
+ 0001:000020da       ___scrt_acquire_startup_lock 100030da f   msvcrt:utility.obj
+ 0001:0000210f       ___scrt_dllmain_after_initialize_c 1000310f f   msvcrt:utility.obj
+ 0001:0000213a       ___scrt_dllmain_before_initialize_c 1000313a f   msvcrt:utility.obj
+ 0001:00002148       ___scrt_dllmain_crt_thread_attach 10003148 f   msvcrt:utility.obj
+ 0001:00002167       ___scrt_dllmain_crt_thread_detach 10003167 f   msvcrt:utility.obj
+ 0001:00002174       ___scrt_dllmain_exception_filter 10003174 f   msvcrt:utility.obj
+ 0001:000021a7       ___scrt_dllmain_uninitialize_c 100031a7 f   msvcrt:utility.obj
+ 0001:000021ca       ___scrt_dllmain_uninitialize_critical 100031ca f   msvcrt:utility.obj
+ 0001:000021d7       ___scrt_initialize_crt     100031d7 f   msvcrt:utility.obj
+ 0001:00002210       ___scrt_initialize_onexit_tables 10003210 f   msvcrt:utility.obj
+ 0001:000022ba       ___scrt_is_nonwritable_in_current_image 100032ba f   msvcrt:utility.obj
+ 0001:00002344       ___scrt_release_startup_lock 10003344 f   msvcrt:utility.obj
+ 0001:00002361       ___scrt_uninitialize_crt   10003361 f   msvcrt:utility.obj
+ 0001:00002389       __onexit                   10003389 f   msvcrt:utility.obj
+ 0001:000023c4       _at_quick_exit             100033c4 f   msvcrt:utility.obj
+ 0001:000023f5       _atexit                    100033f5 f   msvcrt:utility.obj
+ 0001:00002410       __alloca_probe             10003410 f   msvcrt:chkstk.obj
+ 0001:00002410       __chkstk                   10003410 f   msvcrt:chkstk.obj
+ 0001:00002774       __CRT_INIT@12              10003774 f   msvcrt:dll_dllmain.obj
+ 0001:0000277d       __DllMainCRTStartup@12     1000377d f   msvcrt:dll_dllmain.obj
+ 0001:000027a0       ___isa_available_init      100037a0 f   msvcrt:_cpu_disp_.obj
+ 0001:00002939       __get_startup_argv_mode    10003939 f   msvcrt:argv_mode.obj
+ 0001:0000293d       ___scrt_is_ucrt_dll_in_use 1000393d f   msvcrt:ucrt_detection.obj
+ 0001:00002949       ___scrt_fastfail           10003949 f   msvcrt:utility_desktop.obj
+ 0001:00002a65       ___scrt_get_show_window_mode 10003a65 f   msvcrt:utility_desktop.obj
+ 0001:00002a98       ___scrt_initialize_winrt   10003a98 f   msvcrt:utility_desktop.obj
+ 0001:00002a9b       ___scrt_is_managed_app     10003a9b f   msvcrt:utility_desktop.obj
+ 0001:00002adf       ___scrt_set_unhandled_exception_filter 10003adf f   msvcrt:utility_desktop.obj
+ 0001:00002aeb       ___scrt_unhandled_exception_filter@4 10003aeb f   msvcrt:utility_desktop.obj
+ 0001:00002b2c       __crt_debugger_hook        10003b2c f   msvcrt:utility_desktop.obj
+ 0001:00002b34       @_guard_check_icall@4      10003b34 f i msvcrt:checkcfg.obj
+ 0001:00002b40       __SEH_prolog4              10003b40 f   msvcrt:_sehprolg4_.obj
+ 0001:00002b86       __SEH_epilog4              10003b86 f   msvcrt:_sehprolg4_.obj
+ 0001:00002b9b       __except_handler4          10003b9b f   msvcrt:_chandler4gs_.obj
+ 0001:00002c0d       ___security_init_cookie    10003c0d f   msvcrt:gs_support.obj
+ 0001:00002c58       ?__scrt_initialize_type_info@@YAXXZ 10003c58 f   msvcrt:tncleanup.obj
+ 0001:00002c64       ?__scrt_uninitialize_type_info@@YAXXZ 10003c64 f   msvcrt:tncleanup.obj
+ 0001:00002c70       ___local_stdio_scanf_options 10003c70 f i msvcrt:default_local_stdio_options.obj
+ 0001:00002c76       ___scrt_initialize_default_local_stdio_options 10003c76 f   msvcrt:default_local_stdio_options.obj
+ 0001:00002c93       ___scrt_get_dyn_tls_init_callback 10003c93 f   msvcrt:dyn_tls_init.obj
+ 0001:00002c99       __RTC_Initialize           10003c99 f   msvcrt:_initsect_.obj
+ 0001:00002cc4       __RTC_Terminate            10003cc4 f   msvcrt:_initsect_.obj
+ 0001:00002cef       @_guard_check_icall_nop@4  10003cef f i msvcrt:guard_support.obj
+ 0001:00002cf0       _ReadNoFence               10003cf0 f i msvcrt:guard_support.obj
+ 0001:00002cfa       _ReadPointerNoFence        10003cfa f i msvcrt:guard_support.obj
+ 0001:00002d04       __guard_icall_checks_enforced 10003d04 f i msvcrt:guard_support.obj
+ 0001:00002d16       @__security_check_cookie@4 10003d16 f   msvcrt:_secchk_.obj
+ 0001:00002d27       ___raise_securityfailure   10003d27 f   msvcrt:gs_report.obj
+ 0001:00002d4f       ___report_gsfailure        10003d4f f   msvcrt:gs_report.obj
+ 0001:00002e4a       ___report_rangecheckfailure 10003e4a f   msvcrt:gs_report.obj
+ 0001:00002e56       ___report_securityfailure  10003e56 f   msvcrt:gs_report.obj
+ 0001:00002f26       ___report_securityfailureEx 10003f26 f   msvcrt:gs_report.obj
+ 0001:0000303c       _EnterCriticalSection@4    1000403c f   kernel32:KERNEL32.dll
+ 0001:00003042       _LeaveCriticalSection@4    10004042 f   kernel32:KERNEL32.dll
+ 0001:00003048       _GetStdHandle@4            10004048 f   kernel32:KERNEL32.dll
+ 0001:0000304e       _GetConsoleScreenBufferInfo@8 1000404e f   kernel32:KERNEL32.dll
+ 0001:00003054       _InitializeCriticalSection@4 10004054 f   kernel32:KERNEL32.dll
+ 0001:0000305a       _SetConsoleTextAttribute@8 1000405a f   kernel32:KERNEL32.dll
+ 0001:00003060       _CreateFileA@28            10004060 f   kernel32:KERNEL32.dll
+ 0001:00003066       _DeviceIoControl@32        10004066 f   kernel32:KERNEL32.dll
+ 0001:0000306c       _WideCharToMultiByte@32    1000406c f   kernel32:KERNEL32.dll
+ 0001:00003072       _GlobalAlloc@8             10004072 f   kernel32:KERNEL32.dll
+ 0001:00003078       _GetLastError@0            10004078 f   kernel32:KERNEL32.dll
+ 0001:0000307e       _GlobalFree@4              1000407e f   kernel32:KERNEL32.dll
+ 0001:00003084       _CloseHandle@4             10004084 f   kernel32:KERNEL32.dll
+ 0001:0000308a       _GetFileType@4             1000408a f   kernel32:KERNEL32.dll
+ 0001:00003090       _GetConsoleMode@8          10004090 f   kernel32:KERNEL32.dll
+ 0001:00003096       _WriteConsoleW@20          10004096 f   kernel32:KERNEL32.dll
+ 0001:0000309c       _LoadLibraryA@4            1000409c f   kernel32:KERNEL32.dll
+ 0001:000030a2       _GetProcAddress@8          100040a2 f   kernel32:KERNEL32.dll
+ 0001:000030a8       _GetProcessHeap@0          100040a8 f   kernel32:KERNEL32.dll
+ 0001:000030ae       _HeapAlloc@12              100040ae f   kernel32:KERNEL32.dll
+ 0001:000030b4       _HeapFree@12               100040b4 f   kernel32:KERNEL32.dll
+ 0001:000030ba       _FreeLibrary@4             100040ba f   kernel32:KERNEL32.dll
+ 0001:000030c0       _lstrlenA@4                100040c0 f   kernel32:KERNEL32.dll
+ 0001:000030c6       _ReadFile@20               100040c6 f   kernel32:KERNEL32.dll
+ 0001:000030cc       _WriteFile@20              100040cc f   kernel32:KERNEL32.dll
+ 0001:000030d2       _FlushFileBuffers@4        100040d2 f   kernel32:KERNEL32.dll
+ 0001:000030d8       _IsProcessorFeaturePresent@4 100040d8 f   kernel32:KERNEL32.dll
+ 0001:000030de       _IsDebuggerPresent@0       100040de f   kernel32:KERNEL32.dll
+ 0001:000030e4       _UnhandledExceptionFilter@4 100040e4 f   kernel32:KERNEL32.dll
+ 0001:000030ea       _SetUnhandledExceptionFilter@4 100040ea f   kernel32:KERNEL32.dll
+ 0001:000030f0       _GetStartupInfoW@4         100040f0 f   kernel32:KERNEL32.dll
+ 0001:000030f6       _GetModuleHandleW@4        100040f6 f   kernel32:KERNEL32.dll
+ 0001:000030fc       _QueryPerformanceCounter@4 100040fc f   kernel32:KERNEL32.dll
+ 0001:00003102       _GetCurrentProcessId@0     10004102 f   kernel32:KERNEL32.dll
+ 0001:00003108       _GetCurrentThreadId@0      10004108 f   kernel32:KERNEL32.dll
+ 0001:0000310e       _GetSystemTimeAsFileTime@4 1000410e f   kernel32:KERNEL32.dll
+ 0001:00003114       _InitializeSListHead@4     10004114 f   kernel32:KERNEL32.dll
+ 0001:0000311a       _GetCurrentProcess@0       1000411a f   kernel32:KERNEL32.dll
+ 0001:00003120       _TerminateProcess@8        10004120 f   kernel32:KERNEL32.dll
+ 0001:00003126       _memset                    10004126 f   vcruntime:VCRUNTIME140.dll
+ 0001:0000312c       __except_handler4_common   1000412c f   vcruntime:VCRUNTIME140.dll
+ 0001:00003132       ___std_type_info_destroy_list 10004132 f   vcruntime:VCRUNTIME140.dll
+ 0001:00003138       ___acrt_iob_func           10004138 f   ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0001:0000313e       ___stdio_common_vfprintf   1000413e f   ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0001:00003144       _strncpy_s                 10004144 f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:0000314a       _calloc                    1000414a f   ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0001:00003150       _free                      10004150 f   ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0001:00003156       ___stdio_common_vsprintf   10004156 f   ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0001:0000315c       _strlen                    1000415c f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:00003162       _strcpy                    10004162 f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:00003168       _strncpy                   10004168 f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:0000316e       _getenv                    1000416e f   ucrt:api-ms-win-crt-environment-l1-1-0.dll
+ 0001:00003174       _fflush                    10004174 f   ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0001:0000317a       _putchar                   1000417a f   ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0001:00003180       _wcslen                    10004180 f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:00003186       __fileno                   10004186 f   ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0001:0000318c       __setmode                  1000418c f   ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0001:00003192       _strncmp                   10004192 f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:00003198       _strcpy_s                  10004198 f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:0000319e       _strcat_s                  1000419e f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:000031a4       __stricmp                  100041a4 f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:000031aa       _puts                      100041aa f   ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0001:000031b0       ___stdio_common_vfwprintf  100041b0 f   ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0001:000031b6       _malloc                    100041b6 f   ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0001:000031bc       _wcsncmp                   100041bc f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:000031c2       _strcmp                    100041c2 f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:000031c8       _realloc                   100041c8 f   ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0001:000031ce       __strdup                   100041ce f   ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0001:000031d4       __seh_filter_dll           100041d4 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:000031da       __configure_narrow_argv    100041da f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:000031e0       __initialize_narrow_environment 100041e0 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:000031e6       __initialize_onexit_table  100041e6 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:000031ec       __register_onexit_function 100041ec f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:000031f2       __execute_onexit_table     100041f2 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:000031f8       __crt_atexit               100041f8 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:000031fe       __crt_at_quick_exit        100041fe f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:00003204       __cexit                    10004204 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:0000320a       __initterm                 1000420a f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:00003210       __initterm_e               10004210 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:00003216       _terminate                 10004216 f   ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:0000321c       ___vcrt_initialize         1000421c f   msvcrt:ucrt_stubs.obj
+ 0001:0000321c       ___scrt_stub_for_acrt_initialize 1000421c f   msvcrt:ucrt_stubs.obj
+ 0001:0000321c       ___acrt_initialize         1000421c f   msvcrt:ucrt_stubs.obj
+ 0001:0000321f       ___vcrt_thread_attach      1000421f f   msvcrt:ucrt_stubs.obj
+ 0001:0000321f       ___acrt_thread_attach      1000421f f   msvcrt:ucrt_stubs.obj
+ 0001:0000321f       ___scrt_stub_for_acrt_thread_attach 1000421f f   msvcrt:ucrt_stubs.obj
+ 0001:00003222       ___scrt_stub_for_acrt_thread_detach 10004222 f   msvcrt:ucrt_stubs.obj
+ 0001:00003222       ___vcrt_thread_detach      10004222 f   msvcrt:ucrt_stubs.obj
+ 0001:00003222       ___acrt_thread_detach      10004222 f   msvcrt:ucrt_stubs.obj
+ 0001:00003225       ___vcrt_uninitialize       10004225 f   msvcrt:ucrt_stubs.obj
+ 0001:00003225       ___acrt_uninitialize       10004225 f   msvcrt:ucrt_stubs.obj
+ 0001:00003225       ___scrt_stub_for_acrt_uninitialize 10004225 f   msvcrt:ucrt_stubs.obj
+ 0001:00003228       ___acrt_uninitialize_critical 10004228 f   msvcrt:ucrt_stubs.obj
+ 0001:00003228       ___vcrt_uninitialize_critical 10004228 f   msvcrt:ucrt_stubs.obj
+ 0001:00003228       ___scrt_stub_for_acrt_uninitialize_critical 10004228 f   msvcrt:ucrt_stubs.obj
+ 0001:0000322b       ___scrt_stub_for_is_c_termination_complete 1000422b f   msvcrt:ucrt_stubs.obj
+ 0001:0000322b       __is_c_termination_complete 1000422b f   msvcrt:ucrt_stubs.obj
+ 0002:00000000       __imp__RegCloseKey@4       10005000     advapi32:ADVAPI32.dll
+ 0002:00000004       __imp__RegQueryValueExA@24 10005004     advapi32:ADVAPI32.dll
+ 0002:00000008       __imp__RegOpenKeyExA@20    10005008     advapi32:ADVAPI32.dll
+ 0002:0000000c       __imp__RegSetValueExA@24   1000500c     advapi32:ADVAPI32.dll
+ 0002:00000010       \177ADVAPI32_NULL_THUNK_DATA 10005010     advapi32:ADVAPI32.dll
+ 0002:00000014       __imp__QueryPerformanceCounter@4 10005014     kernel32:KERNEL32.dll
+ 0002:00000018       __imp__GetModuleHandleW@4  10005018     kernel32:KERNEL32.dll
+ 0002:0000001c       __imp__GetStartupInfoW@4   1000501c     kernel32:KERNEL32.dll
+ 0002:00000020       __imp__SetUnhandledExceptionFilter@4 10005020     kernel32:KERNEL32.dll
+ 0002:00000024       __imp__GetCurrentThreadId@0 10005024     kernel32:KERNEL32.dll
+ 0002:00000028       __imp__IsDebuggerPresent@0 10005028     kernel32:KERNEL32.dll
+ 0002:0000002c       __imp__IsProcessorFeaturePresent@4 1000502c     kernel32:KERNEL32.dll
+ 0002:00000030       __imp__FlushFileBuffers@4  10005030     kernel32:KERNEL32.dll
+ 0002:00000034       __imp__WriteFile@20        10005034     kernel32:KERNEL32.dll
+ 0002:00000038       __imp__ReadFile@20         10005038     kernel32:KERNEL32.dll
+ 0002:0000003c       __imp__GetSystemTimeAsFileTime@4 1000503c     kernel32:KERNEL32.dll
+ 0002:00000040       __imp__InitializeSListHead@4 10005040     kernel32:KERNEL32.dll
+ 0002:00000044       __imp__GetCurrentProcess@0 10005044     kernel32:KERNEL32.dll
+ 0002:00000048       __imp__UnhandledExceptionFilter@4 10005048     kernel32:KERNEL32.dll
+ 0002:0000004c       __imp__GetCurrentProcessId@0 1000504c     kernel32:KERNEL32.dll
+ 0002:00000050       __imp__EnterCriticalSection@4 10005050     kernel32:KERNEL32.dll
+ 0002:00000054       __imp__LeaveCriticalSection@4 10005054     kernel32:KERNEL32.dll
+ 0002:00000058       __imp__GetStdHandle@4      10005058     kernel32:KERNEL32.dll
+ 0002:0000005c       __imp__GetConsoleScreenBufferInfo@8 1000505c     kernel32:KERNEL32.dll
+ 0002:00000060       __imp__InitializeCriticalSection@4 10005060     kernel32:KERNEL32.dll
+ 0002:00000064       __imp__SetConsoleTextAttribute@8 10005064     kernel32:KERNEL32.dll
+ 0002:00000068       __imp__CreateFileA@28      10005068     kernel32:KERNEL32.dll
+ 0002:0000006c       __imp__DeviceIoControl@32  1000506c     kernel32:KERNEL32.dll
+ 0002:00000070       __imp__WideCharToMultiByte@32 10005070     kernel32:KERNEL32.dll
+ 0002:00000074       __imp__GlobalAlloc@8       10005074     kernel32:KERNEL32.dll
+ 0002:00000078       __imp__GetLastError@0      10005078     kernel32:KERNEL32.dll
+ 0002:0000007c       __imp__GlobalFree@4        1000507c     kernel32:KERNEL32.dll
+ 0002:00000080       __imp__CloseHandle@4       10005080     kernel32:KERNEL32.dll
+ 0002:00000084       __imp__GetFileType@4       10005084     kernel32:KERNEL32.dll
+ 0002:00000088       __imp__GetConsoleMode@8    10005088     kernel32:KERNEL32.dll
+ 0002:0000008c       __imp__WriteConsoleW@20    1000508c     kernel32:KERNEL32.dll
+ 0002:00000090       __imp__LoadLibraryA@4      10005090     kernel32:KERNEL32.dll
+ 0002:00000094       __imp__GetProcAddress@8    10005094     kernel32:KERNEL32.dll
+ 0002:00000098       __imp__GetProcessHeap@0    10005098     kernel32:KERNEL32.dll
+ 0002:0000009c       __imp__HeapAlloc@12        1000509c     kernel32:KERNEL32.dll
+ 0002:000000a0       __imp__HeapFree@12         100050a0     kernel32:KERNEL32.dll
+ 0002:000000a4       __imp__FreeLibrary@4       100050a4     kernel32:KERNEL32.dll
+ 0002:000000a8       __imp__lstrlenA@4          100050a8     kernel32:KERNEL32.dll
+ 0002:000000ac       __imp__TerminateProcess@8  100050ac     kernel32:KERNEL32.dll
+ 0002:000000b0       \177KERNEL32_NULL_THUNK_DATA 100050b0     kernel32:KERNEL32.dll
+ 0002:000000b4       __imp__SetupDiCallClassInstaller@12 100050b4     setupapi:SETUPAPI.dll
+ 0002:000000b8       __imp__SetupDiSetClassInstallParamsA@16 100050b8     setupapi:SETUPAPI.dll
+ 0002:000000bc       __imp__CM_Get_Device_ID_ExA@20 100050bc     setupapi:SETUPAPI.dll
+ 0002:000000c0       __imp__SetupDiDestroyDeviceInfoList@4 100050c0     setupapi:SETUPAPI.dll
+ 0002:000000c4       __imp__SetupDiEnumDeviceInfo@12 100050c4     setupapi:SETUPAPI.dll
+ 0002:000000c8       __imp__SetupDiGetDeviceInfoListDetailA@8 100050c8     setupapi:SETUPAPI.dll
+ 0002:000000cc       __imp__SetupDiGetDeviceInstallParamsA@12 100050cc     setupapi:SETUPAPI.dll
+ 0002:000000d0       __imp__CM_Get_DevNode_Registry_PropertyW@24 100050d0     setupapi:SETUPAPI.dll
+ 0002:000000d4       __imp__CM_Locate_DevNodeA@12 100050d4     setupapi:SETUPAPI.dll
+ 0002:000000d8       __imp__CM_Get_Parent@12    100050d8     setupapi:SETUPAPI.dll
+ 0002:000000dc       __imp__CM_Get_Sibling@12   100050dc     setupapi:SETUPAPI.dll
+ 0002:000000e0       __imp__CM_Get_Child@12     100050e0     setupapi:SETUPAPI.dll
+ 0002:000000e4       __imp__CM_Get_DevNode_Registry_PropertyA@24 100050e4     setupapi:SETUPAPI.dll
+ 0002:000000e8       __imp__SetupDiGetClassDevsExA@28 100050e8     setupapi:SETUPAPI.dll
+ 0002:000000ec       \177SETUPAPI_NULL_THUNK_DATA 100050ec     setupapi:SETUPAPI.dll
+ 0002:000000f0       __imp___except_handler4_common 100050f0     vcruntime:VCRUNTIME140.dll
+ 0002:000000f4       __imp____std_type_info_destroy_list 100050f4     vcruntime:VCRUNTIME140.dll
+ 0002:000000f8       __imp__memset              100050f8     vcruntime:VCRUNTIME140.dll
+ 0002:000000fc       \177VCRUNTIME140_NULL_THUNK_DATA 100050fc     vcruntime:VCRUNTIME140.dll
+ 0002:00000100       __imp__getenv              10005100     ucrt:api-ms-win-crt-environment-l1-1-0.dll
+ 0002:00000104       \177api-ms-win-crt-environment-l1-1-0_NULL_THUNK_DATA 10005104     ucrt:api-ms-win-crt-environment-l1-1-0.dll
+ 0002:00000108       __imp__realloc             10005108     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0002:0000010c       __imp__calloc              1000510c     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0002:00000110       __imp__free                10005110     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0002:00000114       __imp__malloc              10005114     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0002:00000118       \177api-ms-win-crt-heap-l1-1-0_NULL_THUNK_DATA 10005118     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0002:0000011c       __imp___initterm_e         1000511c     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000120       __imp___crt_at_quick_exit  10005120     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000124       __imp__terminate           10005124     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000128       __imp___crt_atexit         10005128     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:0000012c       __imp___execute_onexit_table 1000512c     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000130       __imp___register_onexit_function 10005130     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000134       __imp___initialize_onexit_table 10005134     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000138       __imp___initialize_narrow_environment 10005138     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:0000013c       __imp___configure_narrow_argv 1000513c     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000140       __imp___seh_filter_dll     10005140     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000144       __imp___initterm           10005144     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000148       __imp___cexit              10005148     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:0000014c       \177api-ms-win-crt-runtime-l1-1-0_NULL_THUNK_DATA 1000514c     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000150       __imp____stdio_common_vfwprintf 10005150     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00000154       __imp____acrt_iob_func     10005154     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00000158       __imp____stdio_common_vfprintf 10005158     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:0000015c       __imp____stdio_common_vsprintf 1000515c     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00000160       __imp__fflush              10005160     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00000164       __imp__putchar             10005164     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00000168       __imp___fileno             10005168     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:0000016c       __imp___setmode            1000516c     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00000170       __imp__puts                10005170     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00000174       \177api-ms-win-crt-stdio-l1-1-0_NULL_THUNK_DATA 10005174     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00000178       __imp__wcslen              10005178     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:0000017c       __imp___strdup             1000517c     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00000180       __imp__strcat_s            10005180     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00000184       __imp__strcpy_s            10005184     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00000188       __imp__strcpy              10005188     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:0000018c       __imp__strlen              1000518c     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00000190       __imp__strcmp              10005190     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00000194       __imp__strncpy_s           10005194     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00000198       __imp__strncpy             10005198     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:0000019c       __imp___stricmp            1000519c     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:000001a0       __imp__wcsncmp             100051a0     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:000001a4       __imp__strncmp             100051a4     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:000001a8       \177api-ms-win-crt-string-l1-1-0_NULL_THUNK_DATA 100051a8     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:000001ac       ___guard_check_icall_fptr  100051ac     msvcrt:guard_support.obj
+ 0002:000001b0       ___xc_a                    100051b0     msvcrt:initializers.obj
+ 0002:000001b4       ___xc_z                    100051b4     msvcrt:initializers.obj
+ 0002:000001b8       ___xi_a                    100051b8     msvcrt:initializers.obj
+ 0002:000001bc       ___xi_z                    100051bc     msvcrt:initializers.obj
+ 0002:000001c0       ___xp_a                    100051c0     msvcrt:initializers.obj
+ 0002:000001c4       ___xp_z                    100051c4     msvcrt:initializers.obj
+ 0002:000001c8       ___xt_a                    100051c8     msvcrt:initializers.obj
+ 0002:000001cc       ___xt_z                    100051cc     msvcrt:initializers.obj
+ 0002:000001d0       ??_C@_0CG@BKMNLCED@WinPcap?9plugin?1USB?9pcap?1win_usbp@ 100051d0     win_usbpcap.obj
+ 0002:000001f6       ??_C@_0M@JDCGCENK@?$FLUSB?9Pcap?$FN?5?$AA@ 100051f6     win_usbpcap.obj
+ 0002:00000202       ??_C@_0L@GPDHCKBD@?$CFs?$CFs?$CI?$CFu?$CJ?3?5?$AA@ 10005202     win_usbpcap.obj
+ 0002:0000020d       ??_C@_0BE@KOCBBDLE@GetPluginApiVersion?$AA@ 1000520d     win_usbpcap.obj
+ 0002:00000221       ??_C@_0BG@HGIHHHOJ@?$CFs?$CI?$CJ?5called?4?5ver?3?5?$CFd?6?$AA@ 10005221     win_usbpcap.obj
+ 0002:00000237       ??_C@_08OFJGCGDC@USB?9Pcap?$AA@ 10005237     win_usbpcap.obj
+ 0002:00000240       ??_C@_0O@PNNDMIOO@GetPluginName?$AA@ 10005240     win_usbpcap.obj
+ 0002:0000024e       ??_C@_0O@KLCJHALO@?$CFs?$CI?$CJ?5called?4?6?$AA@ 1000524e     win_usbpcap.obj
+ 0002:0000025c       ??_C@_0O@HEMADPC@GetDeviceList?$AA@ 1000525c     win_usbpcap.obj
+ 0002:0000026a       ??_C@_0DF@FOCGJEGN@Failed?5to?5allocate?5memory?5for?5th@ 1000526a     win_usbpcap.obj
+ 0002:0000029f       ??_C@_0L@LJJEKKFF@?2?2USB?9Pcap?$AA@ 1000529f     win_usbpcap.obj
+ 0002:000002aa       ??_C@_0BD@OKKHCPFP@USB?5Capture?5Device?$AA@ 100052aa     win_usbpcap.obj
+ 0002:000002bd       ??_C@_0P@FBONFNBH@FreeDeviceList?$AA@ 100052bd     win_usbpcap.obj
+ 0002:000002cc       ??_C@_0N@HHECMEEM@OpenInstance?$AA@ 100052cc     win_usbpcap.obj
+ 0002:000002d9       ??_C@_0DC@KMKPNNGD@Failed?5to?5allocate?5memory?5for?5th@ 100052d9     win_usbpcap.obj
+ 0002:0000030b       ??_C@_0O@FKMOIJOK@CloseInstance?$AA@ 1000530b     win_usbpcap.obj
+ 0002:00000319       ??_C@_0M@MHJHIKHK@GetLinkType?$AA@ 10005319     win_usbpcap.obj
+ 0002:00000325       ??_C@_0BB@LFAEFDDE@GetSupportedDlts?$AA@ 10005325     win_usbpcap.obj
+ 0002:00000336       ??_C@_0M@EBDDLBPG@DLT_USBPCAP?$AA@ 10005336     win_usbpcap.obj
+ 0002:00000342       ??_C@_0CO@NLABCMNP@Currently?5only?5?$CFs?5is?5the?5support@ 10005342     win_usbpcap.obj
+ 0002:00000370       ??_C@_08HBBBJJPB@GetStats?$AA@ 10005370     win_usbpcap.obj
+ 0002:00000379       ??_C@_0P@FLEECFKF@SetReadTimeout?$AA@ 10005379     win_usbpcap.obj
+ 0002:00000388       ??_C@_07JLKLLPCJ@DllMain?$AA@ 10005388     win_usbpcap.obj
+ 0002:00000390       ??_C@_0CE@ICEGJPMI@?$CFs?5?$CI?$CFp?0DLL_PROCESS_ATTACH?$CJ?5calle@ 10005390     win_usbpcap.obj
+ 0002:000003b4       ??_C@_0CE@DOKHNMEL@?$CFs?5?$CI?$CFp?0DLL_PROCESS_DETACH?$CJ?5calle@ 100053b4     win_usbpcap.obj
+ 0002:000003d8       ??_C@_0L@NJKPDDID@PCAP_TRACE?$AA@ 100053d8     pcap-trace.obj
+ 0002:000003e3       ??_C@_0BM@EFGJEEJM@Couldn?8t?5open?5device?5?9?5?$CFlu?6?$AA@ 100053e3     enum.obj
+ 0002:000003ff       ??_C@_02KNHHEEKP@?5?5?$AA@ 100053ff     enum.obj
+ 0002:00000402       ??_C@_17CNPHIMPH@?$AA?$CF?$AAl?$AAs?$AA?$AA@ 10005402     enum.obj
+ 0002:0000040a       ??_C@_04FFEPHCCK@?2?$DP?$DP?2?$AA@ 1000540a     enum.obj
+ 0002:0000040f       ??_C@_04GBDIODIA@?2?2?4?2?$AA@ 1000540f     enum.obj
+ 0002:00000414       ??_C@_0BD@POIOPFHJ@unable?5to?5open?5?$CFs?6?$AA@ 10005414     enum.obj
+ 0002:00000427       ??_C@_0M@OMBMPMI@?$FLPort?5?$CFlu?$FN?5?$AA@ 10005427     enum.obj
+ 0002:00000480       __xmm@00ff00ff00ff00ff00ff00ff00ff00ff 10005480     filters.obj
+ 0002:00000490       ??_C@_09CJPKPOJJ@?$AAUSBPcap?$AA?$AA@ 10005490     filters.obj
+ 0002:0000049a       ??_C@_0EO@JGGILAOE@System?2CurrentControlSet?2Control@ 1000549a     filters.obj
+ 0002:000004e8       ??_C@_0DB@GFACKJIE@Failed?5to?5open?5USB?5Class?5registr@ 100054e8     filters.obj
+ 0002:00000519       ??_C@_0N@KPKBADH@UpperFilters?$AA@ 10005519     filters.obj
+ 0002:00000526       ??_C@_0DD@DMPKBEAI@Failed?5to?5query?5UpperFilters?5val@ 10005526     filters.obj
+ 0002:00000559       ??_C@_0CC@MJKOLFJL@Invalid?5UpperFilters?5type?5?$CI?$CFlu?$CJ?$CB@ 10005559     filters.obj
+ 0002:0000057b       ??_C@_0CN@JJELJEEA@Failed?5to?5read?5UpperFilters?5valu@ 1000557b     filters.obj
+ 0002:000005a8       ??_C@_09FLKFJBLM@ntdll?4dll?$AA@ 100055a8     filters.obj
+ 0002:000005b2       ??_C@_0BH@CJMGDDIK@NtQueryDirectoryObject?$AA@ 100055b2     filters.obj
+ 0002:000005c9       ??_C@_0BG@MPMPEFFH@NtOpenDirectoryObject?$AA@ 100055c9     filters.obj
+ 0002:000005df       ??_C@_07EGJLEIEB@NtClose?$AA@ 100055df     filters.obj
+ 0002:000005e8       ??_C@_1BA@CCLAPIHO@?$AA?2?$AAD?$AAe?$AAv?$AAi?$AAc?$AAe?$AA?$AA@ 100055e8     filters.obj
+ 0002:000005f8       ??_C@_1BA@GJJBDLIC@?$AAU?$AAS?$AAB?$AAP?$AAc?$AAa?$AAp?$AA?$AA@ 100055f8     filters.obj
+ 0002:00000670       __xmm@00000002000000030000001200000008 10005670     roothubs.obj
+ 0002:000007c1       ??_C@_0BB@JPMHENMD@Hardware?5ID?3?5?$CFs?6?$AA@ 100057c1     roothubs.obj
+ 0002:000007d2       ??_C@_0CG@LFCCGHFM@RootHub?5does?5not?5have?5standard?5H@ 100057d2     roothubs.obj
+ 0002:000007f8       ??_C@_0CJ@NAJMDING@?$CFs?5is?5already?5in?5the?5non?9standar@ 100057f8     roothubs.obj
+ 0002:00000821       ??_C@_0CA@PLAEJJLP@Added?5?$CFs?5to?5non?9standard?5list?4?6?$AA@ 10005821     roothubs.obj
+ 0002:00000841       ??_C@_0BD@BHNKFMNM@Compatible?5ID?3?5?$CFs?6?$AA@ 10005841     roothubs.obj
+ 0002:00000854       ??_C@_0N@EHFJGMNP@USB?2ROOT_HUB?$AA@ 10005854     roothubs.obj
+ 0002:00000861       ??_C@_0P@LKANLEPH@USB?2ROOT_HUB20?$AA@ 10005861     roothubs.obj
+ 0002:00000870       ??_C@_0CK@DFIGBLEF@SYSTEM?2CurrentControlSet?2service@ 10005870     roothubs.obj
+ 0002:0000089a       ??_C@_0BB@FMNLANLE@NonStandardHWIDs?$AA@ 1000589a     roothubs.obj
+ 0002:000008ab       ??_C@_0BG@PFINFJKN@Unknown?5instance?5ID?3?5?$AA@ 100058ab     roothubs.obj
+ 0002:000008c1       ??_C@_04PFAOODAA@?$CFs?3?5?$AA@ 100058c1     roothubs.obj
+ 0002:000008c6       ??_C@_0DB@MJFJGIDJ@Failed?5to?5allocate?5user?9mode?5buf@ 100058c6     thread.obj
+ 0002:000008f7       ??_C@_01JOAMLHOP@?9?$AA@   100058f7     thread.obj
+ 0002:000008f9       ??_C@_0EB@MFBMBBP@DeviceIoControl?5failed?5with?5?$CFlu?5@ 100058f9     thread.obj
+ 0002:00000960       __pRawDllMain              10005960     msvcrt:dll_dllmain.obj
+ 0002:00000960       __pDefaultRawDllMain       10005960     msvcrt:dll_dllmain.obj
+ 0002:000009c8       __load_config_used         100059c8     msvcrt:loadcfg.obj
+ 0002:00000a70       ___safe_se_handler_table   10005a70     <linker-defined>
+ 0002:00000d1c       ___rtc_iaa                 10005d1c     msvcrt:_initsect_.obj
+ 0002:00000d20       ___rtc_izz                 10005d20     msvcrt:_initsect_.obj
+ 0002:00000d24       ___rtc_taa                 10005d24     msvcrt:_initsect_.obj
+ 0002:00000d28       ___rtc_tzz                 10005d28     msvcrt:_initsect_.obj
+ 0002:00000ef8       __IMPORT_DESCRIPTOR_SETUPAPI 10005ef8     setupapi:SETUPAPI.dll
+ 0002:00000f0c       __IMPORT_DESCRIPTOR_ADVAPI32 10005f0c     advapi32:ADVAPI32.dll
+ 0002:00000f20       __IMPORT_DESCRIPTOR_KERNEL32 10005f20     kernel32:KERNEL32.dll
+ 0002:00000f34       __IMPORT_DESCRIPTOR_VCRUNTIME140 10005f34     vcruntime:VCRUNTIME140.dll
+ 0002:00000f48       __IMPORT_DESCRIPTOR_api-ms-win-crt-stdio-l1-1-0 10005f48     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:00000f5c       __IMPORT_DESCRIPTOR_api-ms-win-crt-string-l1-1-0 10005f5c     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00000f70       __IMPORT_DESCRIPTOR_api-ms-win-crt-heap-l1-1-0 10005f70     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0002:00000f84       __IMPORT_DESCRIPTOR_api-ms-win-crt-environment-l1-1-0 10005f84     ucrt:api-ms-win-crt-environment-l1-1-0.dll
+ 0002:00000f98       __IMPORT_DESCRIPTOR_api-ms-win-crt-runtime-l1-1-0 10005f98     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:00000fac       __NULL_IMPORT_DESCRIPTOR   10005fac     setupapi:SETUPAPI.dll
+ 0003:00000000       ___scrt_native_dllmain_reason 10007000     msvcrt:utility.obj
+ 0003:00000010       ___isa_enabled             10007010     msvcrt:_cpu_disp_.obj
+ 0003:00000020       ___security_cookie         10007020     msvcrt:gs_cookie.obj
+ 0003:00000024       ___security_cookie_complement 10007024     msvcrt:gs_cookie.obj
+ 0003:00000028       ___scrt_ucrt_dll_is_in_use 10007028     msvcrt:ucrt_stubs.obj
+ 0003:00000070       _usbpcapFilters            10007070     filters.obj
+ 0003:000000a8       ___scrt_current_native_startup_state 100070a8     msvcrt:utility.obj
+ 0003:000000ac       ___scrt_native_startup_lock 100070ac     msvcrt:utility.obj
+ 0003:000000d0       ___isa_available           100070d0     msvcrt:_cpu_disp_.obj
+ 0003:000000d4       ___favor                   100070d4     msvcrt:_cpu_disp_.obj
+ 0003:000000d8       ___scrt_debugger_hook_flag 100070d8     msvcrt:utility_desktop.obj
+ 0003:000000e0       ?__type_info_root_node@@3U__type_info_node@@A 100070e0     msvcrt:tncleanup.obj
+ 0003:000000e8       ?_OptionsStorage@?1??__local_stdio_printf_options@@9@4_KA 100070e8     msvcrt:default_local_stdio_options.obj
+ 0003:000000f0       ?_OptionsStorage@?1??__local_stdio_scanf_options@@9@4_KA 100070f0     msvcrt:default_local_stdio_options.obj
+ 0003:00000414       _NtClose                   10007414     <common>
+ 0003:00000418       _NtOpenDirectoryObject     10007418     <common>
+ 0003:0000041c       _NtQueryDirectoryObject    1000741c     <common>
+ 0003:00000420       _g_dbg_level               10007420     <common>
+ 0003:00000440       _g_trace_crit              10007440     <common>
+ 0003:00000458       ___dyn_tls_init_callback   10007458     <common>
+
+ entry point at        0001:0000277d
+
+ Static symbols
+
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     winpcap_usb_plugin.exp
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-environment-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     vcruntime:VCRUNTIME140.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     vcruntime:VCRUNTIME140.dll
+ 0000:ffff6000       .debug$S                   10000000     vcruntime:VCRUNTIME140.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     setupapi:SETUPAPI.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     advapi32:ADVAPI32.dll
+ 0000:ffff6000       .debug$S                   10000000     advapi32:ADVAPI32.dll
+ 0000:ffff6000       .debug$S                   10000000     advapi32:ADVAPI32.dll
+ 0000:ffff6000       .debug$S                   10000000     advapi32:ADVAPI32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0002:ffffb000       __guard_fids___except_handler4 10000000     msvcrt:_chandler4gs_.obj
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0002:ffffb000       __guard_fids__             10000000     msvcrt:guard_support.obj
+ 0002:ffffb000       __guard_fids___guard_icall_checks_enforced 10000000     msvcrt:guard_support.obj
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0002:ffffb000       __guard_fids_?dllmain_dispatch@@YAHQAUHINSTANCE__@@KQAX@Z 10000000     msvcrt:dll_dllmain.obj
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0002:ffffb000       __guard_fids____scrt_set_unhandled_exception_filter 10000000     msvcrt:utility_desktop.obj
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     kernel32:KERNEL32.dll
+ 0000:ffff6000       .debug$S                   10000000     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0001:000009f0       _wide_print                100019f0 f   enum.obj
+ 0001:00000ad0       _EnumerateHub              10001ad0 f   enum.obj
+ 0001:000016a0       _unload_undocumented       100026a0 f   filters.obj
+ 0001:00001840       _foreach_host_controller   10002840 f   roothubs.obj
+ 0001:00001910       _find_non_standard_hwids   10002910 f   roothubs.obj
+ 0001:00001b30       _restart_device            10002b30 f   roothubs.obj
+ 0001:00001c30       _GetDevMultiSz             10002c30 f   roothubs.obj
+ 0001:00002057       ?find_pe_section@@YAPAU_IMAGE_SECTION_HEADER@@QAEI@Z 10003057 f   msvcrt:utility.obj
+ 0001:000020a0       ?is_potentially_valid_image_base@@YA_NQAX@Z 100030a0 f   msvcrt:utility.obj
+ 0001:00002410       $$000000                   10003410     msvcrt:chkstk.obj
+ 0001:0000243d       ?dllmain_crt_dispatch@@YGHQAUHINSTANCE__@@KQAX@Z 1000343d f   msvcrt:dll_dllmain.obj
+ 0001:00002490       ?dllmain_crt_process_attach@@YAHQAUHINSTANCE__@@QAX@Z 10003490 f   msvcrt:dll_dllmain.obj
+ 0001:0000258f       ?dllmain_crt_process_detach@@YAH_N@Z 1000358f f   msvcrt:dll_dllmain.obj
+ 0001:00002617       ?dllmain_dispatch@@YAHQAUHINSTANCE__@@KQAX@Z 10003617 f   msvcrt:dll_dllmain.obj
+ 0001:0000274a       ?dllmain_raw@@YGHQAUHINSTANCE__@@KQAX@Z 1000374a f   msvcrt:dll_dllmain.obj
+ 0001:00002b40       $$000000                   10003b40     msvcrt:_sehprolg4_.obj
+ 0001:00002bbe       ___get_entropy             10003bbe f   msvcrt:gs_support.obj
+ 0002:00000680       _local_GUID_DEVINTERFACE_USB_HOST_CONTROLLER 10005680     roothubs.obj
+ 0002:00000964       _GS_ExceptionPointers      10005964     msvcrt:gs_report.obj
+ 0002:00000d30       __sehtable$___scrt_is_nonwritable_in_current_image 10005d30     msvcrt:utility.obj
+ 0002:00000d50       __sehtable$?dllmain_crt_process_attach@@YAHQAUHINSTANCE__@@QAX@Z 10005d50     msvcrt:dll_dllmain.obj
+ 0002:00000d70       __sehtable$?dllmain_crt_process_detach@@YAH_N@Z 10005d70     msvcrt:dll_dllmain.obj
+ 0002:00000d90       __sehtable$?dllmain_dispatch@@YAHQAUHINSTANCE__@@KQAX@Z 10005d90     msvcrt:dll_dllmain.obj
+ 0002:00000db0       .edata                     10005db0     winpcap_usb_plugin.exp
+ 0002:00000dd8       rgpv                       10005dd8     winpcap_usb_plugin.exp
+ 0002:00000e04       rgszName                   10005e04     winpcap_usb_plugin.exp
+ 0002:00000e30       rgwOrd                     10005e30     winpcap_usb_plugin.exp
+ 0002:00000e46       szName                     10005e46     winpcap_usb_plugin.exp
+ 0002:00000e5d       $N00001                    10005e5d     winpcap_usb_plugin.exp
+ 0002:00000e6b       $N00002                    10005e6b     winpcap_usb_plugin.exp
+ 0002:00000e7a       $N00003                    10005e7a     winpcap_usb_plugin.exp
+ 0002:00000e88       $N00004                    10005e88     winpcap_usb_plugin.exp
+ 0002:00000e94       $N00005                    10005e94     winpcap_usb_plugin.exp
+ 0002:00000ea8       $N00006                    10005ea8     winpcap_usb_plugin.exp
+ 0002:00000eb6       $N00007                    10005eb6     winpcap_usb_plugin.exp
+ 0002:00000ebf       $N00008                    10005ebf     winpcap_usb_plugin.exp
+ 0002:00000ed0       $N00009                    10005ed0     winpcap_usb_plugin.exp
+ 0002:00000edd       $N00010                    10005edd     winpcap_usb_plugin.exp
+ 0002:00000ee9       $N00011                    10005ee9     winpcap_usb_plugin.exp
+ 0002:000012e6       .idata$6                   100062e6     setupapi:SETUPAPI.dll
+ 0002:00001338       .idata$6                   10006338     advapi32:ADVAPI32.dll
+ 0002:0000163a       .idata$6                   1000663a     kernel32:KERNEL32.dll
+ 0002:0000168c       .idata$6                   1000668c     vcruntime:VCRUNTIME140.dll
+ 0002:000018d4       .idata$6                   100068d4     ucrt:api-ms-win-crt-stdio-l1-1-0.dll
+ 0002:000018f4       .idata$6                   100068f4     ucrt:api-ms-win-crt-string-l1-1-0.dll
+ 0002:00001916       .idata$6                   10006916     ucrt:api-ms-win-crt-heap-l1-1-0.dll
+ 0002:00001936       .idata$6                   10006936     ucrt:api-ms-win-crt-environment-l1-1-0.dll
+ 0002:0000195c       .idata$6                   1000695c     ucrt:api-ms-win-crt-runtime-l1-1-0.dll
+ 0003:00000040       ___local_stdio_printf_options._OptionsStorage 10007040     win_usbpcap.obj
+ 0003:00000048       _stdout_hnd                10007048     pcap-trace.obj
+ 0003:0000004c       _console_info              1000704c     pcap-trace.obj
+ 0003:00000068       ___local_stdio_printf_options._OptionsStorage 10007068     enum.obj
+ 0003:00000078       ___local_stdio_printf_options._OptionsStorage 10007078     filters.obj
+ 0003:00000080       _ntdll_handle              10007080     filters.obj
+ 0003:00000088       _non_standard_hwids        10007088     roothubs.obj
+ 0003:00000098       ___local_stdio_printf_options._OptionsStorage 10007098     roothubs.obj
+ 0003:000000a0       ___local_stdio_printf_options._OptionsStorage 100070a0     thread.obj
+ 0003:000000b0       ?module_local_atexit_table@@3U_onexit_table_t@@A 100070b0     msvcrt:utility.obj
+ 0003:000000bc       ?module_local_at_quick_exit_table@@3U_onexit_table_t@@A 100070bc     msvcrt:utility.obj
+ 0003:000000c8       ?module_local_atexit_table_initialized@@3_NA 100070c8     msvcrt:utility.obj
+ 0003:000000c9       ?is_initialized_as_dll@@3_NA 100070c9     msvcrt:utility.obj
+ 0003:000000cc       ?__proc_attached@@3HA      100070cc     msvcrt:dll_dllmain.obj
+ 0003:000000f8       _GS_ExceptionRecord        100070f8     msvcrt:gs_report.obj
+ 0003:00000148       _GS_ContextRecord          10007148     msvcrt:gs_report.obj
+ 0004:00000060       $R000000                   10008060     win_usbpcap.res
+
+Starting pass 1
+Processed /DEFAULTLIB:msvcrt.lib
+Processed /DEFAULTLIB:oldnames.lib
+Processed /DEFAULTLIB:uuid.lib
+
+Searching libraries
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\hid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\setupapi.lib:
+      Found __imp__CM_Locate_DevNodeA@12
+        Referenced in enum.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__CM_Get_DevNode_Registry_PropertyA@24
+        Referenced in enum.obj
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__CM_Get_Child@12
+        Referenced in enum.obj
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__CM_Get_Sibling@12
+        Referenced in enum.obj
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__CM_Get_Parent@12
+        Referenced in enum.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__CM_Get_DevNode_Registry_PropertyW@24
+        Referenced in enum.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__SetupDiGetClassDevsExA@28
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__SetupDiGetDeviceInfoListDetailA@8
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__SetupDiEnumDeviceInfo@12
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__SetupDiDestroyDeviceInfoList@4
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__CM_Get_Device_ID_ExA@20
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__SetupDiSetClassInstallParamsA@16
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__SetupDiCallClassInstaller@12
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __imp__SetupDiGetDeviceInstallParamsA@12
+        Referenced in roothubs.obj
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __IMPORT_DESCRIPTOR_SETUPAPI
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found __NULL_IMPORT_DESCRIPTOR
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Loaded setupapi.lib(SETUPAPI.dll)
+      Found SETUPAPI_NULL_THUNK_DATA
+        Referenced in setupapi.lib(SETUPAPI.dll)
+        Loaded setupapi.lib(SETUPAPI.dll)
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\comdlg32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\advapi32.lib:
+      Found __imp__RegOpenKeyExA@20
+        Referenced in filters.obj
+        Referenced in roothubs.obj
+        Loaded advapi32.lib(ADVAPI32.dll)
+      Found __imp__RegQueryValueExA@24
+        Referenced in filters.obj
+        Loaded advapi32.lib(ADVAPI32.dll)
+      Found __imp__RegCloseKey@4
+        Referenced in filters.obj
+        Referenced in roothubs.obj
+        Loaded advapi32.lib(ADVAPI32.dll)
+      Found __imp__RegSetValueExA@24
+        Referenced in roothubs.obj
+        Loaded advapi32.lib(ADVAPI32.dll)
+      Found __IMPORT_DESCRIPTOR_ADVAPI32
+        Referenced in advapi32.lib(ADVAPI32.dll)
+        Referenced in advapi32.lib(ADVAPI32.dll)
+        Referenced in advapi32.lib(ADVAPI32.dll)
+        Referenced in advapi32.lib(ADVAPI32.dll)
+        Loaded advapi32.lib(ADVAPI32.dll)
+      Found ADVAPI32_NULL_THUNK_DATA
+        Referenced in advapi32.lib(ADVAPI32.dll)
+        Loaded advapi32.lib(ADVAPI32.dll)
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\cfgmgr32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\shlwapi.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\msvcrt.lib:
+      Found _atexit
+        Referenced in filters.obj
+        Loaded msvcrt.lib(utility.obj)
+      Found __chkstk
+        Referenced in filters.obj
+        Loaded msvcrt.lib(chkstk.obj)
+      Found __DllMainCRTStartup@12
+        Loaded msvcrt.lib(dll_dllmain.obj)
+      Found ___isa_available_init
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded msvcrt.lib(_cpu_disp_.obj)
+      Found __get_startup_argv_mode
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded msvcrt.lib(argv_mode.obj)
+      Found ___scrt_is_ucrt_dll_in_use
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded msvcrt.lib(ucrt_detection.obj)
+      Found ___scrt_fastfail
+        Referenced in msvcrt.lib(utility.obj)
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded msvcrt.lib(utility_desktop.obj)
+      Found @_guard_check_icall@4
+        Referenced in msvcrt.lib(utility.obj)
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded msvcrt.lib(checkcfg.obj)
+      Found __SEH_epilog4
+        Referenced in msvcrt.lib(utility.obj)
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded msvcrt.lib(_sehprolg4_.obj)
+      Found __except_handler4
+        Referenced in msvcrt.lib(utility.obj)
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Referenced in msvcrt.lib(_sehprolg4_.obj)
+        Loaded msvcrt.lib(_chandler4gs_.obj)
+      Found ___security_cookie
+        Referenced in msvcrt.lib(utility.obj)
+        Referenced in msvcrt.lib(_sehprolg4_.obj)
+        Referenced in msvcrt.lib(_chandler4gs_.obj)
+        Loaded msvcrt.lib(gs_cookie.obj)
+      Found ___security_init_cookie
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded msvcrt.lib(gs_support.obj)
+      Found "void __cdecl __scrt_initialize_type_info(void)" (?__scrt_initialize_type_info@@YAXXZ)
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded msvcrt.lib(tncleanup.obj)
+      Found ___scrt_initialize_default_local_stdio_options
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded msvcrt.lib(default_local_stdio_options.obj)
+      Found ___scrt_get_dyn_tls_init_callback
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded msvcrt.lib(dyn_tls_init.obj)
+      Found __RTC_Initialize
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded msvcrt.lib(_initsect_.obj)
+      Found ___xi_a
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded msvcrt.lib(initializers.obj)
+Processed /DEFAULTLIB:kernel32.lib
+ Processed /DISALLOWLIB:msvcrtd.lib
+ Processed /DISALLOWLIB:libcmt.lib
+ Processed /DISALLOWLIB:libcmtd.lib
+Processed /DEFAULTLIB:vcruntime.lib
+ Processed /DISALLOWLIB:vcruntimed.lib
+ Processed /DISALLOWLIB:libvcruntime.lib
+ Processed /DISALLOWLIB:libvcruntimed.lib
+Processed /DEFAULTLIB:ucrt.lib
+ Processed /DISALLOWLIB:ucrtd.lib
+ Processed /DISALLOWLIB:libucrt.lib
+ Processed /DISALLOWLIB:libucrtd.lib
+      Found ___guard_check_icall_fptr
+        Referenced in msvcrt.lib(checkcfg.obj)
+        Loaded msvcrt.lib(guard_support.obj)
+      Found @__security_check_cookie@4
+        Referenced in msvcrt.lib(_sehprolg4_.obj)
+        Referenced in msvcrt.lib(_chandler4gs_.obj)
+        Loaded msvcrt.lib(_secchk_.obj)
+      Found ___report_gsfailure
+        Referenced in msvcrt.lib(_secchk_.obj)
+        Loaded msvcrt.lib(gs_report.obj)
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\oldnames.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\uuid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\kernel32.lib:
+      Found __imp__EnterCriticalSection@4
+        Referenced in win_usbpcap.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__LeaveCriticalSection@4
+        Referenced in win_usbpcap.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetStdHandle@4
+        Referenced in pcap-trace.obj
+        Referenced in enum.obj
+        Referenced in thread.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetConsoleScreenBufferInfo@8
+        Referenced in pcap-trace.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__InitializeCriticalSection@4
+        Referenced in pcap-trace.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__SetConsoleTextAttribute@8
+        Referenced in pcap-trace.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__CreateFileA@28
+        Referenced in enum.obj
+        Referenced in thread.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__DeviceIoControl@32
+        Referenced in enum.obj
+        Referenced in thread.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__WideCharToMultiByte@32
+        Referenced in enum.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GlobalAlloc@8
+        Referenced in enum.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetLastError@0
+        Referenced in enum.obj
+        Referenced in thread.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GlobalFree@4
+        Referenced in enum.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__CloseHandle@4
+        Referenced in enum.obj
+        Referenced in thread.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetFileType@4
+        Referenced in enum.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetConsoleMode@8
+        Referenced in enum.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__WriteConsoleW@20
+        Referenced in enum.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__LoadLibraryA@4
+        Referenced in filters.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetProcAddress@8
+        Referenced in filters.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetProcessHeap@0
+        Referenced in filters.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__HeapAlloc@12
+        Referenced in filters.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__HeapFree@12
+        Referenced in filters.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__FreeLibrary@4
+        Referenced in filters.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__lstrlenA@4
+        Referenced in roothubs.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__ReadFile@20
+        Referenced in thread.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__WriteFile@20
+        Referenced in thread.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__FlushFileBuffers@4
+        Referenced in thread.obj
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found _IsProcessorFeaturePresent@4
+        Referenced in msvcrt.lib(_cpu_disp_.obj)
+        Referenced in msvcrt.lib(utility_desktop.obj)
+        Referenced in msvcrt.lib(gs_report.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__IsDebuggerPresent@0
+        Referenced in msvcrt.lib(utility_desktop.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__UnhandledExceptionFilter@4
+        Referenced in msvcrt.lib(utility_desktop.obj)
+        Referenced in msvcrt.lib(gs_report.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__SetUnhandledExceptionFilter@4
+        Referenced in msvcrt.lib(utility_desktop.obj)
+        Referenced in msvcrt.lib(gs_report.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetStartupInfoW@4
+        Referenced in msvcrt.lib(utility_desktop.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetModuleHandleW@4
+        Referenced in msvcrt.lib(utility_desktop.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__QueryPerformanceCounter@4
+        Referenced in msvcrt.lib(gs_support.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetCurrentProcessId@0
+        Referenced in msvcrt.lib(gs_support.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetCurrentThreadId@0
+        Referenced in msvcrt.lib(gs_support.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetSystemTimeAsFileTime@4
+        Referenced in msvcrt.lib(gs_support.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__InitializeSListHead@4
+        Referenced in msvcrt.lib(tncleanup.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__GetCurrentProcess@0
+        Referenced in msvcrt.lib(gs_report.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __imp__TerminateProcess@8
+        Referenced in msvcrt.lib(gs_report.obj)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found __IMPORT_DESCRIPTOR_KERNEL32
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Loaded kernel32.lib(KERNEL32.dll)
+      Found KERNEL32_NULL_THUNK_DATA
+        Referenced in kernel32.lib(KERNEL32.dll)
+        Loaded kernel32.lib(KERNEL32.dll)
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\vcruntime.lib:
+      Found _memset
+        Referenced in roothubs.obj
+        Referenced in msvcrt.lib(utility_desktop.obj)
+        Loaded vcruntime.lib(VCRUNTIME140.dll)
+      Found __except_handler4_common
+        Referenced in msvcrt.lib(_chandler4gs_.obj)
+        Loaded vcruntime.lib(VCRUNTIME140.dll)
+      Found ___std_type_info_destroy_list
+        Referenced in msvcrt.lib(tncleanup.obj)
+        Loaded vcruntime.lib(VCRUNTIME140.dll)
+      Found __IMPORT_DESCRIPTOR_VCRUNTIME140
+        Referenced in vcruntime.lib(VCRUNTIME140.dll)
+        Referenced in vcruntime.lib(VCRUNTIME140.dll)
+        Referenced in vcruntime.lib(VCRUNTIME140.dll)
+        Loaded vcruntime.lib(VCRUNTIME140.dll)
+      Found VCRUNTIME140_NULL_THUNK_DATA
+        Referenced in vcruntime.lib(VCRUNTIME140.dll)
+        Loaded vcruntime.lib(VCRUNTIME140.dll)
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\ucrt\x86\ucrt.lib:
+      Found __imp____acrt_iob_func
+        Referenced in roothubs.obj
+        Referenced in thread.obj
+        Referenced in win_usbpcap.obj
+        Referenced in pcap-trace.obj
+        Referenced in enum.obj
+        Referenced in filters.obj
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found __imp____stdio_common_vfprintf
+        Referenced in thread.obj
+        Referenced in win_usbpcap.obj
+        Referenced in enum.obj
+        Referenced in filters.obj
+        Referenced in roothubs.obj
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found __imp__strncpy_s
+        Referenced in win_usbpcap.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __imp__calloc
+        Referenced in win_usbpcap.obj
+        Referenced in filters.obj
+        Loaded ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+      Found __imp__free
+        Referenced in win_usbpcap.obj
+        Referenced in filters.obj
+        Referenced in roothubs.obj
+        Referenced in thread.obj
+        Loaded ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+      Found __imp____stdio_common_vsprintf
+        Referenced in win_usbpcap.obj
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found _strlen
+        Referenced in win_usbpcap.obj
+        Referenced in enum.obj
+        Referenced in roothubs.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found _strcpy
+        Referenced in win_usbpcap.obj
+        Referenced in roothubs.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __imp__strncpy
+        Referenced in win_usbpcap.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __imp__getenv
+        Referenced in pcap-trace.obj
+        Loaded ucrt.lib(api-ms-win-crt-environment-l1-1-0.dll)
+      Found __imp__fflush
+        Referenced in pcap-trace.obj
+        Referenced in enum.obj
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found _putchar
+        Referenced in enum.obj
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found __imp__wcslen
+        Referenced in enum.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __imp___fileno
+        Referenced in enum.obj
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found __imp___setmode
+        Referenced in enum.obj
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found __imp__strncmp
+        Referenced in enum.obj
+        Referenced in thread.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __imp__strcpy_s
+        Referenced in enum.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __imp__strcat_s
+        Referenced in enum.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __imp___stricmp
+        Referenced in enum.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found _puts
+        Referenced in enum.obj
+        Referenced in filters.obj
+        Referenced in roothubs.obj
+        Referenced in thread.obj
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found __imp____stdio_common_vfwprintf
+        Referenced in enum.obj
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found __imp__malloc
+        Referenced in filters.obj
+        Referenced in roothubs.obj
+        Referenced in thread.obj
+        Loaded ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+      Found __imp__wcsncmp
+        Referenced in filters.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found _strcmp
+        Referenced in roothubs.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __imp__realloc
+        Referenced in roothubs.obj
+        Loaded ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+      Found __imp___strdup
+        Referenced in roothubs.obj
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __seh_filter_dll
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __configure_narrow_argv
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __initialize_narrow_environment
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __initialize_onexit_table
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __register_onexit_function
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __execute_onexit_table
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __crt_atexit
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __crt_at_quick_exit
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __cexit
+        Referenced in msvcrt.lib(utility.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __initterm
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __initterm_e
+        Referenced in msvcrt.lib(dll_dllmain.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found _terminate
+        Referenced in msvcrt.lib(utility_desktop.obj)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found __IMPORT_DESCRIPTOR_api-ms-win-crt-stdio-l1-1-0
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found __IMPORT_DESCRIPTOR_api-ms-win-crt-string-l1-1-0
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found __IMPORT_DESCRIPTOR_api-ms-win-crt-heap-l1-1-0
+        Referenced in ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+      Found __IMPORT_DESCRIPTOR_api-ms-win-crt-environment-l1-1-0
+        Referenced in ucrt.lib(api-ms-win-crt-environment-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-environment-l1-1-0.dll)
+      Found __IMPORT_DESCRIPTOR_api-ms-win-crt-runtime-l1-1-0
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+      Found api-ms-win-crt-stdio-l1-1-0_NULL_THUNK_DATA
+        Referenced in ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+      Found api-ms-win-crt-string-l1-1-0_NULL_THUNK_DATA
+        Referenced in ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+      Found api-ms-win-crt-heap-l1-1-0_NULL_THUNK_DATA
+        Referenced in ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+      Found api-ms-win-crt-environment-l1-1-0_NULL_THUNK_DATA
+        Referenced in ucrt.lib(api-ms-win-crt-environment-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-environment-l1-1-0.dll)
+      Found api-ms-win-crt-runtime-l1-1-0_NULL_THUNK_DATA
+        Referenced in ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+        Loaded ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\hid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\setupapi.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\comdlg32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\advapi32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\cfgmgr32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\shlwapi.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\msvcrt.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\oldnames.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\uuid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\kernel32.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\vcruntime.lib:
+
+Finished searching libraries
+
+Generating .exp file
+   Creating library WinPcap-Plugins/winpcap_usb_plugin.lib and object WinPcap-Plugins/winpcap_usb_plugin.exp
+
+Finished generating .exp file
+
+Searching libraries
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\hid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\setupapi.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\comdlg32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\advapi32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\cfgmgr32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\shlwapi.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\msvcrt.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\oldnames.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\uuid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\kernel32.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\vcruntime.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\ucrt\x86\ucrt.lib:
+
+Finished searching libraries
+
+Searching libraries
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\hid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\setupapi.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\comdlg32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\advapi32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\cfgmgr32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\shlwapi.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\msvcrt.lib:
+      Found ___scrt_stub_for_acrt_initialize
+        Loaded msvcrt.lib(ucrt_stubs.obj)
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\oldnames.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\uuid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\kernel32.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\vcruntime.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\ucrt\x86\ucrt.lib:
+
+Finished searching libraries
+
+Finished pass 1
+
+
+Searching libraries
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\hid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\setupapi.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\comdlg32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\advapi32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\cfgmgr32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\shlwapi.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\msvcrt.lib:
+      Found __load_config_used
+        Loaded msvcrt.lib(loadcfg.obj)
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\oldnames.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\uuid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\kernel32.lib:
+    Searching f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\vcruntime.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\ucrt\x86\ucrt.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\hid.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\setupapi.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\comdlg32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\advapi32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\cfgmgr32.lib:
+    Searching f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\shlwapi.lib:
+
+Finished searching libraries
+
+Invoking cvtres.exe:
+ /machine:x86
+ /verbose
+ /out:"c:\TEMP\lnk{86104689-0E35-4237-A9BB-DDD8ACDE7542}.tmp"
+ /readonly
+ "clang_obj/win_usbpcap.res"
+Microsoft (R) Windows Resource To Object Converter Version 14.12.25833.4
+Copyright (C) Microsoft Corporation.  All rights reserved.
+
+adding resource. type:VERSION, name:1, language:0x0409, flags:0x30, size:908
+
+Unused libraries:
+  f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\hid.lib
+  f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\comdlg32.lib
+  f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\cfgmgr32.lib
+  f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\shlwapi.lib
+  f:\gv\VC_2017\VC\Tools\MSVC\14.12.25827\lib\x86\oldnames.lib
+  f:\ProgramFiler-x86\WindowsKits\Lib\10.0.16299.0\um\x86\uuid.lib
+
+Starting pass 2
+     win_usbpcap.res
+     winpcap_usb_plugin.exp
+     thread.obj
+     roothubs.obj
+     filters.obj
+     enum.obj
+     pcap-trace.obj
+     win_usbpcap.obj
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     setupapi.lib(SETUPAPI.dll)
+     advapi32.lib(ADVAPI32.dll)
+     advapi32.lib(ADVAPI32.dll)
+     advapi32.lib(ADVAPI32.dll)
+     advapi32.lib(ADVAPI32.dll)
+     advapi32.lib(ADVAPI32.dll)
+     advapi32.lib(ADVAPI32.dll)
+     msvcrt.lib(_cpu_disp_.obj)
+     msvcrt.lib(_initsect_.obj)
+     msvcrt.lib(_sehprolg4_.obj)
+     msvcrt.lib(_chandler4gs_.obj)
+     msvcrt.lib(_secchk_.obj)
+     msvcrt.lib(chkstk.obj)
+     msvcrt.lib(gs_cookie.obj)
+     msvcrt.lib(gs_report.obj)
+     msvcrt.lib(gs_support.obj)
+     msvcrt.lib(checkcfg.obj)
+     msvcrt.lib(guard_support.obj)
+     msvcrt.lib(loadcfg.obj)
+     msvcrt.lib(dyn_tls_init.obj)
+     msvcrt.lib(ucrt_detection.obj)
+     msvcrt.lib(argv_mode.obj)
+     msvcrt.lib(default_local_stdio_options.obj)
+     msvcrt.lib(tncleanup.obj)
+     msvcrt.lib(dll_dllmain.obj)
+     msvcrt.lib(initializers.obj)
+     msvcrt.lib(utility.obj)
+     msvcrt.lib(ucrt_stubs.obj)
+     msvcrt.lib(utility_desktop.obj)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     kernel32.lib(KERNEL32.dll)
+     vcruntime.lib(VCRUNTIME140.dll)
+     vcruntime.lib(VCRUNTIME140.dll)
+     vcruntime.lib(VCRUNTIME140.dll)
+     vcruntime.lib(VCRUNTIME140.dll)
+     vcruntime.lib(VCRUNTIME140.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-string-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-stdio-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-runtime-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-heap-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-environment-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-environment-l1-1-0.dll)
+     ucrt.lib(api-ms-win-crt-environment-l1-1-0.dll)
+Finished pass 2

@@ -64,7 +64,16 @@ bt_monitor_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 {
     int         ret = 0;
 
-    if (add_dev(devlistp, INTERFACE_NAME, 0,
+    /*
+     * Bluetooth is a wireless technology.
+     *
+     * This is a device to monitor all Bluetooth interfaces, so
+     * there's no notion of "connected" or "disconnected", any
+     * more than there's a notion of "connected" or "disconnected"
+     * for the "any" device.
+     */
+    if (add_dev(devlistp, INTERFACE_NAME,
+                PCAP_IF_WIRELESS|PCAP_IF_CONNECTION_STATUS_NOT_APPLICABLE,
                 "Bluetooth Linux Monitor", err_str) == NULL)
     {
         ret = -1;
@@ -110,8 +119,8 @@ bt_monitor_read(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_ch
     } while ((ret == -1) && (errno == EINTR));
 
     if (ret < 0) {
-        pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-            "Can't receive packet: %s", strerror(errno));
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+            errno, "Can't receive packet");
         return -1;
     }
 
@@ -198,15 +207,15 @@ bt_monitor_activate(pcap_t* handle)
 
     handle->fd = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI);
     if (handle->fd < 0) {
-        pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-            "Can't create raw socket: %s", strerror(errno));
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+            errno, "Can't create raw socket");
         return PCAP_ERROR;
     }
 
     handle->buffer = malloc(handle->bufsize);
     if (!handle->buffer) {
-        pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "Can't allocate dump buffer: %s",
-            pcap_strerror(errno));
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+            errno, "Can't allocate dump buffer");
         goto close_fail;
     }
 
@@ -216,15 +225,15 @@ bt_monitor_activate(pcap_t* handle)
     addr.hci_channel = HCI_CHANNEL_MONITOR;
 
     if (bind(handle->fd, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
-        pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-            "Can't attach to interface: %s", strerror(errno));
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+            errno, "Can't attach to interface");
         goto close_fail;
     }
 
     opt = 1;
     if (setsockopt(handle->fd, SOL_SOCKET, SO_TIMESTAMP, &opt, sizeof(opt)) < 0) {
-        pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-            "Can't enable time stamp: %s", strerror(errno));
+        pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+            errno, "Can't enable time stamp");
         goto close_fail;
     }
 

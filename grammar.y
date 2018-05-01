@@ -67,10 +67,14 @@ struct rtentry;
 
 #include <stdio.h>
 
+#include "diag-control.h"
+
 #include "pcap-int.h"
 
 #include "gencode.h"
+DIAG_OFF_BISON_BYACC
 #include "grammar.h"
+DIAG_ON_BISON_BYACC
 #include "scanner.h"
 
 #ifdef HAVE_NET_PFVAR_H
@@ -86,9 +90,9 @@ struct rtentry;
 #include "os-proto.h"
 #endif
 
-#define QSET(q, p, d, a) (q).proto = (p),\
-			 (q).dir = (d),\
-			 (q).addr = (a)
+#define QSET(q, p, d, a) (q).proto = (unsigned char)(p),\
+			 (q).dir = (unsigned char)(d),\
+			 (q).addr = (unsigned char)(a)
 
 struct tok {
 	int v;			/* value */
@@ -195,8 +199,8 @@ str2tok(const char *str, const struct tok *toks)
 
 static struct qual qerr = { Q_UNDEF, Q_UNDEF, Q_UNDEF, Q_UNDEF };
 
-static void
-yyerror(void *yyscanner, compiler_state_t *cstate, const char *msg)
+static PCAP_NORETURN_DEF void
+yyerror(void *yyscanner _U_, compiler_state_t *cstate, const char *msg)
 {
 	bpf_syntax_error(cstate, msg);
 	/* NOTREACHED */
@@ -242,26 +246,22 @@ pfaction_to_num(compiler_state_t *cstate, const char *action)
 	}
 }
 #else /* !HAVE_NET_PFVAR_H */
-static int
-pfreason_to_num(compiler_state_t *cstate, const char *reason)
+static PCAP_NORETURN_DEF int
+pfreason_to_num(compiler_state_t *cstate, const char *reason _U_)
 {
 	bpf_error(cstate, "libpcap was compiled on a machine without pf support");
 	/*NOTREACHED*/
-
-	/* this is to make the VC compiler happy */
-	return -1;
 }
 
-static int
-pfaction_to_num(compiler_state_t *cstate, const char *action)
+static PCAP_NORETURN_DEF int
+pfaction_to_num(compiler_state_t *cstate, const char *action _U_)
 {
 	bpf_error(cstate, "libpcap was compiled on a machine without pf support");
 	/*NOTREACHED*/
-
-	/* this is to make the VC compiler happy */
-	return -1;
 }
 #endif /* HAVE_NET_PFVAR_H */
+
+DIAG_OFF_BISON_BYACC
 %}
 
 %union {
@@ -762,3 +762,4 @@ mtp3listvalue: mtp3fieldvalue
 	| mtp3listvalue or mtp3fieldvalue { gen_or($1.b, $3.b); $$ = $3; }
 	;
 %%
+DIAG_ON_BISON_BYACC

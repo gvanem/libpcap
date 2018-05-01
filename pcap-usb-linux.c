@@ -230,13 +230,31 @@ usb_dev_add(pcap_if_list_t *devlistp, int n, char *err_str)
 	char dev_name[10];
 	char dev_descr[30];
 	pcap_snprintf(dev_name, 10, USB_IFACE"%d", n);
-	if (n == 0)
-		pcap_snprintf(dev_descr, 30, "All USB buses");
-	else
+	/*
+	 * XXX - is there any notion of "up" and "running"?
+	 */
+	if (n == 0) {
+		/*
+		 * As this refers to all buses, there's no notion of
+		 * "connected" vs. "disconnected", as that's a property
+		 * that would apply to a particular USB interface.
+		 */
+		if (add_dev(devlistp, dev_name,
+		    PCAP_IF_CONNECTION_STATUS_NOT_APPLICABLE,
+		    "All USB buses", err_str) == NULL)
+			return -1;
+	} else {
+		/*
+		 * XXX - is there a way to determine whether anything's
+		 * plugged into this bus interface or not, and set
+		 * PCAP_IF_CONNECTION_STATUS_CONNECTED or
+		 * PCAP_IF_CONNECTION_STATUS_DISCONNECTED?
+		 */
 		pcap_snprintf(dev_descr, 30, "USB bus number %d", n);
+		if (add_dev(devlistp, dev_name, 0, dev_descr, err_str) == NULL)
+			return -1;
+	}
 
-	if (add_dev(devlistp, dev_name, 0, dev_descr, err_str) == NULL)
-		return -1;
 	return 0;
 }
 
@@ -424,7 +442,7 @@ probe_devices(int bus)
 		 * Sigh.  Different kernels have different member names
 		 * for this structure.
 		 */
-#ifdef HAVE_USBDEVFS_CTRLTRANSFER_BREQUESTTYPE
+#ifdef HAVE_STRUCT_USBDEVFS_CTRLTRANSFER_BREQUESTTYPE
 		ctrl.bRequestType = USB_DIR_IN | USB_TYPE_STANDARD | USB_RECIP_DEVICE;
 		ctrl.bRequest = USB_REQ_GET_DESCRIPTOR;
 		ctrl.wValue = USB_DT_DEVICE << 8;
@@ -567,8 +585,9 @@ usb_activate(pcap_t* handle)
 				/*
 				 * Something went wrong.
 				 */
-				pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-					"Can't open USB bus file %s: %s", full_path, strerror(errno));
+				pcap_fmt_errmsg_for_errno(handle->errbuf,
+				    PCAP_ERRBUF_SIZE, errno,
+				    "Can't open USB bus file %s", full_path);
 				return PCAP_ERROR;
 			}
 		}
@@ -646,8 +665,10 @@ usb_activate(pcap_t* handle)
 					/*
 					 * Yes - return *that* error.
 					 */
-					pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-						"Can't open USB bus file %s: %s", full_path, strerror(errno));
+					pcap_fmt_errmsg_for_errno(handle->errbuf,
+					    PCAP_ERRBUF_SIZE, errno,
+					    "Can't open USB bus file %s",
+					    full_path);
 					return PCAP_ERROR;
 				}
 
@@ -683,8 +704,8 @@ usb_activate(pcap_t* handle)
 	 * buffer */
 	handle->buffer = malloc(handle->bufsize);
 	if (!handle->buffer) {
-		pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-			 "malloc: %s", pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "malloc");
 		close(handle->fd);
 		return PCAP_ERROR;
 	}
@@ -703,7 +724,7 @@ ascii_to_int(char c)
  * format description
  */
 static int
-usb_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *user)
+usb_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_char *user)
 {
 	/* see:
 	* /usr/src/linux/Documentation/usb/usbmon.txt
@@ -734,8 +755,8 @@ usb_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 		if (errno == EAGAIN)
 			return 0;	/* no data there */
 
-		pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-		    "Can't read from fd %d: %s", handle->fd, strerror(errno));
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "Can't read from fd %d", handle->fd);
 		return -1;
 	}
 
@@ -761,9 +782,8 @@ usb_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_char *u
 	/* don't use usbmon provided timestamp, since it have low precision*/
 	if (gettimeofday(&pkth.ts, NULL) < 0)
 	{
-		pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-			"Can't get timestamp for message '%s' %d:%s",
-			string, errno, strerror(errno));
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "Can't get timestamp for message '%s'", string);
 		return -1;
 	}
 	uhdr->ts_sec = pkth.ts.tv_sec;
@@ -901,7 +921,7 @@ got:
 }
 
 static int
-usb_inject_linux(pcap_t *handle, const void *buf, size_t size)
+usb_inject_linux(pcap_t *handle, const void *buf _U_, size_t size _U_)
 {
 	pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "inject not supported on "
 		"USB devices");
@@ -932,9 +952,9 @@ usb_stats_linux(pcap_t *handle, struct pcap_stat *stats)
 			fd = open(string, O_RDONLY, 0);
 		}
 		if (fd < 0) {
-			pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-				"Can't open USB stats file %s: %s",
-				string, strerror(errno));
+			pcap_fmt_errmsg_for_errno(handle->errbuf,
+			    PCAP_ERRBUF_SIZE, errno,
+			    "Can't open USB stats file %s", string);
 			return -1;
 		}
 	}
@@ -1001,8 +1021,8 @@ usb_stats_linux_bin(pcap_t *handle, struct pcap_stat *stats)
 	ret = ioctl(handle->fd, MON_IOCG_STATS, &st);
 	if (ret < 0)
 	{
-		pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-			"Can't read stats from fd %d:%s ", handle->fd, strerror(errno));
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "Can't read stats from fd %d", handle->fd);
 		return -1;
 	}
 
@@ -1017,7 +1037,7 @@ usb_stats_linux_bin(pcap_t *handle, struct pcap_stat *stats)
  * <linux-kernel-source>/drivers/usb/mon/mon_bin.c binary ABI
  */
 static int
-usb_read_linux_bin(pcap_t *handle, int max_packets, pcap_handler callback, u_char *user)
+usb_read_linux_bin(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_char *user)
 {
 	struct pcap_usb_linux *handlep = handle->priv;
 	struct mon_bin_get info;
@@ -1044,8 +1064,8 @@ usb_read_linux_bin(pcap_t *handle, int max_packets, pcap_handler callback, u_cha
 		if (errno == EAGAIN)
 			return 0;	/* no data there */
 
-		pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-		    "Can't read from fd %d: %s", handle->fd, strerror(errno));
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "Can't read from fd %d", handle->fd);
 		return -1;
 	}
 
@@ -1115,8 +1135,9 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 			if (errno == EAGAIN)
 				return 0;	/* no data there */
 
-			pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-			    "Can't mfetch fd %d: %s", handle->fd, strerror(errno));
+			pcap_fmt_errmsg_for_errno(handle->errbuf,
+			    PCAP_ERRBUF_SIZE, errno, "Can't mfetch fd %d",
+			    handle->fd);
 			return -1;
 		}
 
@@ -1156,8 +1177,8 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 
 	/* flush pending events*/
 	if (ioctl(handle->fd, MON_IOCH_MFLUSH, nflush) == -1) {
-		pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-		    "Can't mflush fd %d: %s", handle->fd, strerror(errno));
+		pcap_fmt_errmsg_for_errno(handle->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "Can't mflush fd %d", handle->fd);
 		return -1;
 	}
 	return packets;

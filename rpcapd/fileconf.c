@@ -42,23 +42,20 @@
 #include <signal.h>
 #include <pcap.h>		// for PCAP_ERRBUF_SIZE
 
-#include "sockutils.h"		// for SOCK_ASSERT
+#include "sockutils.h"		// for SOCK_DEBUG_MESSAGE
 #include "portability.h"
 #include "rpcapd.h"
+#include "config_params.h"	// configuration file parameters
 #include "fileconf.h"
 #include "rpcap-protocol.h"
 
 static int strrem(char *string, char chr);
 
-void fileconf_read(int sign)
+void fileconf_read(void)
 {
 	FILE *fp;
 	char msg[PCAP_ERRBUF_SIZE + 1];
 	int i;
-
-#ifndef _WIN32
-	signal(SIGHUP, fileconf_read);
-#endif
 
 	if ((fp = fopen(loadfile, "r")) != NULL)
 	{
@@ -74,7 +71,8 @@ void fileconf_read(int sign)
 			if (line[0] == '\r') continue;	// Blank line
 			if (line[0] == '#') continue;	// Comment
 
-			if ((ptr = strstr(line, "ActiveClient")))
+			ptr = strstr(line, "ActiveClient");
+			if (ptr)
 			{
 				char *address, *port;
 				char *lasts;
@@ -96,13 +94,14 @@ void fileconf_read(int sign)
 					activelist[i].port[MAX_LINE] = 0;
 				}
 				else
-					SOCK_ASSERT("Only MAX_ACTIVE_LIST active connections are currently supported.", 1);
+					SOCK_DEBUG_MESSAGE("Only MAX_ACTIVE_LIST active connections are currently supported.");
 
 				i++;
 				continue;
 			}
 
-			if ((ptr = strstr(line, "PassiveClient")))
+			ptr = strstr(line, "PassiveClient");
+			if (ptr)
 			{
 				ptr = strchr(ptr, '=') + 1;
 				strlcat(hostlist, ptr, MAX_HOST_LIST);
@@ -110,7 +109,8 @@ void fileconf_read(int sign)
 				continue;
 			}
 
-			if ((ptr = strstr(line, "NullAuthPermit")))
+			ptr = strstr(line, "NullAuthPermit");
+			if (ptr)
 			{
 				ptr = strstr(ptr, "YES");
 				if (ptr)
@@ -121,7 +121,7 @@ void fileconf_read(int sign)
 			}
 		}
 
-		// clear the remaining fields of the active list 
+		// clear the remaining fields of the active list
 		while (i < MAX_ACTIVE_LIST)
 		{
 			activelist[i].address[0] = 0;
@@ -134,7 +134,7 @@ void fileconf_read(int sign)
 		strrem(hostlist, '\n');
 
 		pcap_snprintf(msg, PCAP_ERRBUF_SIZE, "New passive host list: %s\n\n", hostlist);
-		SOCK_ASSERT(msg, 1);
+		SOCK_DEBUG_MESSAGE(msg);
 		fclose(fp);
 	}
 }
@@ -158,7 +158,7 @@ int fileconf_save(const char *savefile)
 
 		strncpy(temphostlist, hostlist, MAX_HOST_LIST);
 		temphostlist[MAX_HOST_LIST] = 0;
-	
+
 		token = pcap_strtok_r(temphostlist, RPCAP_HOSTLIST_SEP, &lasts);
 		while(token != NULL)
 		{
@@ -173,7 +173,7 @@ int fileconf_save(const char *savefile)
 		fprintf(fp, "# Format: ActiveClient = <name or address>, <port | DEFAULT>\n\n");
 
 
-		while ((activelist[i].address[0] != 0) && (i < MAX_ACTIVE_LIST))
+		while ((i < MAX_ACTIVE_LIST) && (activelist[i].address[0] != 0))
 		{
 			fprintf(fp, "ActiveClient = %s, %s\n", activelist[i].address, activelist[i].port);
 			i++;

@@ -18,7 +18,7 @@
  * WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
  * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
  *
- * pcap-common.c - common code for pcap and pcap-ng files
+ * pcap-common.c - common code for pcap and pcapng files
  */
 
 #ifdef HAVE_CONFIG_H
@@ -484,9 +484,14 @@
 
 /*
  * IEEE 802.15.4, exactly as it appears in the spec (no padding, no
- * nothing); requested by Mikko Saarnivala <mikko.saarnivala@sensinode.com>.
+ * nothing), and with the FCS at the end of the frame; requested by
+ * Mikko Saarnivala <mikko.saarnivala@sensinode.com>.
+ *
+ * This should only be used if the FCS is present at the end of the
+ * frame; if the frame has no FCS, DLT_IEEE802_15_4_NOFCS should be
+ * used.
  */
-#define LINKTYPE_IEEE802_15_4	195
+#define LINKTYPE_IEEE802_15_4_WITHFCS	195
 
 /*
  * Various link-layer types, with a pseudo-header, for SITA
@@ -875,7 +880,7 @@
 
 /*
  * pfsync output; DLT_PFSYNC is 18, which collides with DLT_CIP in
- * SuSE 6.3, on OpenBSD, NetBSD, DragonFly BSD, and Mac OS X, and
+ * SuSE 6.3, on OpenBSD, NetBSD, DragonFly BSD, and macOS, and
  * is 121, which collides with DLT_HHDLC, in FreeBSD.  We pick a
  * shiny new link-layer header type value that doesn't collide with
  * anything, in the hopes that future pfsync savefiles, if any,
@@ -972,7 +977,7 @@
  * So I'll just give them one; hopefully this will show up in a
  * libpcap release in time for them to get this into 10.10 Big Sur
  * or whatever Mavericks' successor is called.  LINKTYPE_PKTAP
- * will be 258 *even on OS X*; that is *intentional*, so that
+ * will be 258 *even on macOS*; that is *intentional*, so that
  * PKTAP files look the same on *all* OSes (different OSes can have
  * different numerical values for a given DLT_, but *MUST NOT* have
  * different values for what goes in a file, as files can be moved
@@ -1056,7 +1061,27 @@
  */
 #define LINKTYPE_NORDIC_BLE	272
 
-#define LINKTYPE_MATCHING_MAX	272		/* highest value in the "matching" range */
+/*
+ * Excentis DOCSIS 3.1 RF sniffer (XRA-31)
+ *   per: bruno.verstuyft at excentis.com
+ *        http://www.xra31.com/xra-header
+ */
+#define LINKTYPE_DOCSIS31_XRA31	273
+
+/*
+ * mPackets, as specified by IEEE 802.3br Figure 99-4, starting
+ * with the preamble and always ending with a CRC field.
+ */
+#define LINKTYPE_ETHERNET_MPACKET	274
+
+/*
+ * DisplayPort AUX channel monitoring data as specified by VESA
+ * DisplayPort(DP) Standard preceeded by a pseudo-header.
+ *    per dirk.eibach at gdsys.cc
+ */
+#define LINKTYPE_DISPLAYPORT_AUX	275
+
+#define LINKTYPE_MATCHING_MAX	275		/* highest value in the "matching" range */
 
 static struct linktype_map {
 	int	dlt;
