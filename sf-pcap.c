@@ -172,9 +172,8 @@ pcap_check_header(bpf_u_int32 magic, FILE *fp, u_int precision, char *errbuf,
 	    sizeof(hdr) - sizeof(hdr.magic), fp);
 	if (amt_read != sizeof(hdr) - sizeof(hdr.magic)) {
 		if (ferror(fp)) {
-			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-			    "error reading dump file: %s",
-			    pcap_strerror(errno));
+			pcap_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
+			    errno, "error reading dump file");
 		} else {
 			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
 			    "truncated dump file; tried to read %lu file header bytes, only got %lu",
@@ -445,9 +444,8 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 	amt_read = fread(&sf_hdr, 1, ps->hdrsize, fp);
 	if (amt_read != ps->hdrsize) {
 		if (ferror(fp)) {
-			pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-			    "error reading dump file: %s",
-			    pcap_strerror(errno));
+			pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+			    errno, "error reading dump file");
 			return (-1);
 		} else {
 			if (amt_read != 0) {
@@ -593,9 +591,9 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 		amt_read = fread(p->buffer, 1, p->bufsize, fp);
 		if (amt_read != p->bufsize) {
 			if (ferror(fp)) {
-				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-				    "error reading dump file: %s",
-				    pcap_strerror(errno));
+				pcap_fmt_errmsg_for_errno(p->errbuf,
+				     PCAP_ERRBUF_SIZE, errno,
+				    "error reading dump file");
 			} else {
 				/*
 				 * Yes, this uses hdr->caplen; technically,
@@ -624,9 +622,9 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 			bytes_read += amt_read;
 			if (amt_read != bytes_to_read) {
 				if (ferror(fp)) {
-					pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-					    "error reading dump file: %s",
-					    pcap_strerror(errno));
+					pcap_fmt_errmsg_for_errno(p->errbuf,
+					    PCAP_ERRBUF_SIZE, errno,
+					    "error reading dump file");
 				} else {
 					pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 					    "truncated dump file; tried to read %u captured bytes, only got %lu",
@@ -673,9 +671,9 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 		amt_read = fread(p->buffer, 1, hdr->caplen, fp);
 		if (amt_read != hdr->caplen) {
 			if (ferror(fp)) {
-				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-				    "error reading dump file: %s",
-				    pcap_strerror(errno));
+				pcap_fmt_errmsg_for_errno(p->errbuf,
+				    PCAP_ERRBUF_SIZE, errno,
+				    "error reading dump file");
 			} else {
 				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 				    "truncated dump file; tried to read %u captured bytes, only got %lu",
@@ -746,11 +744,11 @@ pcap_setup_dump(pcap_t *p, int linktype, FILE *f, const char *fname)
 	if (f == stdout)
 		SET_BINMODE(f);
 	else
-		setbuf(f, NULL);
+		setvbuf(f, NULL, _IONBF, 0);
 #endif
 	if (sf_write_header(p, f, linktype, p->tzoff, p->snapshot) == -1) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "Can't write to %s: %s",
-		    fname, pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "Can't write to %s", fname);
 		if (f != stdout)
 			(void)fclose(f);
 		return (NULL);
@@ -795,14 +793,16 @@ pcap_dump_open(pcap_t *p, const char *fname)
 		f = stdout;
 		fname = "standard output";
 	} else {
-#if !defined(_WIN32) && !defined(MSDOS)
-		f = fopen(fname, "w");
-#else
+		/*
+		 * "b" is supported as of C90, so *all* UN*Xes should
+		 * support it, even though it does nothing.  It's
+		 * required on Windows, as the file is a binary file
+		 * and must be written in binary mode.
+		 */
 		f = fopen(fname, "wb");
-#endif
 		if (f == NULL) {
-			pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "%s: %s",
-			    fname, pcap_strerror(errno));
+			pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+			    errno, "%s", fname);
 			return (NULL);
 		}
 	}
@@ -853,14 +853,15 @@ pcap_dump_open_append(pcap_t *p, const char *fname)
 	if (fname[0] == '-' && fname[1] == '\0')
 		return (pcap_setup_dump(p, linktype, stdout, "standard output"));
 
-#if !defined(_WIN32) && !defined(MSDOS)
-	f = fopen(fname, "r+");
-#else
+	/*
+	 * "b" is supported as of C90, so *all* UN*Xes should support it,
+	 * even though it does nothing.  It's required on Windows, as the
+	 * file is a binary file and must be read in binary mode.
+	 */
 	f = fopen(fname, "rb+");
-#endif
 	if (f == NULL) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "%s: %s",
-		    fname, pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "%s", fname);
 		return (NULL);
 	}
 
@@ -870,8 +871,8 @@ pcap_dump_open_append(pcap_t *p, const char *fname)
 	amt_read = fread(&ph, 1, sizeof (ph), f);
 	if (amt_read != sizeof (ph)) {
 		if (ferror(f)) {
-			pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "%s: %s",
-			    fname, pcap_strerror(errno));
+			pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+			    errno, "%s", fname);
 			fclose(f);
 			return (NULL);
 		} else if (feof(f) && amt_read > 0) {
@@ -887,7 +888,7 @@ pcap_dump_open_append(pcap_t *p, const char *fname)
 	 * We turn off buffering.
 	 * XXX - why?  And why not on the standard output?
 	 */
-	setbuf(f, NULL);
+	setvbuf(f, NULL, _IONBF, 0);
 #endif
 
 	/*
@@ -978,8 +979,8 @@ pcap_dump_open_append(pcap_t *p, const char *fname)
 		 * A header isn't present; attempt to write it.
 		 */
 		if (sf_write_header(p, f, linktype, p->tzoff, p->snapshot) == -1) {
-			pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "Can't write to %s: %s",
-			    fname, pcap_strerror(errno));
+			pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+			    errno, "Can't write to %s", fname);
 			(void)fclose(f);
 			return (NULL);
 		}
@@ -989,8 +990,8 @@ pcap_dump_open_append(pcap_t *p, const char *fname)
 	 * Start writing at the end of the file.
 	 */
 	if (fseek(f, 0, SEEK_END) == -1) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "Can't seek to end of %s: %s",
-		    fname, pcap_strerror(errno));
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "Can't seek to end of %s", fname);
 		(void)fclose(f);
 		return (NULL);
 	}
@@ -1008,6 +1009,45 @@ pcap_dump_ftell(pcap_dumper_t *p)
 {
 	return (ftell((FILE *)p));
 }
+
+#if defined(HAVE_FSEEKO)
+/*
+ * We have fseeko(), so we have ftello().
+ * If we have large file support (files larger than 2^31-1 bytes),
+ * ftello() will give us a current file position with more than 32
+ * bits.
+ */
+int64_t
+pcap_dump_ftell64(pcap_dumper_t *p)
+{
+	return (ftello((FILE *)p));
+}
+#elif defined(_MSC_VER)
+/*
+ * We have Visual Studio; we support only 2005 and later, so we have
+ * _ftelli64().
+ */
+int64_t
+pcap_dump_ftell64(pcap_dumper_t *p)
+{
+	return (_ftelli64((FILE *)p));
+}
+#else
+/*
+ * We don't have ftello() or _ftelli64(), so fall back on ftell().
+ * Either long is 64 bits, in which case ftell() should suffice,
+ * or this is probably an older 32-bit UN*X without large file
+ * support, which means you'll probably get errors trying to
+ * write files > 2^31-1, so it won't matter anyway.
+ *
+ * XXX - what about MinGW?
+ */
+int64_t
+pcap_dump_ftell64(pcap_dumper_t *p)
+{
+	return (ftell((FILE *)p));
+}
+#endif
 
 int
 pcap_dump_flush(pcap_dumper_t *p)

@@ -97,23 +97,6 @@ extern "C" {
   #ifndef strdup
   #define strdup	_strdup
   #endif
-  #define setbuf(x, y) \
-	setvbuf((x), (y), _IONBF, 0)
-  #define fopen(x, y) \
-	fopen_safe((x), (y))
-  FILE *fopen_safe(const char *filename, const char* mode);
-#endif
-
-#ifdef _MSC_VER
-  /*
-   * MSVC.
-   */
-  #if _MSC_VER >= 1900
-    /*
-     * VS 2015 or newer; we have snprintf() function.
-     */
-    #define HAVE_SNPRINTF
-  #endif
 #endif
 
 /*
@@ -154,7 +137,7 @@ extern int pcap_vsnprintf(char *, size_t, const char *, va_list ap);
 #ifdef HAVE_STRTOK_R
   #define pcap_strtok_r	strtok_r
 #else
-  #ifdef _MSC_VER
+  #ifdef _WIN32
     /*
      * Microsoft gives it a different name.
      */
