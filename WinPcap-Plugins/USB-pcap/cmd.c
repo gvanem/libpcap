@@ -28,8 +28,9 @@
 #include <winioctl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <Shlwapi.h>
-#include <Usbiodef.h>
+#include <shlwapi.h>
+#include <usbiodef.h>
+
 #include "filters.h"
 #include "thread.h"
 #include "USBPcap.h"
@@ -37,12 +38,11 @@
 #include "getopt.h"
 #include "roothubs.h"
 
-
 #define INPUT_BUFFER_SIZE 1024
 
 #define DEFAULT_INTERNAL_KERNEL_BUFFER_SIZE (1024*1024)
 
-int cmd_interactive(struct thread_data *data)
+int cmd_interactive (struct thread_data *data)
 {
     int i = 0;
     int max_i;
