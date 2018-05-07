@@ -58,6 +58,7 @@ macro(check_and_add_compiler_option _option)
 endmacro()
 
 set(C_ADDITIONAL_FLAGS "")
+
 if(CMAKE_C_COMPILER_ID MATCHES "GNU" OR
    CMAKE_C_COMPILER_ID MATCHES "Clang")
     check_and_add_compiler_option("-std=gnu99")
@@ -102,15 +103,17 @@ else()
 endif()
 
 option(INET6 "Enable IPv6" ON)
+
 if(WIN32)
     option(USE_STATIC_RT "Use static Runtime" ON)
-endif()
-option(BUILD_SHARED_LIBS "Build shared libraries" ON)
-if(WIN32)
     set(PACKET_DLL_DIR "" CACHE PATH "Path to directory with include and lib subdirectories for packet.dll")
 endif()
 
+option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+
+#
 # To pacify those who hate the protochain instruction
+#
 option(NO_PROTOCHAIN "Disable protochain instruction" OFF)
 
 #
@@ -218,6 +221,7 @@ endif()
 option(DISABLE_USB "Disable USB sniffing support" OFF)
 option(DISABLE_BLUETOOTH "Disable Bluetooth sniffing support" OFF)
 option(DISABLE_NETMAP "Disable netmap support" OFF)
+
 #
 # We don't support D-Bus sniffing on macOS; see
 #
@@ -225,9 +229,10 @@ option(DISABLE_NETMAP "Disable netmap support" OFF)
 #
 if(APPLE)
     option(DISABLE_DBUS "Disable D-Bus sniffing support" ON)
-else(APPLE)
+else()
     option(DISABLE_DBUS "Disable D-Bus sniffing support" OFF)
-endif(APPLE)
+endif()
+
 option(DISABLE_RDMA "Disable RDMA sniffing support" OFF)
 
 option(DISABLE_DAG "Disable Endace DAG card support" OFF)
@@ -298,9 +303,10 @@ if(WIN32)
 
     if(IS_DIRECTORY ${CMAKE_HOME_DIRECTORY}/../../Common)
         include_directories(${CMAKE_HOME_DIRECTORY}/../../Common)
-    endif(IS_DIRECTORY ${CMAKE_HOME_DIRECTORY}/../../Common)
+    endif()
 
     find_package(Packet)
+
     if(PACKET_FOUND)
         set(HAVE_PACKET32 TRUE)
         include_directories(${PACKET_INCLUDE_DIRS})
@@ -312,14 +318,14 @@ if(WIN32)
         set(CMAKE_REQUIRED_LIBRARIES ${PACKET_LIBRARIES})
         check_function_exists(PacketIsLoopbackAdapter HAVE_PACKET_IS_LOOPBACK_ADAPTER)
         cmake_pop_check_state()
-    endif(PACKET_FOUND)
+    endif()
 
 endif()
 
 if(MSVC)
     add_definitions(-D__STDC__)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-endif(MSVC)
+endif()
 
 if(USE_STATIC_RT)
     message(STATUS "Use STATIC runtime")
@@ -330,13 +336,13 @@ if(USE_STATIC_RT)
                 CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
                 CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
                 string(REGEX REPLACE "/MD" "/MT" ${RT_FLAG} "${${RT_FLAG}}")
-            endforeach(RT_FLAG)
+            endforeach()
         elseif(MINGW)
             set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static-libgcc")
         endif()
-else (USE_STATIC_RT)
+else()
     message(STATUS "Use DYNAMIC runtime")
-endif(USE_STATIC_RT)
+endif()
 
 ###################################################################
 #   Detect available platform features
@@ -355,14 +361,18 @@ check_include_file(stdint.h HAVE_STDINT_H)
 check_include_file(unistd.h HAVE_UNISTD_H)
 if(NOT HAVE_UNISTD_H)
     add_definitions(-DYY_NO_UNISTD_H)
-endif(NOT HAVE_UNISTD_H)
+endif()
+
 check_include_file(bitypes.h HAVE_SYS_BITYPES_H)
+
 if(NOT WIN32)
     check_include_file(sys/ioccom.h HAVE_SYS_IOCCOM_H)
     check_include_file(sys/sockio.h HAVE_SYS_SOCKIO_H)
     check_include_file(sys/select.h HAVE_SYS_SELECT_H)
-endif(NOT WIN32)
+endif()
+
 check_include_file(limits.h HAVE_LIMITS_H)
+
 if(NOT WIN32)
     check_include_file(netpacket/packet.h HAVE_NETPACKET_PACKET_H)
     check_include_files("sys/types.h;sys/socket.h;net/if.h;net/pfvar.h" HAVE_NET_PFVAR_H)
@@ -434,6 +444,7 @@ check_function_exists(strtok_r HAVE_STRTOK_R)
 set(PCAP_LINK_LIBRARIES "")
 include(CheckLibraryExists)
 include(CheckSymbolExists)
+
 if(WIN32)
     #
     # We need winsock2.h and ws2tcpip.h.
@@ -444,10 +455,10 @@ if(WIN32)
     cmake_pop_check_state()
     if(LIBWS2_32_HAS_GETADDRINFO)
         set(PCAP_LINK_LIBRARIES ws2_32 ${PCAP_LINK_LIBRARIES})
-    else(LIBWS2_32_HAS_GETADDRINFO)
+    else()
         message(FATAL_ERROR "getaddrinfo is required, but wasn't found")
-    endif(LIBWS2_32_HAS_GETADDRINFO)
-else(WIN32)
+    endif()
+else()
     #
     # UN*X.  First try the system libraries, then try the libraries
     # for Solaris and possibly other systems that picked up the
@@ -468,12 +479,12 @@ else(WIN32)
             # OK, we found it in libsocket.
             #
             set(PCAP_LINK_LIBRARIES socket nsl ${PCAP_LINK_LIBRARIES})
-        else(LIBSOCKET_HAS_GETADDRINFO)
+        else()
             #
             # We didn't find it.
             #
             message(FATAL_ERROR "getaddrinfo is required, but wasn't found")
-        endif(LIBSOCKET_HAS_GETADDRINFO)
+        endif()
 
         #
         # OK, do we have recvmsg() in libxnet?
@@ -483,13 +494,14 @@ else(WIN32)
         set(CMAKE_REQUIRED_LIBRARIES socket nsl)
         check_library_exists(xnet recvmsg "" LIBXNET_HAS_RECVMSG)
         cmake_pop_check_state()
+
         if(LIBXNET_HAS_RECVMSG)
             #
             # Yes - link with it as well.
             #
             set(PCAP_LINK_LIBRARIES xnet ${PCAP_LINK_LIBRARIES})
-        endif(LIBXNET_HAS_RECVMSG)
-    endif(NOT STDLIBS_HAVE_GETADDRINFO)
+        endif()
+    endif()
 
     # DLPI needs putmsg under HPUX so test for -lstr while we're at it
     check_function_exists(putmsg STDLIBS_HAVE_PUTMSG)
@@ -497,8 +509,8 @@ else(WIN32)
         check_library_exists(str putmsg "" LIBSTR_HAS_PUTMSG)
         if(LIBSTR_HAS_PUTMSG)
             set(PCAP_LINK_LIBRARIES str ${PCAP_LINK_LIBRARIES})
-        endif(LIBSTR_HAS_PUTMSG)
-    endif(NOT STDLIBS_HAVE_PUTMSG)
+        endif()
+    endif()
 endif()
 
 #
@@ -515,7 +527,9 @@ endif()
 # can be checked.)
 #
 cmake_push_check_state()
+
 set(CMAKE_REQUIRED_LIBRARIES ${PCAP_LINK_LIBRARIES})
+
 check_symbol_exists(getnetbyname_r netdb.h NETDB_H_DECLARES_GETNETBYNAME_R)
 if(NETDB_H_DECLARES_GETNETBYNAME_R)
     check_c_source_compiles(
@@ -561,9 +575,10 @@ main(void)
 }
 "
                 HAVE_AIX_GETNETBYNAME_R)
-        endif(NOT HAVE_SOLARIS_IRIX_GETNETBYNAME_R)
-    endif(NOT HAVE_LINUX_GETNETBYNAME_R)
-endif(NETDB_H_DECLARES_GETNETBYNAME_R)
+        endif()
+    endif()
+endif()
+
 cmake_pop_check_state()
 
 #
@@ -625,9 +640,10 @@ main(void)
 }
 "
                 HAVE_AIX_GETPROTOBYNAME_R)
-        endif(NOT HAVE_SOLARIS_IRIX_GETPROTOBYNAME_R)
-    endif(NOT HAVE_LINUX_GETPROTOBYNAME_R)
-endif(NETDB_H_DECLARES_GETPROTOBYNAME_R)
+        endif()
+    endif()
+endif()
+
 cmake_pop_check_state()
 
 #
@@ -640,9 +656,10 @@ cmake_pop_check_state()
 cmake_push_check_state()
 if(WIN32)
     set(CMAKE_EXTRA_INCLUDE_FILES winsock2.h)
-else(WIN32)
+else()
     set(CMAKE_EXTRA_INCLUDE_FILES unistd.h sys/socket.h)
 endif()
+
 check_type_size("struct sockaddr_storage" STRUCT_SOCKADDR_STORAGE)
 check_type_size("socklen_t" SOCKLEN_T)
 cmake_pop_check_state()
@@ -660,6 +677,7 @@ endif()
 # Do we have ffs(), and is it declared in <strings.h>?
 #
 check_function_exists(ffs HAVE_FFS)
+
 if(HAVE_FFS)
     #
     # OK, we have ffs().  Is it declared in <strings.h>?
@@ -721,6 +739,7 @@ if(HAVE_ETHER_HOSTTON)
             set(HAVE_DECL_ETHER_HOSTTON TRUE)
         endif()
     endif()
+
     #
     # Did that succeed?
     #
@@ -739,6 +758,7 @@ if(HAVE_ETHER_HOSTTON)
             set(HAVE_DECL_ETHER_HOSTTON TRUE)
         endif()
     endif()
+
     #
     # Did that succeed?
     #
@@ -757,6 +777,7 @@ if(HAVE_ETHER_HOSTTON)
             set(HAVE_DECL_ETHER_HOSTTON TRUE)
         endif()
     endif()
+
     #
     # Did that succeed?
     #
@@ -779,6 +800,7 @@ if(HAVE_ETHER_HOSTTON)
             set(HAVE_DECL_ETHER_HOSTTON TRUE)
         endif()
     endif()
+
     #
     # After all that, is ether_hostton() declared?
     #
@@ -797,6 +819,7 @@ if(HAVE_ETHER_HOSTTON)
         cmake_pop_check_state()
     endif()
 endif()
+
 cmake_pop_check_state()
 
 #
@@ -845,8 +868,8 @@ if(NOT WIN32)
     # that require it.
     #
     set(CMAKE_THREAD_LIBS_INIT "")
-  endif(NOT CMAKE_USE_PTHREADS_INIT)
-endif(NOT WIN32)
+  endif()
+endif()
 
 ######################################
 # Input files
@@ -869,14 +892,14 @@ set(PROJECT_SOURCE_LIST_C
 )
 
 if(WIN32)
-    set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/win_snprintf.c pcap-trace.c)
+    set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/win_snprintf.c pcap-trace.c pcap-namedb.c)
 else()
     if(NOT HAVE_SNPRINTF)
         set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/snprintf.c)
-    endif(NOT HAVE_SNPRINTF)
+    endif()
     if(NOT HAVE_STRTOK_R)
         set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/strtok_r.c)
-    endif(NOT HAVE_STRTOK_R)
+    endif()
 endif()
 
 #
@@ -957,10 +980,11 @@ else()
             #
             if(HAVE_SYS_IOCCOM_H)
                 check_symbol_exists(BIOCSETIF "sys/types.h;sys/ioctl.h;sys/socket.h;sys/ioccom.h;net/bpf.h;net/if.h" BPF_H_DEFINES_BIOCSETIF)
-            else(HAVE_SYS_IOCCOM_H)
+            else()
                 check_symbol_exists(BIOCSETIF "sys/types.h;sys/ioctl.h;sys/socket.h;net/bpf.h;net/if.h" BPF_H_DEFINES_BIOCSETIF)
-            endif(HAVE_SYS_IOCCOM_H)
-        endif(HAVE_NET_BPF_H)
+            endif()
+        endif()
+
         check_include_file(net/pfilt.h HAVE_NET_PFILT_H)
         check_include_file(net/enet.h HAVE_NET_ENET_H)
         check_include_file(net/nit.h HAVE_NET_NIT_H)
@@ -1031,10 +1055,13 @@ if(WIN32)
         #
         set(PCAP_LINK_LIBRARIES ${PACKET_LIBRARIES} ${PCAP_LINK_LIBRARIES})
     elseif(PCAP_TYPE STREQUAL "null")
+        #
+        # Nop
+        #
     else()
         message(ERROR "${PCAP_TYPE} is not a valid pcap type")
     endif()
-else(WIN32)
+else()
     if(PCAP_TYPE STREQUAL "dlpi")
         #
         # Needed for common functions used by pcap-[dlpi,libdlpi].c
