@@ -105,6 +105,7 @@ extern "C" {
 #endif
 
 extern CRITICAL_SECTION g_trace_crit;
+extern int              g_dbg_level;
 
 extern int         _pcap_trace_level (void);
 extern void        _pcap_trace_color (unsigned short col);
