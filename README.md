@@ -1,14 +1,13 @@
 [![screenshot](libpcap.ico?raw=true)](libpcap.ico?raw=true)
 
-LIBPCAP 1.x.y
+### LIBPCAP 1.x.y
+
 Now maintained by [The Tcpdump Group]([https://www.tcpdump.org)
 formerly from 	Lawrence Berkeley National Laboratory
-		Network Research Group <libpcap@ee.lbl.gov>		
+		Network Research Group <libpcap@ee.lbl.gov>.
 
-Anonymous Git is available via:
-```
-	git clone https://github.com/the-tcpdump-group/libpcap.git
-```
+Anonymous Git is available via
+`git clone https://github.com/the-tcpdump-group/libpcap.git .`
 
 This directory contains source code for libpcap, a system-independent
 interface for user-level packet capture.  libpcap provides a portable
@@ -30,10 +29,10 @@ architecture in the BSD packet filter.  BPF is described in the 1993
 Winter Usenix paper **The BSD Packet Filter: A New Architecture for
 User-level Packet Capture**:
 
-| *URL*   | *Format* |
-|-------|--------|
+| *URL*  | *Format* |
+|--------|----------|
 | **https://www.tcpdump.org/papers/bpf-usenix93.ps.Z** | compressed PostScript |
-| **https://www.tcpdump.org/papers/bpf-usenix93.pdf** | PDF version |
+| **https://www.tcpdump.org/papers/bpf-usenix93.pdf**  | PDF version |
 
 Although most packet capture interfaces support in-kernel filtering,
 libpcap utilizes in-kernel filtering only for the BPF interface.
@@ -57,18 +56,15 @@ mechanism that accepts BPF filters; see the README.linux file for
 information on configuring that option.
 
 Note to Linux distributions and BSD systems that include libpcap:
+* There's now a rule to make a shared library, which should work on Linux
+  and BSD, among other platforms.
 
-There's now a rule to make a shared library, which should work on Linux
-and BSD, among other platforms.
+  It sets the soname of the library to "libpcap.so.1"; this is what it
+  should be, *NOT* libpcap.so.1.x or libpcap.so.1.x.y or something such as
+  that.
 
-It sets the soname of the library to "libpcap.so.1"; this is what it
-should be, *NOT* libpcap.so.1.x or libpcap.so.1.x.y or something such as
-that.
+  We've been maintaining binary compatibility between libpcap releases for
+  quite a while; there's no reason to tie a binary linked with libpcap to
+  a particular release of libpcap.
 
-We've been maintaining binary compatibility between libpcap releases for
-quite a while; there's no reason to tie a binary linked with libpcap to
-a particular release of libpcap.
-
-Current versions can be found at ** https://github.com/the-tcpdump-group/libpcap.git **.
-
- - The TCPdump group
+Current versions can be found at **https://github.com/the-tcpdump-group/libpcap.git**.
