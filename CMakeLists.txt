@@ -251,7 +251,7 @@ option(YYDEBUG "Build parser debugging code" OFF)
 
 # Get, parse, format and set pcap's version string from [pcap_root]/VERSION
 # for later use.
-
+ 
 # Get MAJOR, MINOR, PATCH & SUFFIX
 file(STRINGS ${pcap_SOURCE_DIR}/VERSION
     PACKAGE_VERSION
@@ -264,7 +264,7 @@ string(REGEX MATCH "^([0-9]+)" PACKAGE_VERSION_MAJOR "${PACKAGE_VERSION}")
 # Get MAJOR, MINOR & PATCH
 string(REGEX MATCH "^([0-9]+.)?([0-9]+.)?([0-9]+)" PACKAGE_VERSION_NOSUFFIX "${PACKAGE_VERSION}")
 
-if(WIN32)
+if(WIN32) 
     # Convert PCAP_VERSION_NOSUFFIX to Windows preferred version format
     string(REPLACE "." "," PACKAGE_VERSION_PREDLL ${PACKAGE_VERSION_NOSUFFIX})
 
@@ -850,6 +850,7 @@ endif(NOT WIN32)
 
 set(PROJECT_SOURCE_LIST_C
     bpf_dump.c
+    bpf_filter.c
     bpf_image.c
     etherent.c
     fmtutils.c
@@ -857,12 +858,10 @@ set(PROJECT_SOURCE_LIST_C
     nametoaddr.c
     optimize.c
     pcap-common.c
-    pcap-namedb.c
     pcap.c
     savefile.c
     sf-pcapng.c
     sf-pcap.c
-    bpf/net/bpf_filter.c
 )
 
 if(WIN32)
@@ -1500,7 +1499,7 @@ if(NOT DISABLE_DAG)
             endif()
         endif()
     endif()
-endif()
+endif() 
 
 # Check for Septel card support.
 set(PROJECT_EXTERNAL_OBJECT_LIST "")
@@ -1522,7 +1521,7 @@ if(NOT DISABLE_SEPTEL)
         set(PROJECT_EXTERNAL_OBJECT_LIST ${PROJECT_EXTERNAL_OBJECT_LIST} "${SEPTEL_ROOT}/asciibin.o ${SEPTEL_ROOT}/bit2byte.o ${SEPTEL_ROOT}/confirm.o ${SEPTEL_ROOT}/fmtmsg.o ${SEPTEL_ROOT}/gct_unix.o ${SEPTEL_ROOT}/hqueue.o ${SEPTEL_ROOT}/ident.o ${SEPTEL_ROOT}/mem.o ${SEPTEL_ROOT}/pack.o ${SEPTEL_ROOT}/parse.o ${SEPTEL_ROOT}/pool.o ${SEPTEL_ROOT}/sdlsig.o ${SEPTEL_ROOT}/strtonum.o ${SEPTEL_ROOT}/timer.o ${SEPTEL_ROOT}/trace.o")
         set(HAVE_SEPTEL_API TRUE)
     endif()
-endif()
+endif() 
 
 # Check for Myricom SNF support.
 if(NOT DISABLE_SNF)
@@ -1543,7 +1542,7 @@ if(NOT DISABLE_SNF)
         set(HAVE_SNF_API TRUE)
         set(PCAP_LINK_LIBRARIES ${PCAP_LINK_LIBRARIES} ${SNF_LIBRARIES})
     endif()
-endif()
+endif() 
 
 # Check for Riverbed TurboCap support.
 if(NOT DISABLE_TC)
@@ -1564,7 +1563,7 @@ if(NOT DISABLE_TC)
         set(HAVE_TC_API TRUE)
         set(PCAP_LINK_LIBRARIES "${PCAP_LINK_LIBRARIES} ${TC_LIBRARIES} ${CMAKE_USE_PTHREADS_INIT} stdc++")
     endif()
-endif()
+endif() 
 
 #
 # Remote capture support.
@@ -1676,7 +1675,9 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/.devel OR EXISTS ${CMAKE_BINARY_DIR}/.devel)
         # Warns about safeguards added in case the enums are extended
         # check_and_add_compiler_option(-Wcovered-switch-default)
         check_and_add_compiler_option(-Wmissing-variable-declarations)
-	check_and_add_compiler_option(-Wunused-parameter)
+        check_and_add_compiler_option(-Wunused-parameter)
+        check_and_add_compiler_option(-Wformat-nonliteral)
+        check_and_add_compiler_option(-Wunreachable-code)
     endif()
 endif()
 
@@ -1758,7 +1759,7 @@ add_custom_command(
 #
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/scanner.c PROPERTIES
     GENERATED TRUE
-    OBJECT_DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/scanner.h
+    OBJECT_DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/grammar.h
 )
 
 #
@@ -1797,6 +1798,7 @@ add_custom_command(
 #
 set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/grammar.c PROPERTIES
     GENERATED TRUE
+    OBJECT_DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/scanner.h
 )
 
 #
@@ -1980,7 +1982,7 @@ if(WIN32)
         # For compatibility, build the shared library without the "lib" prefix on
         # MinGW as well.
         #
-        set_target_properties(${LIBRARY_NAME} PROPERTIES
+        set_target_properties(${LIBRARY_NAME} PROPERTIES 
             PREFIX ""
             OUTPUT_NAME "${LIBRARY_NAME}"
         )
@@ -2068,71 +2070,71 @@ endfunction(install_manpage_symlink)
 
 set(MAN1_NOEXPAND pcap-config.1)
 set(MAN3PCAP_EXPAND
-	pcap.3pcap.in
-	pcap_compile.3pcap.in
-	pcap_datalink.3pcap.in
-	pcap_dump_open.3pcap.in
-	pcap_get_tstamp_precision.3pcap.in
-	pcap_list_datalinks.3pcap.in
-	pcap_list_tstamp_types.3pcap.in
-	pcap_open_dead.3pcap.in
-	pcap_open_offline.3pcap.in
-	pcap_set_tstamp_precision.3pcap.in
-	pcap_set_tstamp_type.3pcap.in
+    pcap.3pcap.in
+    pcap_compile.3pcap.in
+    pcap_datalink.3pcap.in
+    pcap_dump_open.3pcap.in
+    pcap_get_tstamp_precision.3pcap.in
+    pcap_list_datalinks.3pcap.in
+    pcap_list_tstamp_types.3pcap.in
+    pcap_open_dead.3pcap.in
+    pcap_open_offline.3pcap.in
+    pcap_set_tstamp_precision.3pcap.in
+    pcap_set_tstamp_type.3pcap.in
 )
 set(MAN3PCAP_NOEXPAND
-	pcap_activate.3pcap
-	pcap_breakloop.3pcap
-	pcap_can_set_rfmon.3pcap
-	pcap_close.3pcap
-	pcap_create.3pcap
-	pcap_datalink_name_to_val.3pcap
-	pcap_datalink_val_to_name.3pcap
-	pcap_dump.3pcap
-	pcap_dump_close.3pcap
-	pcap_dump_file.3pcap
-	pcap_dump_flush.3pcap
-	pcap_dump_ftell.3pcap
-	pcap_file.3pcap
-	pcap_fileno.3pcap
-	pcap_findalldevs.3pcap
-	pcap_freecode.3pcap
-	pcap_get_required_select_timeout.3pcap
-	pcap_get_selectable_fd.3pcap
-	pcap_geterr.3pcap
-	pcap_inject.3pcap
-	pcap_is_swapped.3pcap
-	pcap_lib_version.3pcap
-	pcap_lookupdev.3pcap
-	pcap_lookupnet.3pcap
-	pcap_loop.3pcap
-	pcap_major_version.3pcap
-	pcap_next_ex.3pcap
-	pcap_offline_filter.3pcap
-	pcap_open_live.3pcap
-	pcap_set_buffer_size.3pcap
-	pcap_set_datalink.3pcap
-	pcap_set_immediate_mode.3pcap
-	pcap_set_promisc.3pcap
-	pcap_set_protocol.3pcap
-	pcap_set_rfmon.3pcap
-	pcap_set_snaplen.3pcap
-	pcap_set_timeout.3pcap
-	pcap_setdirection.3pcap
-	pcap_setfilter.3pcap
-	pcap_setnonblock.3pcap
-	pcap_snapshot.3pcap
-	pcap_stats.3pcap
-	pcap_statustostr.3pcap
-	pcap_strerror.3pcap
-	pcap_tstamp_type_name_to_val.3pcap
-	pcap_tstamp_type_val_to_name.3pcap
+    pcap_activate.3pcap
+    pcap_breakloop.3pcap
+    pcap_can_set_rfmon.3pcap
+    pcap_close.3pcap
+    pcap_create.3pcap
+    pcap_datalink_name_to_val.3pcap
+    pcap_datalink_val_to_name.3pcap
+    pcap_dump.3pcap
+    pcap_dump_close.3pcap
+    pcap_dump_file.3pcap
+    pcap_dump_flush.3pcap
+    pcap_dump_ftell.3pcap
+    pcap_file.3pcap
+    pcap_fileno.3pcap
+    pcap_findalldevs.3pcap
+    pcap_freecode.3pcap
+    pcap_get_required_select_timeout.3pcap
+    pcap_get_selectable_fd.3pcap
+    pcap_geterr.3pcap
+    pcap_inject.3pcap
+    pcap_is_swapped.3pcap
+    pcap_lib_version.3pcap
+    pcap_lookupdev.3pcap
+    pcap_lookupnet.3pcap
+    pcap_loop.3pcap
+    pcap_major_version.3pcap
+    pcap_next_ex.3pcap
+    pcap_offline_filter.3pcap
+    pcap_open_live.3pcap
+    pcap_set_buffer_size.3pcap
+    pcap_set_datalink.3pcap
+    pcap_set_immediate_mode.3pcap
+    pcap_set_promisc.3pcap
+    pcap_set_protocol.3pcap
+    pcap_set_rfmon.3pcap
+    pcap_set_snaplen.3pcap
+    pcap_set_timeout.3pcap
+    pcap_setdirection.3pcap
+    pcap_setfilter.3pcap
+    pcap_setnonblock.3pcap
+    pcap_snapshot.3pcap
+    pcap_stats.3pcap
+    pcap_statustostr.3pcap
+    pcap_strerror.3pcap
+    pcap_tstamp_type_name_to_val.3pcap
+    pcap_tstamp_type_val_to_name.3pcap
 )
 set(MANFILE_EXPAND pcap-savefile.manfile.in)
 set(MANMISC_EXPAND
-	pcap-filter.manmisc.in
-	pcap-linktype.manmisc.in
-	pcap-tstamp.manmisc.in
+    pcap-filter.manmisc.in
+    pcap-linktype.manmisc.in
+    pcap-tstamp.manmisc.in
 )
 
 if(NOT BUILD_SHARED_LIBS)

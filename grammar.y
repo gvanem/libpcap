@@ -72,9 +72,7 @@ struct rtentry;
 #include "pcap-int.h"
 
 #include "gencode.h"
-DIAG_OFF_BISON_BYACC
 #include "grammar.h"
-DIAG_ON_BISON_BYACC
 #include "scanner.h"
 
 #ifdef HAVE_NET_PFVAR_H
@@ -88,6 +86,27 @@ DIAG_ON_BISON_BYACC
 
 #ifdef HAVE_OS_PROTO_H
 #include "os-proto.h"
+#endif
+
+#ifdef YYBYACC
+/*
+ * Both Berkeley YACC and Bison define yydebug (under whatever name
+ * it has) as a global, but Bison does so only if YYDEBUG is defined.
+ * Berkeley YACC define it even if YYDEBUG isn't defined; declare it
+ * here to suppress a warning.
+ */
+#if !defined(YYDEBUG)
+extern int yydebug;
+#endif
+
+/*
+ * In Berkeley YACC, yynerrs (under whatever name it has) is global,
+ * even if it's building a reentrant parser.  In Bison, it's local
+ * in reentrant parsers.
+ *
+ * Declare it to squelch a warning.
+ */
+extern int yynerrs;
 #endif
 
 #define QSET(q, p, d, a) (q).proto = (unsigned char)(p),\
@@ -762,4 +781,3 @@ mtp3listvalue: mtp3fieldvalue
 	| mtp3listvalue or mtp3fieldvalue { gen_or($1.b, $3.b); $$ = $3; }
 	;
 %%
-DIAG_ON_BISON_BYACC

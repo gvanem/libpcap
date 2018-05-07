@@ -45,7 +45,55 @@
 #endif
 
 #ifdef BDEBUG
-int pcap_optimizer_debug;
+/*
+ * The internal "debug printout" flag for the filter expression optimizer.
+ * The code to print that stuff is present only if BDEBUG is defined, so
+ * the flag, and the routine to set it, are defined only if BDEBUG is
+ * defined.
+ */
+static int pcap_optimizer_debug;
+
+/*
+ * Routine to set that flag.
+ *
+ * This is intended for libpcap developers, not for general use.
+ * If you want to set these in a program, you'll have to declare this
+ * routine yourself, with the appropriate DLL import attribute on Windows;
+ * it's not declared in any header file, and won't be declared in any
+ * header file provided by libpcap.
+ */
+PCAP_API void pcap_set_optimizer_debug(int value);
+
+PCAP_API_DEF void
+pcap_set_optimizer_debug(int value)
+{
+	pcap_optimizer_debug = value;
+}
+
+/*
+ * The internal "print dot graph" flag for the filter expression optimizer.
+ * The code to print that stuff is present only if BDEBUG is defined, so
+ * the flag, and the routine to set it, are defined only if BDEBUG is
+ * defined.
+ */
+static int pcap_print_dot_graph;
+
+/*
+ * Routine to set that flag.
+ *
+ * This is intended for libpcap developers, not for general use.
+ * If you want to set these in a program, you'll have to declare this
+ * routine yourself, with the appropriate DLL import attribute on Windows;
+ * it's not declared in any header file, and won't be declared in any
+ * header file provided by libpcap.
+ */
+PCAP_API void pcap_set_print_dot_graph(int value);
+
+PCAP_API_DEF void
+pcap_set_print_dot_graph(int value)
+{
+	pcap_print_dot_graph = value;
+}
 #endif
 
 /*
@@ -282,18 +330,20 @@ static void find_inedges(opt_state_t *, struct block *);
 #ifdef BDEBUG
 static void opt_dump(compiler_state_t *, struct icode *);
 
-/* Print an optimizer message if 'pcap_optimizer_debug > 1 && pcap_optimizer_debug < 3'
- * in order not to interfere with the dot-generated output at level > 3.
+/* Print an optimizer message if 'pcap_optimizer_debug > 1' *and* 'pcap_print_dot_graph == 0'.
+ * This in order not to interfere with the dot-generated output when 'pcap_print_dot_graph >= 1'.
  */
 static void OPT_PRINTF(compiler_state_t *cstate, struct icode *ic, const char *fmt, ...)
 {
-	if (pcap_optimizer_debug > 1 && pcap_optimizer_debug < 3) {
-		va_list args;
+	va_list args;
 
+	if (pcap_print_dot_graph >= 1)
 		opt_dump(cstate, ic);
+	else if (pcap_optimizer_debug > 1) {
 		va_start(args, fmt);
 		vprintf(fmt, args);
 		va_end (args);
+		opt_dump(cstate, ic);
 	}
 }
 
@@ -2062,7 +2112,7 @@ opt_init(compiler_state_t *cstate, opt_state_t *opt_state, struct icode *ic)
  * and expect it to provide meaningful information.
  */
 #ifdef BDEBUG
-int bids[1000];
+int bids[NBIDS];
 #endif
 
 /*
@@ -2137,7 +2187,7 @@ convert_code_r(compiler_state_t *cstate, conv_state_t *conv_state,
 	    {
 		u_int i;
 		int jt, jf;
-		const char *ljerr = "%s for block-local relative jump: off=%d";
+		const char ljerr[] = "%s for block-local relative jump: off=%d";
 
 #if 0
 		printf("code=%x off=%d %x %x\n", src->s.code,
@@ -2438,11 +2488,11 @@ plain_dump(compiler_state_t *cstate, struct icode *ic)
 static void
 opt_dump(compiler_state_t *cstate, struct icode *ic)
 {
-	/* if optimizer debugging is enabled, output DOT graph
-	 * `pcap_optimizer_debug=4' is equivalent to -dddd to follow -d/-dd/-ddd
-	 * convention in tcpdump command line
+	/*
+	 * If the CFG, in DOT format, is requested, output it rather than
+	 * the code that would be generated from that graph.
 	 */
-	if (pcap_optimizer_debug > 3)
+	if (pcap_print_dot_graph)
 		dot_dump(cstate, ic);
 	else
 		plain_dump(cstate, ic);

@@ -64,19 +64,41 @@ The Regents of the University of California.  All rights reserved.\n";
 
 #include "pcap/funcattrs.h"
 
-static char *program_name;
-
 #ifdef BDEBUG
-  /* Externals */
-  PCAP_API void pcap_set_optimizer_debug(int value);
+  /*
+   * We have pcap_set_optimizer_debug() and pcap_set_print_dot_graph() in
+   * libpcap; declare them (they're not declared by any libpcap header,
+   * because they're special hacks, only available if libpcap was configured
+   * to include them, and only intended for use by libpcap developers trying
+   * to debug the optimizer for filter expressions).
+   */
+  PCAP_API void pcap_set_optimizer_debug(int);
+  PCAP_API void pcap_set_print_dot_graph(int);
+
+  #define g_FLAG "g"
+
+#else
+  #define pcap_set_optimizer_debug(level) do {             \
+                                            if (level > 0) \
+                                               error("libpcap and filtertest not built with optimizer debugging enabled"); \
+                                          } while (0)
+
+  #define pcap_set_print_dot_graph(level) do {             \
+                                            if (level > 0) \
+                                               error("libpcap and filtertest not built with optimizer debugging enabled"); \
+                                          } while (0)
+  #define g_FLAG ""
 #endif
+
+
+static char *program_name;
 
 /* Forwards */
 static void PCAP_NORETURN usage(void);
 static void PCAP_NORETURN error(const char *, ...) PCAP_PRINTFLIKE(1, 2);
 static void warn(const char *, ...) PCAP_PRINTFLIKE(1, 2);
 
-int dflag = 0;
+static int dflag = 0;
 
 /*
  * On Windows, we need to open the file in binary mode, so that
@@ -391,8 +413,9 @@ main(int argc, char **argv)
 	int op;
 	char *infile = NULL;
 	int Dflag = 0;
-	int Oflag = 1;
-	long snaplen = 68;
+	int Oflag;
+	int gflag;
+	long snaplen;
 	char *p;
 	int dlt;
 	int optimize_loops = -1;
@@ -402,13 +425,25 @@ main(int argc, char **argv)
 	pcap_t *pd;
 	struct bpf_program fcode;
 
+#ifdef _WIN32
+	if (pcap_wsockinit() != 0)
+		return 1;
+#endif /* _WIN32 */
+
+	dflag = 1;
+	gflag = 0;
+
+	infile = NULL;
+	Oflag = 1;
+	snaplen = 68;
+
 	if ((cp = strrchr(argv[0], '/')) != NULL)
 		program_name = cp + 1;
 	else
 		program_name = argv[0];
 
 	opterr = 0;
-	while ((op = getopt(argc, argv, "dDF:m:Or:s:")) != -1) {
+	while ((op = getopt(argc, argv, "dDF:" g_FLAG "m:Or:s:")) != -1) {
 		switch (op) {
 
 		case 'd':
@@ -416,10 +451,12 @@ main(int argc, char **argv)
 			break;
 		case 'D':
 			++Dflag;
-#ifdef BDEBUG
 			pcap_set_optimizer_debug(4);
 			dflag = 0;
-#endif
+			break;
+
+		case 'g':
+			++gflag;
 			break;
 
 		case 'F':
@@ -500,7 +537,11 @@ main(int argc, char **argv)
 	if (optimize_loops > -1) {
 		pd = run_pcap_optimize(optimize_loops, cmdbuf, dlt, netmask, snaplen);
 	}
-	else {
+	else
+	{
+		pcap_set_optimizer_debug(dflag);
+		pcap_set_print_dot_graph(gflag);
+
 		pd = pcap_open_dead(dlt, snaplen);
 		if (pd == NULL)
 			error("Can't open fake pcap_t");
@@ -512,10 +553,10 @@ main(int argc, char **argv)
 		if (!bpf_validate(fcode.bf_insns, fcode.bf_len))
 			warn("Filter doesn't pass validation");
 
-#ifdef BDEBUG
 		/* Don't print both machine-code and DOT-output to stdout.
 		 */
-		if (Dflag == 0) {
+		if (gflag == 0) {
+#ifdef BDEBUG
 			if (cmdbuf != NULL) {
 				// replace line feed with space
 				for (cp = cmdbuf; *cp != '\0'; ++cp) {
@@ -527,10 +568,9 @@ main(int argc, char **argv)
 				printf("machine codes for filter: %s\n", cmdbuf);
 			} else
 				printf("machine codes for empty filter:\n");
-		}
 #endif
-		if (Dflag == 0)
 			bpf_dump(&fcode, dflag);
+		}
 	}
 
 	free(cmdbuf);
@@ -546,7 +586,7 @@ usage(void)
 	(void)fprintf(stderr, "%s, with %s\n", program_name,
 	    pcap_lib_version());
 	(void)fprintf(stderr,
-	    "Usage: %s [-dDO] [ -F file ] [ -m netmask] [ -s snaplen ] [ -r <optimize test loops>]] dlt [ expression ]\n",
+	    "Usage: %s [-d" g_FLAG "DO] [ -F file ] [ -m netmask] [ -s snaplen ] [ -r <optimize test loops>]] dlt [ expression ]\n",
 	    program_name);
 	exit(1);
 }
