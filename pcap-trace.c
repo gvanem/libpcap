@@ -1,5 +1,4 @@
 
-#include "./Win32/config.h"
 #include "pcap-trace.h"
 
 #include <assert.h>
