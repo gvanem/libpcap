@@ -104,11 +104,11 @@ endif()
 option(INET6 "Enable IPv6" ON)
 if(WIN32)
     option(USE_STATIC_RT "Use static Runtime" ON)
-endif(WIN32)
+endif()
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 if(WIN32)
     set(PACKET_DLL_DIR "" CACHE PATH "Path to directory with include and lib subdirectories for packet.dll")
-endif(WIN32)
+endif()
 
 # To pacify those who hate the protochain instruction
 option(NO_PROTOCHAIN "Disable protochain instruction" OFF)
@@ -128,7 +128,7 @@ if(WIN32)
     option(ENABLE_REMOTE "Enable remote capture" ON)
 else()
     option(ENABLE_REMOTE "Enable remote capture" OFF)
-endif(WIN32)
+endif()
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     option(PCAP_SUPPORT_PACKET_RING "Enable Linux packet ring support" ON)
@@ -251,7 +251,7 @@ option(YYDEBUG "Build parser debugging code" OFF)
 
 # Get, parse, format and set pcap's version string from [pcap_root]/VERSION
 # for later use.
- 
+
 # Get MAJOR, MINOR, PATCH & SUFFIX
 file(STRINGS ${pcap_SOURCE_DIR}/VERSION
     PACKAGE_VERSION
@@ -264,14 +264,14 @@ string(REGEX MATCH "^([0-9]+)" PACKAGE_VERSION_MAJOR "${PACKAGE_VERSION}")
 # Get MAJOR, MINOR & PATCH
 string(REGEX MATCH "^([0-9]+.)?([0-9]+.)?([0-9]+)" PACKAGE_VERSION_NOSUFFIX "${PACKAGE_VERSION}")
 
-if(WIN32) 
+if(WIN32)
     # Convert PCAP_VERSION_NOSUFFIX to Windows preferred version format
     string(REPLACE "." "," PACKAGE_VERSION_PREDLL ${PACKAGE_VERSION_NOSUFFIX})
 
     # Append NANO (used for Windows internal versioning) to PCAP_VERSION_PREDLL
     # 0 means unused.
     set(PACKAGE_VERSION_DLL ${PACKAGE_VERSION_PREDLL},0)
-endif(WIN32)
+endif()
 
 set(PACKAGE_NAME "${LIBRARY_NAME}")
 set(PACKAGE_STRING "${LIBRARY_NAME} ${PACKAGE_VERSION}")
@@ -310,7 +310,7 @@ if(WIN32)
         cmake_pop_check_state()
     endif(PACKET_FOUND)
 
-endif(WIN32)
+endif()
 
 if(MSVC)
     add_definitions(-D__STDC__)
@@ -495,7 +495,7 @@ else(WIN32)
             set(PCAP_LINK_LIBRARIES str ${PCAP_LINK_LIBRARIES})
         endif(LIBSTR_HAS_PUTMSG)
     endif(NOT STDLIBS_HAVE_PUTMSG)
-endif(WIN32)
+endif()
 
 #
 # Check for reentrant versions of getnetbyname_r(), as provided by
@@ -638,7 +638,7 @@ if(WIN32)
     set(CMAKE_EXTRA_INCLUDE_FILES winsock2.h)
 else(WIN32)
     set(CMAKE_EXTRA_INCLUDE_FILES unistd.h sys/socket.h)
-endif(WIN32)
+endif()
 check_type_size("struct sockaddr_storage" STRUCT_SOCKADDR_STORAGE)
 check_type_size("socklen_t" SOCKLEN_T)
 cmake_pop_check_state()
@@ -650,7 +650,7 @@ if(WIN32)
     check_struct_has_member("struct sockaddr" sa_len winsock2.h HAVE_STRUCT_SOCKADDR_SA_LEN)
 else(WIN32)
     check_struct_has_member("struct sockaddr" sa_len sys/socket.h HAVE_STRUCT_SOCKADDR_SA_LEN)
-endif(WIN32)
+endif()
 
 #
 # Do we have ffs(), and is it declared in <strings.h>?
@@ -873,7 +873,7 @@ else()
     if(NOT HAVE_STRTOK_R)
         set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/strtok_r.c)
     endif(NOT HAVE_STRTOK_R)
-endif(WIN32)
+endif()
 
 #
 # Determine the main pcap-XXX.c file to use, and the libraries with
@@ -1014,7 +1014,7 @@ else()
             set(PCAP_TYPE null)
         endif()
     endif()
-endif(WIN32)
+endif()
 message(STATUS "Packet capture mechanism type: ${PCAP_TYPE}")
 
 #
@@ -1179,7 +1179,7 @@ else(WIN32)
     else()
         message(FATAL_ERROR "${PCAP_TYPE} is not a valid pcap type")
     endif()
-endif(WIN32)
+endif()
 
 set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} pcap-${PCAP_TYPE}.c)
 
@@ -1499,7 +1499,7 @@ if(NOT DISABLE_DAG)
             endif()
         endif()
     endif()
-endif() 
+endif()
 
 # Check for Septel card support.
 set(PROJECT_EXTERNAL_OBJECT_LIST "")
@@ -1521,7 +1521,7 @@ if(NOT DISABLE_SEPTEL)
         set(PROJECT_EXTERNAL_OBJECT_LIST ${PROJECT_EXTERNAL_OBJECT_LIST} "${SEPTEL_ROOT}/asciibin.o ${SEPTEL_ROOT}/bit2byte.o ${SEPTEL_ROOT}/confirm.o ${SEPTEL_ROOT}/fmtmsg.o ${SEPTEL_ROOT}/gct_unix.o ${SEPTEL_ROOT}/hqueue.o ${SEPTEL_ROOT}/ident.o ${SEPTEL_ROOT}/mem.o ${SEPTEL_ROOT}/pack.o ${SEPTEL_ROOT}/parse.o ${SEPTEL_ROOT}/pool.o ${SEPTEL_ROOT}/sdlsig.o ${SEPTEL_ROOT}/strtonum.o ${SEPTEL_ROOT}/timer.o ${SEPTEL_ROOT}/trace.o")
         set(HAVE_SEPTEL_API TRUE)
     endif()
-endif() 
+endif()
 
 # Check for Myricom SNF support.
 if(NOT DISABLE_SNF)
@@ -1542,7 +1542,7 @@ if(NOT DISABLE_SNF)
         set(HAVE_SNF_API TRUE)
         set(PCAP_LINK_LIBRARIES ${PCAP_LINK_LIBRARIES} ${SNF_LIBRARIES})
     endif()
-endif() 
+endif()
 
 # Check for Riverbed TurboCap support.
 if(NOT DISABLE_TC)
@@ -1563,7 +1563,7 @@ if(NOT DISABLE_TC)
         set(HAVE_TC_API TRUE)
         set(PCAP_LINK_LIBRARIES "${PCAP_LINK_LIBRARIES} ${TC_LIBRARIES} ${CMAKE_USE_PTHREADS_INIT} stdc++")
     endif()
-endif() 
+endif()
 
 #
 # Remote capture support.
@@ -1903,7 +1903,7 @@ if(WIN32)
     # Add pcap-dll.rc to the list of sources.
     #
     set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} ${pcap_SOURCE_DIR}/pcap-dll.rc)
-endif(WIN32)
+endif()
 
 #
 # Add subdirectories after we've set various variables, so they pick up
@@ -1982,7 +1982,7 @@ if(WIN32)
         # For compatibility, build the shared library without the "lib" prefix on
         # MinGW as well.
         #
-        set_target_properties(${LIBRARY_NAME} PROPERTIES 
+        set_target_properties(${LIBRARY_NAME} PROPERTIES
             PREFIX ""
             OUTPUT_NAME "${LIBRARY_NAME}"
         )
@@ -2007,7 +2007,7 @@ else(WIN32) # UN*X
     set_target_properties(${LIBRARY_NAME}_static PROPERTIES
         OUTPUT_NAME "${LIBRARY_NAME}"
     )
-endif(WIN32)
+endif()
 
 if(BUILD_SHARED_LIBS)
     if(NOT C_ADDITIONAL_FLAGS STREQUAL "")
@@ -2180,7 +2180,7 @@ if(WIN32)
     endif(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
 else(WIN32)
     install(TARGETS ${LIBRARY_NAME} ${LIBRARY_NAME_STATIC} DESTINATION lib)
-endif(WIN32)
+endif()
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/pcap/ DESTINATION include/pcap)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pcap.h DESTINATION include)
