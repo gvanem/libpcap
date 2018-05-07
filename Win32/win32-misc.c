@@ -171,7 +171,7 @@ typedef struct _AirpcapHandle * (*AirpcapOpenHandler) (char *DeviceName, char *E
 
 /* A private in Packet32.c
  */
-void PacketLoadLibrariesDynamically (void);
+extern void PacketLoadLibrariesDynamically (void);
 
 static int pcap_set_datalink_airpcap (pcap_t *p, int dlt)
 {
