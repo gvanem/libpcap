@@ -17,7 +17,7 @@
 #
 MAKEFILE = msdos/Makefile.dj
 
-VPATH = missing msdos bpf/net tests
+VPATH = missing msdos bpf/net testsprogs
 
 WATT32_ROOT = $(realpath $(WATT_ROOT))
 
@@ -79,7 +79,7 @@ endif
 
 PCAP_LIB = msdos/libpcap.a
 
-GEN_FILES = msdos/config.h       \
+GENERATED = msdos/config.h       \
             msdos/pcap_version.h \
             msdos/pkt_stub.inc   \
             scanner.c            \
@@ -87,13 +87,13 @@ GEN_FILES = msdos/config.h       \
             grammar.c            \
             grammar.h
 
-SOURCES = grammar.c            \
-          scanner.c            \
-          bpf/net/bpf_filter.c \
+SOURCES = bpf/net/bpf_filter.c \
           bpf_image.c          \
           bpf_dump.c           \
           etherent.c           \
+          fmtutils.c           \
           gencode.c            \
+          grammar.c            \
           nametoaddr.c         \
           optimize.c           \
           pcap.c               \
@@ -102,6 +102,7 @@ SOURCES = grammar.c            \
           savefile.c           \
           sf-pcap.c            \
           sf-pcap-ng.c         \
+          scanner.c            \
           msdos/pktdrvr.c
 
 ifeq ($(HAVE_PCAP_REMOTE),1)
@@ -135,7 +136,7 @@ TEST_OBJ = $(addprefix $(OBJ_DIR)/, \
 
 .SECONDARY: $(TEST_OBJ)
 
-all: $(GEN_FILES) $(TARGETS)
+all: $(GENERATED) $(TARGETS)
 	@echo 'Welcome to libpcap/djgpp with samples.'
 
 $(LIB_OBJ): $(OBJ_DIR)
@@ -187,7 +188,7 @@ msdos/bin2c.exe: msdos/bin2c.c
 	$(HOST_CC) $< -o $@
 
 clean:
-	rm -f $(LIB_OBJ) $(TEST_OBJ) $(GEN_FILES) msdos/pkt_rx1.lst msdos/bin2c.exe msdos/.depend.dj
+	rm -f $(LIB_OBJ) $(TEST_OBJ) $(GENERATED) msdos/pkt_rx1.lst msdos/bin2c.exe msdos/.depend.dj
 
 vclean: clean
 	rm -f $(TARGETS) $(TARGETS:.exe=.map)
@@ -206,12 +207,21 @@ define CONFIG_H
 //#define yylval         pcap_lval
 
 //#define PCAP_TRACE(level, fmt, ...)  (void)0
+  #define PACKAGE_VERSION              "libpcap version $(shell cat ./VERSION)"
+
 endef
 
 define PCAP_VERSION_H
   #if !defined(MSDOS)
     #error This file is for MSDOS only
   #endif
+
+  /*
+   *  If building under Windows, there is a good chance there is aleady
+   * "pcap_version.h" in the libpcap root. Hence this generated file
+   *  is in the 'msdos' subdirectory.
+   */
+  #undef  PCAP_VERSION_STRING
   #define PCAP_VERSION_STRING  "libpcap/djgpp ($(shell cat ./VERSION))"
 endef
 
@@ -271,7 +281,7 @@ grammar.y: pcap-int.h gencode.h pcap-namedb.h
 REPLACE = sed -e 's@\(.*\)\.o: @\n$$(OBJ_DIR)\/\1.o: @g' \
               -e 's@$(WATT32_ROOT)@$$(WATT32_ROOT)@g'
 
-depend: $(GEN_FILES)
+depend: $(GENERATED)
 	$(CC) -MM $(CFLAGS) $(SOURCES) | $(REPLACE) > msdos/.depend.dj
 
 -include msdos/.depend.dj
