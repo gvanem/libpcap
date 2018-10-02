@@ -15,6 +15,9 @@
 /* define if we have the AIX getprotobyname_r() */
 #undef HAVE_AIX_GETPROTOBYNAME_R
 
+/* Define to 1 if you have the <dagapi.h> header file. */
+#undef HAVE_DAGAPI_H
+
 /* define if you have the DAG API */
 #undef HAVE_DAG_API
 
@@ -80,9 +83,6 @@
 
 /* libnl has new-style socket api */
 #undef HAVE_LIBNL_SOCKETS
-
-/* Define to 1 if you have the <limits.h> header file. */
-#undef HAVE_LIMITS_H
 
 /* Define to 1 if you have the <linux/compiler.h> header file. */
 #undef HAVE_LINUX_COMPILER_H
@@ -238,6 +238,9 @@
 /* Define to 1 if you have the <sys/dlpi.h> header file. */
 #undef HAVE_SYS_DLPI_H
 
+/* Define to 1 if you have the <sys/eventfd.h> header file. */
+#undef HAVE_SYS_EVENTFD_H
+
 /* Define to 1 if you have the <sys/ioccom.h> header file. */
 #undef HAVE_SYS_IOCCOM_H
 
@@ -264,9 +267,6 @@
 
 /* IPv6 */
 #undef INET6
-
-/* if unaligned access fails */
-#undef LBL_ALIGN
 
 /* path for device for USB sniffing */
 #undef LINUX_USB_MON_DEV
@@ -324,9 +324,6 @@
 
 /* target host supports USB sniffing */
 #undef PCAP_SUPPORT_USB
-
-/* include ACN support */
-#undef SITA
 
 /* Define to 1 if you have the ANSI C header files. */
 #undef STDC_HEADERS

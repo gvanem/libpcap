@@ -418,9 +418,9 @@ struct _compiler_state {
 };
 
 void PCAP_NORETURN
-bpf_syntax_error(compiler_state_t *cstate, const char *msg)
+bpf_parser_error(compiler_state_t *cstate, const char *msg)
 {
-	bpf_error(cstate, "syntax error in filter expression: %s", msg);
+	bpf_error(cstate, "can't parse filter expression: %s", msg);
 	/* NOTREACHED */
 }
 
@@ -662,7 +662,7 @@ pcap_compile(pcap_t *p, struct bpf_program *program,
 	compiler_state_t cstate;
 	const char * volatile xbuf = buf;
 	yyscan_t scanner = NULL;
-	YY_BUFFER_STATE in_buffer = NULL;
+	volatile YY_BUFFER_STATE in_buffer = NULL;
 	u_int len;
 	int  rc;
 
@@ -1334,9 +1334,16 @@ init_linktype(compiler_state_t *cstate, pcap_t *p)
 		cstate->off_nl_nosnap = 0;	/* no 802.2 LLC */
 		break;
 
-	case DLT_LINUX_SLL:	/* fake header for Linux cooked socket */
+	case DLT_LINUX_SLL:	/* fake header for Linux cooked socket v1 */
 		cstate->off_linktype.constant_part = 14;
 		cstate->off_linkpl.constant_part = 16;
+		cstate->off_nl = 0;
+		cstate->off_nl_nosnap = 0;	/* no 802.2 LLC */
+		break;
+
+	case DLT_LINUX_SLL2:	/* fake header for Linux cooked socket v2 */
+		cstate->off_linktype.constant_part = 0;
+		cstate->off_linkpl.constant_part = 20;
 		cstate->off_nl = 0;
 		cstate->off_nl_nosnap = 0;	/* no 802.2 LLC */
 		break;
@@ -6178,13 +6185,13 @@ gen_proto(compiler_state_t *cstate, int v, int proto, int dir)
 			 */
 			b0 = gen_linktype(cstate, LLCSAP_ISONS<<8 | LLCSAP_ISONS);
 			/* OSI in C-HDLC is stuffed with a fudge byte */
-			b1 = gen_cmp(cstate, OR_LINKPL_NOSNAP, 1, BPF_B, (long)v);
+			b1 = gen_cmp(cstate, OR_LINKPL_NOSNAP, 1, BPF_B, (bpf_int32)v);
 			gen_and(b0, b1);
 			return b1;
 
 		default:
 			b0 = gen_linktype(cstate, LLCSAP_ISONS);
-			b1 = gen_cmp(cstate, OR_LINKPL_NOSNAP, 0, BPF_B, (long)v);
+			b1 = gen_cmp(cstate, OR_LINKPL_NOSNAP, 0, BPF_B, (bpf_int32)v);
 			gen_and(b0, b1);
 			return b1;
 		}
@@ -6195,7 +6202,7 @@ gen_proto(compiler_state_t *cstate, int v, int proto, int dir)
 		 * 4 is the offset of the PDU type relative to the IS-IS
 		 * header.
 		 */
-		b1 = gen_cmp(cstate, OR_LINKPL_NOSNAP, 4, BPF_B, (long)v);
+		b1 = gen_cmp(cstate, OR_LINKPL_NOSNAP, 4, BPF_B, (bpf_int32)v);
 		gen_and(b0, b1);
 		return b1;
 
@@ -7737,6 +7744,15 @@ gen_inbound(compiler_state_t *cstate, int dir)
 		}
 		break;
 
+	case DLT_LINUX_SLL2:
+		/* match outgoing packets */
+		b0 = gen_cmp(cstate, OR_LINKHDR, 10, BPF_B, LINUX_SLL_OUTGOING);
+		if (!dir) {
+			/* to filter on inbound traffic, invert the match */
+			gen_not(b0);
+		}
+		break;
+
 #ifdef HAVE_NET_PFVAR_H
 	case DLT_PFLOG:
 		b0 = gen_cmp(cstate, OR_LINKHDR, offsetof(struct pfloghdr, dir), BPF_B,
@@ -8222,12 +8238,15 @@ gen_vlan_patch_vid_test(compiler_state_t *cstate, struct block *b_vid)
 	sappend(s, s2);
 	sjeq->s.jt = s2;
 
-	/* jump to the test in b_vid (bypass loading VID from packet data) */
+	/* Jump to the test in b_vid. We need to jump one instruction before
+	 * the end of the b_vid block so that we only skip loading the TCI
+	 * from packet data and not the 'and' instruction extractging VID.
+	 */
 	cnt = 0;
 	for (s2 = b_vid->stmts; s2; s2 = s2->next)
 		cnt++;
 	s2 = new_stmt(cstate, JMP(BPF_JA));
-	s2->s.k = cnt;
+	s2->s.k = cnt - 1;
 	sappend(s, s2);
 
 	/* insert our statements at the beginning of b_vid */

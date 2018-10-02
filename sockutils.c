@@ -56,11 +56,7 @@
 #include <errno.h>	/* for the errno variable */
 #include <stdio.h>	/* for the stderr file */
 #include <stdlib.h>	/* for malloc() and free() */
-#ifdef HAVE_LIMITS_H
-#include <limits.h>
-#else
-#define INT_MAX		2147483647
-#endif
+#include <limits.h>	/* for INT_MAX */
 
 #include "pcap-int.h"
 
@@ -132,12 +128,12 @@ void sock_fmterror(const char *caller, int errcode, char *errbuf, int errbuflen)
 {
 #ifdef _WIN32
 	int retval;
-	TCHAR message[SOCK_ERRBUF_SIZE];	/* It will be char (if we're using ascii) or wchar_t (if we're using unicode) */
+	char message[SOCK_ERRBUF_SIZE];	/* We're forcing "ANSI" */
 
 	if (errbuf == NULL)
 		return;
 
-	retval = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS |
+	retval = FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS |
 		FORMAT_MESSAGE_MAX_WIDTH_MASK,
 		NULL, errcode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 		message, sizeof(message) / sizeof(TCHAR), NULL);
@@ -959,7 +955,7 @@ int sock_recv_dgram(SOCKET sock, void *buffer, size_t size,
 	 * don't need to loop.
 	 */
 #ifdef _WIN32
-	nread = recv(sock, buffer, size, 0);
+	nread = recv(sock, buffer, (int)size, 0);
 	if (nread == SOCKET_ERROR)
 	{
 		/*

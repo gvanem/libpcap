@@ -75,9 +75,6 @@
 /* libnl has new-style socket api */
 #cmakedefine HAVE_LIBNL_SOCKETS 1
 
-/* Define to 1 if you have the <limits.h> header file. */
-#cmakedefine HAVE_LIMITS_H 1
-
 /* Define to 1 if you have the <linux/compiler.h> header file. */
 #cmakedefine HAVE_LINUX_COMPILER_H 1
 
@@ -235,6 +232,9 @@
 /* Define to 1 if you have the <sys/dlpi.h> header file. */
 #cmakedefine HAVE_SYS_DLPI_H 1
 
+/* Define to 1 if you have the <sys/eventfd.h> header file. */
+#cmakedefine HAVE_SYS_EVENTFD_H 1
+
 /* Define to 1 if you have the <sys/ioccom.h> header file. */
 #cmakedefine HAVE_SYS_IOCCOM_H 1
 
@@ -264,9 +264,6 @@
 
 /* IPv6 */
 #cmakedefine INET6 1
-
-/* if unaligned access fails */
-#cmakedefine LBL_ALIGN 1
 
 /* path for device for USB sniffing */
 #cmakedefine LINUX_USB_MON_DEV "@LINUX_USB_MON_DEV@"
@@ -327,9 +324,6 @@
 
 /* target host supports USB sniffing */
 #cmakedefine PCAP_SUPPORT_USB 1
-
-/* include ACN support */
-#cmakedefine SITA 1
 
 /* Define to 1 if you have the ANSI C header files. */
 #cmakedefine STDC_HEADERS 1

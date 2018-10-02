@@ -119,7 +119,7 @@ typedef int	(*activate_op_t)(pcap_t *);
 typedef int	(*can_set_rfmon_op_t)(pcap_t *);
 typedef int	(*read_op_t)(pcap_t *, int cnt, pcap_handler, u_char *);
 typedef int (*next_packet_op_t)(pcap_t *, struct pcap_pkthdr *, u_char **);
-typedef int	(*inject_op_t)(pcap_t *, const void *, size_t);
+typedef int	(*inject_op_t)(pcap_t *, const void *, int);
 typedef void	(*save_current_filter_op_t)(pcap_t *, const char *);
 typedef int	(*setfilter_op_t)(pcap_t *, struct bpf_program *);
 typedef int	(*setdirection_op_t)(pcap_t *, pcap_direction_t);
@@ -127,6 +127,7 @@ typedef int	(*set_datalink_op_t)(pcap_t *, int);
 typedef int	(*getnonblock_op_t)(pcap_t *);
 typedef int	(*setnonblock_op_t)(pcap_t *, int);
 typedef int	(*stats_op_t)(pcap_t *, struct pcap_stat *);
+typedef void	(*breakloop_op_t)(pcap_t *);
 #ifdef _WIN32
 typedef struct pcap_stat *(*stats_ex_op_t)(pcap_t *, int *);
 typedef int	(*setbuff_op_t)(pcap_t *, int);
@@ -197,7 +198,6 @@ struct pcap {
 	int snapshot;
 	int linktype;		/* Network linktype */
 	int linktype_ext;       /* Extended information stored in the linktype field of a file */
-	int tzoff;		/* timezone offset */
 	int offset;		/* offset for proper alignment */
 	int activated;		/* true if the capture is really started */
 	int oldstyle;		/* if we're opening with pcap_open_live() */
@@ -266,6 +266,7 @@ struct pcap {
 	getnonblock_op_t getnonblock_op;
 	setnonblock_op_t setnonblock_op;
 	stats_op_t stats_op;
+	breakloop_op_t breakloop_op;
 
 	/*
 	 * Routine to use as callback for pcap_next()/pcap_next_ex().
@@ -420,6 +421,7 @@ void	pcap_add_to_pcaps_to_close(pcap_t *);
 void	pcap_remove_from_pcaps_to_close(pcap_t *);
 void	pcap_cleanup_live_common(pcap_t *);
 int	pcap_check_activated(pcap_t *);
+void	pcap_breakloop_common(pcap_t *);
 
 /*
  * Internal interfaces for "pcap_findalldevs()".
@@ -482,6 +484,37 @@ int	add_addr_to_if(pcap_if_list_t *, const char *, bpf_u_int32,
  */
 pcap_t	*pcap_open_offline_common(char *ebuf, size_t size);
 void	sf_cleanup(pcap_t *p);
+
+/*
+ * Internal interfaces for doing user-mode filtering of packets and
+ * validating filter programs.
+ */
+/*
+ * Auxiliary data, for use when interpreting a filter intended for the
+ * Linux kernel when the kernel rejects the filter (requiring us to
+ * run it in userland).  It contains VLAN tag information.
+ */
+struct bpf_aux_data {
+	u_short vlan_tag_present;
+	u_short vlan_tag;
+};
+
+/*
+ * Filtering routine that takes the auxiliary data as an additional
+ * argument.
+ */
+u_int	pcap_filter_with_aux_data(const struct bpf_insn *,
+    const u_char *, u_int, u_int, const struct bpf_aux_data *);
+
+/*
+ * Filtering routine that doesn't.
+ */
+u_int	pcap_filter(const struct bpf_insn *, const u_char *, u_int, u_int);
+
+/*
+ * Routine to validate a BPF program.
+ */
+int	pcap_validate_filter(const struct bpf_insn *, int);
 
 /*
  * Internal interfaces for both "pcap_create()" and routines that

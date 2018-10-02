@@ -28,6 +28,9 @@ AC_LBL_C_INIT_BEFORE_CC(V_CCOPT, V_INCLS)
 # At minimum, we want C++/C99-style // comments.
 #
 AC_PROG_CC_C99
+if test "$ac_cv_prog_cc_c99" = "no"; then
+	AC_MSG_WARN([The C compiler does not support C99; there may be compiler errors])
+fi
 AC_LBL_C_INIT(V_CCOPT, V_INCLS)
 AC_LBL_SHLIBS_INIT
 AC_LBL_C_INLINE
@@ -47,7 +50,7 @@ dnl in "aclocal.m4" uses it, so we would still have to test for it
 dnl and set "HAVE_SYS_IOCCOM_H" if we have it, otherwise
 dnl "AC_LBL_FIXINCLUDES" wouldn't work on some platforms such as Solaris.
 dnl
-AC_CHECK_HEADERS(sys/ioccom.h sys/sockio.h limits.h)
+AC_CHECK_HEADERS(sys/ioccom.h sys/sockio.h)
 AC_CHECK_HEADERS(netpacket/packet.h)
 AC_CHECK_HEADERS(net/pfvar.h, , , [#include <sys/types.h>
 #include <sys/socket.h>
@@ -73,11 +76,19 @@ fi
 
 case "$host_os" in
 linux*|uclinux*)
+	#
+	# linux/if_bonding.h requires sys/socket.h.
+	#
 	AC_CHECK_HEADERS(linux/sockios.h linux/if_bonding.h,,,
 	[
 #include <sys/socket.h>
 #include <linux/if.h>
 	])
+
+	#
+	# Check for the eventfd header.
+	#
+	AC_CHECK_HEADERS(sys/eventfd.h)
 	;;
 esac
 
@@ -510,20 +521,6 @@ AC_MSG_RESULT(${enable_protochain})
 #
 VALGRINDTEST_SRC=
 
-#
-# SITA support is mutually exclusive with native capture support;
-# "--with-sita" selects SITA support.
-#
-AC_ARG_WITH(sita,
-AC_HELP_STRING([--with-sita],[include SITA support]),
-[
-	if test ! "x$withval" = "xno" ; then
-		AC_DEFINE(SITA,1,[include ACN support])
-		AC_MSG_NOTICE(Enabling SITA ACN support)
-		V_PCAP=sita
-	fi
-],
-[
 AC_ARG_WITH(pcap,
 AC_HELP_STRING([--with-pcap=TYPE],[use packet capture TYPE]))
 if test ! -z "$with_pcap" ; then
@@ -550,6 +547,10 @@ else
 		#  requires that various BSD-style integer types
 		#  be defined;
 		#
+		#  sys/time.h, because AIX 5.2 and 5.3's net/bpf.h
+		#  doesn't include it but does use struct timeval
+		#  in ioctl definitions;
+		#
 		#  sys/ioctl.h and, if we have it, sys/ioccom.h,
 		#  because net/bpf.h defines ioctls;
 		#
@@ -568,6 +569,7 @@ else
 			AC_TRY_COMPILE(
 [
 #include <sys/types.h>
+#include <sys/time.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #ifdef HAVE_SYS_IOCCOM_H
@@ -979,7 +981,6 @@ then
 		fi
 	])
 fi
-])
 
 dnl check for hardware timestamp support
 case "$host_os" in
@@ -1071,10 +1072,7 @@ AC_HELP_STRING([--with-dag-libraries=LDIR],[Endace DAG library directory, if not
 	dag_lib_dir=$withval
 ],[])
 
-ac_cv_lbl_dag_api=no
 if test "$want_dag" != no; then
-
-	AC_MSG_CHECKING([whether we have DAG API headers])
 
 	# If necessary, set default paths for DAG API headers and libraries.
 	if test -z "$dag_root"; then
@@ -1089,18 +1087,11 @@ if test "$want_dag" != no; then
 		dag_lib_dir="$dag_root/lib"
 	fi
 
-	if test -z "$dag_tools_dir"; then
-		dag_tools_dir="$dag_root/tools"
-	fi
+	V_INCLS="$V_INCLS -I$dag_include_dir"
 
-	if test -r $dag_include_dir/dagapi.h; then
-		ac_cv_lbl_dag_api=yes
-	fi
+	AC_CHECK_HEADERS([dagapi.h])
 
-	if test "$ac_cv_lbl_dag_api" = yes; then
-		AC_MSG_RESULT([yes ($dag_include_dir)])
-
-		V_INCLS="$V_INCLS -I$dag_include_dir"
+	if test "$ac_cv_header_dagapi_h" = yes; then
 
 		if test $V_PCAP != dag ; then
 			 SSRC="$SSRC pcap-dag.c"
@@ -1122,7 +1113,12 @@ if test "$want_dag" != no; then
 
 		LDFLAGS=$saved_ldflags
 
-		LIBS="$LIBS -ldag"
+		#
+		# We assume that if we have libdag we have libdagconf,
+		# as they're installed at the same time from the same
+		# package.
+		#
+		LIBS="$LIBS -ldag -ldagconf"
 		LDFLAGS="$LDFLAGS -L$dag_lib_dir"
 
 		if test "$dag_large_streams" = 1; then
@@ -1139,7 +1135,6 @@ if test "$want_dag" != no; then
 
 		AC_DEFINE(HAVE_DAG_API, 1, [define if you have the DAG API])
 	else
-		AC_MSG_RESULT(no)
 
 		if test "$V_PCAP" = dag; then
 			# User requested "dag" capture type but we couldn't
@@ -1535,18 +1530,20 @@ AC_CACHE_CHECK([for capable yacc/bison], tcpdump_cv_capable_yacc,
 	fi)
 if test $tcpdump_cv_capable_yacc = insufficient ; then
 	AC_MSG_ERROR([$YACC is insufficient to compile libpcap.
- libpcap requires Bison, Berkeley YACC, or another YACC compatible with them.])
+ libpcap requires Bison, a newer version of Berkeley YACC with support
+ for reentrant parsers, or another YACC compatible with them.])
 fi
 
 #
 # Do various checks for various OSes and versions of those OSes.
 #
 # Assume, by default, no support for shared libraries and V7/BSD
-# convention for man pages (file formats in section 5, miscellaneous
-# info in section 7, administrative commands and daemons in section 8).
-# Individual cases can override this.
+# convention for man pages (devices in section 4, file formats in
+# section 5, miscellaneous info in section 7, administrative commands
+# and daemons in section 8).  Individual cases can override this.
 #
 DYEXT="none"
+MAN_DEVICES=4
 MAN_FILE_FORMATS=5
 MAN_MISC_INFO=7
 MAN_ADMIN_COMMANDS=8
@@ -1611,70 +1608,90 @@ darwin*)
 
 		darwin8.[0123]*)
 			#
-			# Tiger, prior to Intel support.  Build for 32-bit
-			# PowerPC and 64-bit PowerPC, with 32-bit PowerPC
-			# first.  (I'm guessing that's what Apple does.)
+			# Tiger, prior to Intel support.  Build
+			# libraries and executables for 32-bit PowerPC
+			# and 64-bit PowerPC, with 32-bit PowerPC first.
+			# (I'm guessing that's what Apple does.)
 			#
-			V_CCOPT="$V_CCOPT -arch ppc -arch ppc64"
-			LDFLAGS="$LDFLAGS -arch ppc -arch ppc64"
+			V_LIB_CCOPT_FAT="-arch ppc -arch ppc64"
+			V_LIB_LDFLAGS_FAT="-arch ppc -arch ppc64"
+			V_PROG_CCOPT_FAT="-arch ppc -arch ppc64"
+			V_PROG_LDFLAGS_FAT="-arch ppc -arch ppc64"
 			;;
 
 		darwin8.[456]*)
 			#
-			# Tiger, subsequent to Intel support but prior to
-			# x86-64 support.  Build for 32-bit PowerPC, 64-bit
-			# PowerPC, and x86, with 32-bit PowerPC first.
-			# (I'm guessing that's what Apple does.)
+			# Tiger, subsequent to Intel support but prior
+			# to x86-64 support.  Build libraries and
+			# executables for 32-bit PowerPC, 64-bit
+			# PowerPC, and 32-bit x86, with 32-bit PowerPC
+			# first.  (I'm guessing that's what Apple does.)
 			#
-			V_CCOPT="$V_CCOPT -arch ppc -arch ppc64 -arch i386"
-			LDFLAGS="$LDFLAGS -arch ppc -arch ppc64 -arch i386"
+			V_LIB_CCOPT_FAT="-arch ppc -arch ppc64 -arch i386"
+			V_LIB_LDFLAGS_FAT="-arch ppc -arch ppc64 -arch i386"
+			V_PROG_CCOPT_FAT="-arch ppc -arch ppc64 -arch i386"
+			V_PROG_LDFLAGS_FAT="-arch ppc -arch ppc64 -arch i386"
 			;;
 
 		darwin8.*)
 			#
 			# All other Tiger, so subsequent to x86-64
-			# support. Build for 32-bit PowerPC, 64-bit
-			# PowerPC, x86, and x86-64, and with 32-bit PowerPC
-			# first.  (I'm guessing that's what Apple does.)
+			# support.  Build libraries and executables for
+			# 32-bit PowerPC, 64-bit PowerPC, 32-bit x86,
+			# and x86-64, with 32-bit PowerPC first.  (I'm
+			# guessing that's what Apple does.)
 			#
-			V_CCOPT="$V_CCOPT -arch ppc -arch ppc64 -arch i386 -arch x86_64"
-			LDFLAGS="$LDFLAGS -arch ppc -arch ppc64 -arch i386 -arch x86_64"
+			V_LIB_CCOPT_FAT="-arch ppc -arch ppc64 -arch i386 -arch x86_64"
+			V_LIB_LDFLAGS_FAT="-arch ppc -arch ppc64 -arch i386 -arch x86_64"
+			V_PROG_CCOPT_FAT="-arch ppc -arch ppc64 -arch i386 -arch x86_64"
+			V_PROG_LDFLAGS_FAT="-arch ppc -arch ppc64 -arch i386 -arch x86_64"
 			;;
 
 		darwin9.*)
 			#
-			# Leopard.  Build for 32-bit PowerPC, 64-bit
-			# PowerPC, x86, and x86-64, with 32-bit PowerPC
-			# first.  (That's what Apple does.)
+			# Leopard.  Build libraries for 32-bit PowerPC,
+			# 64-bit PowerPC, 32-bit x86, and x86-64, with
+			# 32-bit PowerPC first, and build executables
+			# for 32-bit x86 and 32-bit PowerPC, with 32-bit
+			# x86 first.  (That's what Apple does.)
 			#
-			V_CCOPT="$V_CCOPT -arch ppc -arch ppc64 -arch i386 -arch x86_64"
-			LDFLAGS="$LDFLAGS -arch ppc -arch ppc64 -arch i386 -arch x86_64"
+			V_LIB_CCOPT_FAT="-arch ppc -arch ppc64 -arch i386 -arch x86_64"
+			V_LIB_LDFLAGS_FAT="-arch ppc -arch ppc64 -arch i386 -arch x86_64"
+			V_PROG_CCOPT_FAT="-arch i386 -arch ppc"
+			V_PROG_LDFLAGS_FAT="-arch i386 -arch ppc"
 			;;
 
 		darwin10.*)
 			#
-			# Snow Leopard.  Build for x86-64, x86, and
-			# 32-bit PowerPC, with x86-64 first.  (That's
-			# what Apple does, even though Snow Leopard
-			# doesn't run on PPC, so PPC libpcap runs under
-			# Rosetta, and Rosetta doesn't support BPF
-			# ioctls, so PPC programs can't do live
-			# captures.)
+			# Snow Leopard.  Build libraries for x86-64,
+			# 32-bit x86, and 32-bit PowerPC, with x86-64
+			# first, and build executables for x86-64 and
+			# 32-bit x86, with x86-64 first.  (That's what
+			# Apple does, even though Snow Leopard doesn't
+			# run on PPC, so PPC libpcap runs under Rosetta,
+			# and Rosetta doesn't support BPF ioctls, so PPC
+			# programs can't do live captures.)
 			#
-			V_CCOPT="$V_CCOPT -arch x86_64 -arch i386 -arch ppc"
-			LDFLAGS="$LDFLAGS -arch x86_64 -arch i386 -arch ppc"
+			V_LIB_CCOPT_FAT="-arch x86_64 -arch i386 -arch ppc"
+			V_LIB_LDFLAGS_FAT="-arch x86_64 -arch i386 -arch ppc"
+			V_PROG_CCOPT_FAT="-arch x86_64 -arch i386"
+			V_PROG_LDFLAGS_FAT="-arch x86_64 -arch i386"
 			;;
 
 		darwin*)
 			#
-			# Post-Snow Leopard.  Build for x86-64 and
-			# x86, with x86-64 first.  (That's probably what
-			# Apple does, given that Rosetta is gone.)
+			# Post-Snow Leopard.  Build libraries for x86-64
+			# and 32-bit x86, with x86-64 first, and build
+			# executables only for x86-64.  (That's what
+			# Apple does.)  This requires no special flags
+			# for programs.
 			# XXX - update if and when Apple drops support
-			# for 32-bit x86 code.
+			# for 32-bit x86 code and if and when Apple adds
+			# ARM-based Macs.  (You're on your own for iOS
+			# etc.)
 			#
-			V_CCOPT="$V_CCOPT -arch x86_64 -arch i386"
-			LDFLAGS="$LDFLAGS -arch x86_64 -arch i386"
+			V_LIB_CCOPT_FAT="-arch x86_64 -arch i386"
+			V_LIB_LDFLAGS_FAT="-arch x86_64 -arch i386"
 			;;
 		esac
 	fi
@@ -1771,6 +1788,7 @@ osf*)
 	#
 	MAN_FILE_FORMATS=4
 	MAN_MISC_INFO=5
+	MAN_DEVICES=7
 	;;
 
 sinix*)
@@ -1814,6 +1832,7 @@ solaris*)
 		MAN_ADMIN_COMMANDS=1m
 		MAN_FILE_FORMATS=4
 		MAN_MISC_INFO=5
+		MAN_DEVICES=7D
 	esac
 	;;
 esac
@@ -1866,9 +1885,11 @@ AC_CHECK_MEMBERS([dl_hp_ppa_info_t.dl_module_id_1],,,
 	#include <sys/dlpi_ext.h>
     ])
 
-AC_LBL_UNALIGNED_ACCESS
-
 AC_SUBST(V_CCOPT)
+AC_SUBST(V_LIB_CCOPT_FAT)
+AC_SUBST(V_LIB_LDFLAGS_FAT)
+AC_SUBST(V_PROG_CCOPT_FAT)
+AC_SUBST(V_PROG_LDFLAGS_FAT)
 AC_SUBST(V_DEFS)
 AC_SUBST(V_FINDALLDEVS)
 AC_SUBST(V_INCLS)
@@ -1884,6 +1905,7 @@ AC_SUBST(ADDLOBJS)
 AC_SUBST(ADDLARCHIVEOBJS)
 AC_SUBST(SSRC)
 AC_SUBST(DYEXT)
+AC_SUBST(MAN_DEVICES)
 AC_SUBST(MAN_FILE_FORMATS)
 AC_SUBST(MAN_MISC_INFO)
 AC_SUBST(MAN_ADMIN_COMMANDS)
@@ -2279,7 +2301,7 @@ AC_OUTPUT(Makefile pcap-filter.manmisc pcap-linktype.manmisc
 	pcap_compile.3pcap pcap_datalink.3pcap pcap_dump_open.3pcap
 	pcap_get_tstamp_precision.3pcap pcap_list_datalinks.3pcap
 	pcap_list_tstamp_types.3pcap pcap_open_dead.3pcap
-	pcap_open_offline.3pcap pcap_set_tstamp_precision.3pcap
-	pcap_set_tstamp_type.3pcap rpcapd/Makefile rpcapd/rpcapd.manadmin
-	testprogs/Makefile)
+	pcap_open_offline.3pcap pcap_set_immediate_mode.3pcap
+	pcap_set_tstamp_precision.3pcap pcap_set_tstamp_type.3pcap
+	rpcapd/Makefile rpcapd/rpcapd.manadmin testprogs/Makefile)
 exit 0

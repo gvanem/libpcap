@@ -176,9 +176,8 @@ pcap_check_header(bpf_u_int32 magic, FILE *fp, u_int precision, char *errbuf,
 			    errno, "error reading dump file");
 		} else {
 			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-			    "truncated dump file; tried to read %lu file header bytes, only got %lu",
-			    (unsigned long)sizeof(hdr),
-			    (unsigned long)amt_read);
+			    "truncated dump file; tried to read %" PRIsize " file header bytes, only got %" PRIsize,
+			    sizeof(hdr), amt_read);
 		}
 		*err = 1;
 		return (NULL);
@@ -231,7 +230,6 @@ pcap_check_header(bpf_u_int32 magic, FILE *fp, u_int precision, char *errbuf,
 	p->swapped = swapped;
 	p->version_major = hdr.version_major;
 	p->version_minor = hdr.version_minor;
-	p->tzoff = hdr.thiszone;
 	p->snapshot = hdr.snaplen;
 	if (p->snapshot <= 0) {
 		/*
@@ -450,9 +448,8 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 		} else {
 			if (amt_read != 0) {
 				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-				    "truncated dump file; tried to read %lu header bytes, only got %lu",
-				    (unsigned long)ps->hdrsize,
-				    (unsigned long)amt_read);
+				    "truncated dump file; tried to read %" PRIsize " header bytes, only got %" PRIsize,
+				    ps->hdrsize, amt_read);
 				return (-1);
 			}
 			/* EOF */
@@ -569,9 +566,17 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 		 *
 		 * However, perhaps some versions of libpcap failed to
 		 * set the snapshot length currectly in the file header
-		 * or the per-packet header,  or perhaps this is a
+		 * or the per-packet header, or perhaps this is a
 		 * corrupted safefile or a savefile built/modified by a
-		 * fuzz tester, so we check anyway.
+		 * fuzz tester, so we check anyway.  We grow the buffer
+		 * to be big enough for the snapshot length, read up
+		 * to the snapshot length, discard the rest of the
+		 * packet, and report the snapshot length as the captured
+		 * length; we don't want to hand our caller a packet
+		 * bigger than the snapshot length, because they might
+		 * be assuming they'll never be handed such a packet,
+		 * and might copy the packet into a snapshot-length-
+		 * sized buffer, assuming it'll fit.
 		 */
 		size_t bytes_to_discard;
 		size_t bytes_to_read, bytes_read;
@@ -586,10 +591,10 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 		}
 
 		/*
-		 * Read the first p->bufsize bytes into the buffer.
+		 * Read the first p->snapshot bytes into the buffer.
 		 */
-		amt_read = fread(p->buffer, 1, p->bufsize, fp);
-		if (amt_read != p->bufsize) {
+		amt_read = fread(p->buffer, 1, p->snapshot, fp);
+		if (amt_read != (bpf_u_int32)p->snapshot) {
 			if (ferror(fp)) {
 				pcap_fmt_errmsg_for_errno(p->errbuf,
 				     PCAP_ERRBUF_SIZE, errno,
@@ -603,8 +608,8 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 				 * the read finished.
 				 */
 				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-				    "truncated dump file; tried to read %u captured bytes, only got %lu",
-				    hdr->caplen, (unsigned long)amt_read);
+				    "truncated dump file; tried to read %u captured bytes, only got %" PRIsize,
+				    p->snapshot, amt_read);
 			}
 			return (-1);
 		}
@@ -612,7 +617,7 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 		/*
 		 * Now read and discard what's left.
 		 */
-		bytes_to_discard = hdr->caplen - p->bufsize;
+		bytes_to_discard = hdr->caplen - p->snapshot;
 		bytes_read = amt_read;
 		while (bytes_to_discard != 0) {
 			bytes_to_read = bytes_to_discard;
@@ -627,8 +632,8 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 					    "error reading dump file");
 				} else {
 					pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-					    "truncated dump file; tried to read %u captured bytes, only got %lu",
-					    hdr->caplen, (unsigned long)bytes_read);
+					    "truncated dump file; tried to read %u captured bytes, only got %" PRIsize,
+					    hdr->caplen, bytes_read);
 				}
 				return (-1);
 			}
@@ -639,7 +644,7 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 		 * Adjust caplen accordingly, so we don't get confused later
 		 * as to how many bytes we have to play with.
 		 */
-		hdr->caplen = p->bufsize;
+		hdr->caplen = p->snapshot;
 	} else {
 		if (hdr->caplen > p->bufsize) {
 			/*
@@ -676,8 +681,8 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 				    "error reading dump file");
 			} else {
 				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-				    "truncated dump file; tried to read %u captured bytes, only got %lu",
-				    hdr->caplen, (unsigned long)amt_read);
+				    "truncated dump file; tried to read %u captured bytes, only got %" PRIsize,
+				    hdr->caplen, amt_read);
 			}
 			return (-1);
 		}
@@ -691,7 +696,7 @@ pcap_next_packet(pcap_t *p, struct pcap_pkthdr *hdr, u_char **data)
 }
 
 static int
-sf_write_header(pcap_t *p, FILE *fp, int linktype, int thiszone, int snaplen)
+sf_write_header(pcap_t *p, FILE *fp, int linktype, int snaplen)
 {
 	struct pcap_file_header hdr;
 
@@ -699,9 +704,15 @@ sf_write_header(pcap_t *p, FILE *fp, int linktype, int thiszone, int snaplen)
 	hdr.version_major = PCAP_VERSION_MAJOR;
 	hdr.version_minor = PCAP_VERSION_MINOR;
 
-	hdr.thiszone = thiszone;
-	hdr.snaplen = snaplen;
+	/*
+	 * https://www.tcpdump.org/manpages/pcap-savefile.5.txt states:
+	 * thiszone: 4-byte time zone offset; this is always 0.
+	 * sigfigs:  4-byte number giving the accuracy of time stamps
+	 *           in the file; this is always 0.
+	 */
+	hdr.thiszone = 0;
 	hdr.sigfigs = 0;
+	hdr.snaplen = snaplen;
 	hdr.linktype = linktype;
 
 	if (fwrite((char *)&hdr, sizeof(hdr), 1, fp) != 1)
@@ -720,8 +731,12 @@ pcap_dump(u_char *user, const struct pcap_pkthdr *h, const u_char *sp)
 	struct pcap_sf_pkthdr sf_hdr;
 
 	f = (FILE *)user;
-	sf_hdr.ts.tv_sec  = h->ts.tv_sec;
-	sf_hdr.ts.tv_usec = h->ts.tv_usec;
+	/*
+	 * Better not try writing pcap files after
+	 * 2038-01-19 03:14:07 UTC; switch to pcapng.
+	 */
+	sf_hdr.ts.tv_sec  = (bpf_int32)h->ts.tv_sec;
+	sf_hdr.ts.tv_usec = (bpf_int32)h->ts.tv_usec;
 	sf_hdr.caplen     = h->caplen;
 	sf_hdr.len        = h->len;
 	/* XXX we should check the return status */
@@ -746,7 +761,7 @@ pcap_setup_dump(pcap_t *p, int linktype, FILE *f, const char *fname)
 	else
 		setvbuf(f, NULL, _IONBF, 0);
 #endif
-	if (sf_write_header(p, f, linktype, p->tzoff, p->snapshot) == -1) {
+	if (sf_write_header(p, f, linktype, p->snapshot) == -1) {
 		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "Can't write to %s", fname);
 		if (f != stdout)
@@ -978,7 +993,7 @@ pcap_dump_open_append(pcap_t *p, const char *fname)
 		/*
 		 * A header isn't present; attempt to write it.
 		 */
-		if (sf_write_header(p, f, linktype, p->tzoff, p->snapshot) == -1) {
+		if (sf_write_header(p, f, linktype, p->snapshot) == -1) {
 			pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 			    errno, "Can't write to %s", fname);
 			(void)fclose(f);

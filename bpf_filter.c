@@ -44,6 +44,10 @@
 
 #include <pcap/pcap-inttypes.h>
 #include "pcap-types.h"
+#include "extract.h"
+
+#define EXTRACT_SHORT	EXTRACT_BE_U_2
+#define EXTRACT_LONG	EXTRACT_BE_U_4
 
 #ifndef _WIN32
 #include <sys/param.h>
@@ -51,45 +55,9 @@
 #include <sys/time.h>
 #endif /* _WIN32 */
 
-#include <pcap/bpf.h>
+#include <pcap-int.h>
 
 #include <stdlib.h>
-
-#define int32 bpf_int32
-#define u_int32 bpf_u_int32
-
-#ifndef LBL_ALIGN
-/*
- * XXX - IA-64?  If not, this probably won't work on Win64 IA-64
- * systems, unless LBL_ALIGN is defined elsewhere for them.
- * XXX - SuperH?  If not, this probably won't work on WinCE SuperH
- * systems, unless LBL_ALIGN is defined elsewhere for them.
- */
-#if defined(sparc) || defined(__sparc__) || defined(mips) || \
-    defined(ibm032) || defined(__alpha) || defined(__hpux) || \
-    defined(__arm__)
-#define LBL_ALIGN
-#endif
-#endif
-
-#ifndef LBL_ALIGN
-#ifndef _WIN32
-#include <netinet/in.h>
-#endif
-
-#define EXTRACT_SHORT(p)	((u_short)ntohs(*(u_short *)p))
-#define EXTRACT_LONG(p)		(ntohl(*(u_int32 *)p))
-#else
-#define EXTRACT_SHORT(p)\
-	((u_short)\
-		((u_short)*((u_char *)p+0)<<8|\
-		 (u_short)*((u_char *)p+1)<<0))
-#define EXTRACT_LONG(p)\
-		((u_int32)*((u_char *)p+0)<<24|\
-		 (u_int32)*((u_char *)p+1)<<16|\
-		 (u_int32)*((u_char *)p+2)<<8|\
-		 (u_int32)*((u_char *)p+3)<<0)
-#endif
 
 #ifdef __linux__
 #include <linux/types.h>
@@ -115,13 +83,19 @@ enum {
  *
  * Thanks to Ani Sinha <ani@arista.com> for providing initial implementation
  */
+#if defined(SKF_AD_VLAN_TAG_PRESENT)
 u_int
-bpf_filter_with_aux_data(const struct bpf_insn *pc, const u_char *p,
+pcap_filter_with_aux_data(const struct bpf_insn *pc, const u_char *p,
     u_int wirelen, u_int buflen, const struct bpf_aux_data *aux_data)
+#else
+u_int
+pcap_filter_with_aux_data(const struct bpf_insn *pc, const u_char *p,
+    u_int wirelen, u_int buflen, const struct bpf_aux_data *aux_data _U_)
+#endif
 {
-	register u_int32 A, X;
+	register uint32_t A, X;
 	register bpf_u_int32 k;
-	u_int32 mem[BPF_MEMWORDS];
+	uint32_t mem[BPF_MEMWORDS];
 
 	if (pc == 0)
 		/*
@@ -381,7 +355,7 @@ bpf_filter_with_aux_data(const struct bpf_insn *pc, const u_char *p,
 			 * can't be unsigned; throw some casts to
 			 * specify what we're trying to do.
 			 */
-			A = (u_int32)(-(int32)A);
+			A = (uint32_t)(-(int32_t)A);
 			continue;
 
 		case BPF_MISC|BPF_TAX:
@@ -396,12 +370,11 @@ bpf_filter_with_aux_data(const struct bpf_insn *pc, const u_char *p,
 }
 
 u_int
-bpf_filter(const struct bpf_insn *pc, const u_char *p, u_int wirelen,
+pcap_filter(const struct bpf_insn *pc, const u_char *p, u_int wirelen,
     u_int buflen)
 {
-	return bpf_filter_with_aux_data(pc, p, wirelen, buflen, NULL);
+	return pcap_filter_with_aux_data(pc, p, wirelen, buflen, NULL);
 }
-
 
 /*
  * Return true if the 'fcode' is a valid filter program.
@@ -415,7 +388,7 @@ bpf_filter(const struct bpf_insn *pc, const u_char *p, u_int wirelen,
  * Otherwise, a bogus program could easily crash the system.
  */
 int
-bpf_validate(const struct bpf_insn *f, int len)
+pcap_validate_filter(const struct bpf_insn *f, int len)
 {
 	u_int i, from;
 	const struct bpf_insn *p;
@@ -536,4 +509,20 @@ bpf_validate(const struct bpf_insn *f, int len)
 		}
 	}
 	return BPF_CLASS(f[len - 1].code) == BPF_RET;
+}
+
+/*
+ * Exported because older versions of libpcap exported them.
+ */
+u_int
+bpf_filter(const struct bpf_insn *pc, const u_char *p, u_int wirelen,
+    u_int buflen)
+{
+	return pcap_filter(pc, p, wirelen, buflen);
+}
+
+int
+bpf_validate(const struct bpf_insn *f, int len)
+{
+	return pcap_validate_filter(f, len);
 }

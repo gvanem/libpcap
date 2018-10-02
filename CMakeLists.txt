@@ -9,7 +9,7 @@ if(POLICY CMP0042)
     cmake_policy(SET CMP0042 OLD)
 endif()
 
-set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/Modules)
+set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules)
 
 project(pcap)
 
@@ -58,7 +58,6 @@ macro(check_and_add_compiler_option _option)
 endmacro()
 
 set(C_ADDITIONAL_FLAGS "")
-
 if(CMAKE_C_COMPILER_ID MATCHES "GNU" OR
    CMAKE_C_COMPILER_ID MATCHES "Clang")
     check_and_add_compiler_option("-std=gnu99")
@@ -103,17 +102,15 @@ else()
 endif()
 
 option(INET6 "Enable IPv6" ON)
-
 if(WIN32)
     option(USE_STATIC_RT "Use static Runtime" ON)
-    set(PACKET_DLL_DIR "" CACHE PATH "Path to directory with include and lib subdirectories for packet.dll")
-endif()
-
+endif(WIN32)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
+if(WIN32)
+    set(PACKET_DLL_DIR "" CACHE PATH "Path to directory with include and lib subdirectories for packet.dll")
+endif(WIN32)
 
-#
 # To pacify those who hate the protochain instruction
-#
 option(NO_PROTOCHAIN "Disable protochain instruction" OFF)
 
 #
@@ -131,88 +128,11 @@ if(WIN32)
     option(ENABLE_REMOTE "Enable remote capture" ON)
 else()
     option(ENABLE_REMOTE "Enable remote capture" OFF)
-endif()
+endif(WIN32)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     option(PCAP_SUPPORT_PACKET_RING "Enable Linux packet ring support" ON)
     option(BUILD_WITH_LIBNL "Build with libnl" ON)
-endif()
-
-#
-# By default, build universal with the appropriate set of architectures
-# for the OS on which we're doing the build.
-#
-if(APPLE AND "${CMAKE_OSX_ARCHITECTURES}" STREQUAL "")
-    #
-    # Get the major version of Darwin.
-    #
-    string(REGEX MATCH "^([0-9]+)" SYSTEM_VERSION_MAJOR "${CMAKE_SYSTEM_VERSION}")
-
-    if(SYSTEM_VERSION_MAJOR LESS 8)
-        #
-        # Pre-Tiger.  Build only for 32-bit PowerPC.
-        #
-        set(CMAKE_OSX_ARCHITECTURES "ppc")
-    elseif(SYSTEM_VERSION_MAJOR EQUAL 8)
-        #
-        # Tiger.  Is this prior to, or with, Intel support?
-        #
-        # Get the minor version of Darwin.
-        #
-        string(REPLACE "${SYSTEM_VERSION_MAJOR}." "" SYSTEM_MINOR_AND_PATCH_VERSION ${CMAKE_SYSTEM_VERSION})
-        string(REGEX MATCH "^([0-9]+)" SYSTEM_VERSION_MINOR "${SYSTEM_MINOR_AND_PATCH_VERSION}")
-        if(SYSTEM_VERSION_MINOR LESS 4)
-            #
-            # Prior to Intel support.  Build for 32-bit
-            # PowerPC and 64-bit PowerPC, with 32-bit PowerPC
-            # first.  (I'm guessing that's what Apple does.)
-            #
-            set(CMAKE_OSX_ARCHITECTURES "ppc;ppc64")
-        elseif(SYSTEM_VERSION_MINOR LESS 7)
-            #
-            # With Intel support but prior to x86-64 support.
-            # Build for 32-bit PowerPC, 64-bit PowerPC, and x86,
-            # with 32-bit PowerPC first.
-            # (I'm guessing that's what Apple does.)
-            #
-            set(CMAKE_OSX_ARCHITECTURES "ppc;ppc64;i386")
-        else()
-            #
-            # With Intel support including x86-64 support.
-            # Build for 32-bit PowerPC, 64-bit PowerPC, x86,
-            # and x86-64, with 32-bit PowerPC first.
-            # (I'm guessing that's what Apple does.)
-            #
-            set(CMAKE_OSX_ARCHITECTURES "ppc;ppc64;i386;x86_64")
-        endif()
-    elseif(SYSTEM_VERSION_MAJOR EQUAL 9)
-        #
-        # Leopard.  Build for 32-bit PowerPC, 64-bit
-        # PowerPC, x86, and x86-64, with 32-bit PowerPC
-        # first.  (That's what Apple does.)
-        #
-        set(CMAKE_OSX_ARCHITECTURES "ppc;ppc64;i386;x86_64")
-    elseif(SYSTEM_VERSION_MAJOR EQUAL 10)
-        #
-        # Snow Leopard.  Build for x86-64, x86, and
-        # 32-bit PowerPC, with x86-64 first.  (That's
-        # what Apple does, even though Snow Leopard
-        # doesn't run on PPC, so PPC libpcap runs under
-        # Rosetta, and Rosetta doesn't support BPF
-        # ioctls, so PPC programs can't do live
-        # captures.)
-        #
-        set(CMAKE_OSX_ARCHITECTURES "x86_64;i386;ppc")
-    else()
-        #
-        # Post-Snow Leopard.  Build for x86-64 and
-        # x86, with x86-64 first.  (That's probably what
-        # Apple does, given that Rosetta is gone.)
-        # XXX - update if and when Apple drops support
-        # for 32-bit x86 code.
-        #
-        set(CMAKE_OSX_ARCHITECTURES "x86_64;i386")
-    endif()
 endif()
 
 #
@@ -221,7 +141,6 @@ endif()
 option(DISABLE_USB "Disable USB sniffing support" OFF)
 option(DISABLE_BLUETOOTH "Disable Bluetooth sniffing support" OFF)
 option(DISABLE_NETMAP "Disable netmap support" OFF)
-
 #
 # We don't support D-Bus sniffing on macOS; see
 #
@@ -229,16 +148,15 @@ option(DISABLE_NETMAP "Disable netmap support" OFF)
 #
 if(APPLE)
     option(DISABLE_DBUS "Disable D-Bus sniffing support" ON)
-else()
+else(APPLE)
     option(DISABLE_DBUS "Disable D-Bus sniffing support" OFF)
-endif()
-
+endif(APPLE)
 option(DISABLE_RDMA "Disable RDMA sniffing support" OFF)
 
 option(DISABLE_DAG "Disable Endace DAG card support" OFF)
 
 option(DISABLE_SEPTEL "Disable Septel card support" OFF)
-set(SEPTEL_ROOT "${CMAKE_SOURCE_DIR}/../septel" CACHE PATH "Path to directory with include and lib subdirectories for Septel API")
+set(SEPTEL_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../septel" CACHE PATH "Path to directory with include and lib subdirectories for Septel API")
 
 option(DISABLE_SNF "Disable Myricom SNF support" OFF)
 
@@ -276,7 +194,7 @@ if(WIN32)
     # Append NANO (used for Windows internal versioning) to PCAP_VERSION_PREDLL
     # 0 means unused.
     set(PACKAGE_VERSION_DLL ${PACKAGE_VERSION_PREDLL},0)
-endif()
+endif(WIN32)
 
 set(PACKAGE_NAME "${LIBRARY_NAME}")
 set(PACKAGE_STRING "${LIBRARY_NAME} ${PACKAGE_VERSION}")
@@ -286,10 +204,6 @@ set(PACKAGE_STRING "${LIBRARY_NAME} ${PACKAGE_VERSION}")
 ######################################
 
 add_definitions(-DHAVE_CONFIG_H)
-
-if(WIN32)
-  add_definitions(-DUSE_PCAP_TRACE)
-endif()
 
 include_directories(
     ${CMAKE_CURRENT_BINARY_DIR}
@@ -303,10 +217,9 @@ if(WIN32)
 
     if(IS_DIRECTORY ${CMAKE_HOME_DIRECTORY}/../../Common)
         include_directories(${CMAKE_HOME_DIRECTORY}/../../Common)
-    endif()
+    endif(IS_DIRECTORY ${CMAKE_HOME_DIRECTORY}/../../Common)
 
     find_package(Packet)
-
     if(PACKET_FOUND)
         set(HAVE_PACKET32 TRUE)
         include_directories(${PACKET_INCLUDE_DIRS})
@@ -318,14 +231,14 @@ if(WIN32)
         set(CMAKE_REQUIRED_LIBRARIES ${PACKET_LIBRARIES})
         check_function_exists(PacketIsLoopbackAdapter HAVE_PACKET_IS_LOOPBACK_ADAPTER)
         cmake_pop_check_state()
-    endif()
+    endif(PACKET_FOUND)
 
-endif()
+endif(WIN32)
 
 if(MSVC)
     add_definitions(-D__STDC__)
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)
-endif()
+endif(MSVC)
 
 if(USE_STATIC_RT)
     message(STATUS "Use STATIC runtime")
@@ -336,13 +249,13 @@ if(USE_STATIC_RT)
                 CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
                 CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
                 string(REGEX REPLACE "/MD" "/MT" ${RT_FLAG} "${${RT_FLAG}}")
-            endforeach()
+            endforeach(RT_FLAG)
         elseif(MINGW)
             set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -static-libgcc")
         endif()
-else()
+else (USE_STATIC_RT)
     message(STATUS "Use DYNAMIC runtime")
-endif()
+endif(USE_STATIC_RT)
 
 ###################################################################
 #   Detect available platform features
@@ -361,18 +274,13 @@ check_include_file(stdint.h HAVE_STDINT_H)
 check_include_file(unistd.h HAVE_UNISTD_H)
 if(NOT HAVE_UNISTD_H)
     add_definitions(-DYY_NO_UNISTD_H)
-endif()
-
+endif(NOT HAVE_UNISTD_H)
 check_include_file(bitypes.h HAVE_SYS_BITYPES_H)
-
 if(NOT WIN32)
     check_include_file(sys/ioccom.h HAVE_SYS_IOCCOM_H)
     check_include_file(sys/sockio.h HAVE_SYS_SOCKIO_H)
     check_include_file(sys/select.h HAVE_SYS_SELECT_H)
-endif()
-
-check_include_file(limits.h HAVE_LIMITS_H)
-
+endif(NOT WIN32)
 if(NOT WIN32)
     check_include_file(netpacket/packet.h HAVE_NETPACKET_PACKET_H)
     check_include_files("sys/types.h;sys/socket.h;net/if.h;net/pfvar.h" HAVE_NET_PFVAR_H)
@@ -401,6 +309,11 @@ main(void)
         # linux/if_bonding.h requires sys/socket.h.
         #
         check_include_files("sys/socket.h;linux/if_bonding.h" HAVE_LINUX_IF_BONDING_H)
+
+        #
+        # Check for the eventfd header.
+        #
+        check_include_files("sys/eventfd.h" HAVE_SYS_EVENTFD_H)
     endif()
 endif(NOT WIN32)
 
@@ -444,7 +357,6 @@ check_function_exists(strtok_r HAVE_STRTOK_R)
 set(PCAP_LINK_LIBRARIES "")
 include(CheckLibraryExists)
 include(CheckSymbolExists)
-
 if(WIN32)
     #
     # We need winsock2.h and ws2tcpip.h.
@@ -455,10 +367,10 @@ if(WIN32)
     cmake_pop_check_state()
     if(LIBWS2_32_HAS_GETADDRINFO)
         set(PCAP_LINK_LIBRARIES ws2_32 ${PCAP_LINK_LIBRARIES})
-    else()
+    else(LIBWS2_32_HAS_GETADDRINFO)
         message(FATAL_ERROR "getaddrinfo is required, but wasn't found")
-    endif()
-else()
+    endif(LIBWS2_32_HAS_GETADDRINFO)
+else(WIN32)
     #
     # UN*X.  First try the system libraries, then try the libraries
     # for Solaris and possibly other systems that picked up the
@@ -479,12 +391,12 @@ else()
             # OK, we found it in libsocket.
             #
             set(PCAP_LINK_LIBRARIES socket nsl ${PCAP_LINK_LIBRARIES})
-        else()
+        else(LIBSOCKET_HAS_GETADDRINFO)
             #
             # We didn't find it.
             #
             message(FATAL_ERROR "getaddrinfo is required, but wasn't found")
-        endif()
+        endif(LIBSOCKET_HAS_GETADDRINFO)
 
         #
         # OK, do we have recvmsg() in libxnet?
@@ -494,14 +406,13 @@ else()
         set(CMAKE_REQUIRED_LIBRARIES socket nsl)
         check_library_exists(xnet recvmsg "" LIBXNET_HAS_RECVMSG)
         cmake_pop_check_state()
-
         if(LIBXNET_HAS_RECVMSG)
             #
             # Yes - link with it as well.
             #
             set(PCAP_LINK_LIBRARIES xnet ${PCAP_LINK_LIBRARIES})
-        endif()
-    endif()
+        endif(LIBXNET_HAS_RECVMSG)
+    endif(NOT STDLIBS_HAVE_GETADDRINFO)
 
     # DLPI needs putmsg under HPUX so test for -lstr while we're at it
     check_function_exists(putmsg STDLIBS_HAVE_PUTMSG)
@@ -509,9 +420,9 @@ else()
         check_library_exists(str putmsg "" LIBSTR_HAS_PUTMSG)
         if(LIBSTR_HAS_PUTMSG)
             set(PCAP_LINK_LIBRARIES str ${PCAP_LINK_LIBRARIES})
-        endif()
-    endif()
-endif()
+        endif(LIBSTR_HAS_PUTMSG)
+    endif(NOT STDLIBS_HAVE_PUTMSG)
+endif(WIN32)
 
 #
 # Check for reentrant versions of getnetbyname_r(), as provided by
@@ -527,9 +438,7 @@ endif()
 # can be checked.)
 #
 cmake_push_check_state()
-
 set(CMAKE_REQUIRED_LIBRARIES ${PCAP_LINK_LIBRARIES})
-
 check_symbol_exists(getnetbyname_r netdb.h NETDB_H_DECLARES_GETNETBYNAME_R)
 if(NETDB_H_DECLARES_GETNETBYNAME_R)
     check_c_source_compiles(
@@ -575,10 +484,9 @@ main(void)
 }
 "
                 HAVE_AIX_GETNETBYNAME_R)
-        endif()
-    endif()
-endif()
-
+        endif(NOT HAVE_SOLARIS_IRIX_GETNETBYNAME_R)
+    endif(NOT HAVE_LINUX_GETNETBYNAME_R)
+endif(NETDB_H_DECLARES_GETNETBYNAME_R)
 cmake_pop_check_state()
 
 #
@@ -640,10 +548,9 @@ main(void)
 }
 "
                 HAVE_AIX_GETPROTOBYNAME_R)
-        endif()
-    endif()
-endif()
-
+        endif(NOT HAVE_SOLARIS_IRIX_GETPROTOBYNAME_R)
+    endif(NOT HAVE_LINUX_GETPROTOBYNAME_R)
+endif(NETDB_H_DECLARES_GETPROTOBYNAME_R)
 cmake_pop_check_state()
 
 #
@@ -656,10 +563,9 @@ cmake_pop_check_state()
 cmake_push_check_state()
 if(WIN32)
     set(CMAKE_EXTRA_INCLUDE_FILES winsock2.h)
-else()
+else(WIN32)
     set(CMAKE_EXTRA_INCLUDE_FILES unistd.h sys/socket.h)
-endif()
-
+endif(WIN32)
 check_type_size("struct sockaddr_storage" STRUCT_SOCKADDR_STORAGE)
 check_type_size("socklen_t" SOCKLEN_T)
 cmake_pop_check_state()
@@ -671,13 +577,12 @@ if(WIN32)
     check_struct_has_member("struct sockaddr" sa_len winsock2.h HAVE_STRUCT_SOCKADDR_SA_LEN)
 else(WIN32)
     check_struct_has_member("struct sockaddr" sa_len sys/socket.h HAVE_STRUCT_SOCKADDR_SA_LEN)
-endif()
+endif(WIN32)
 
 #
 # Do we have ffs(), and is it declared in <strings.h>?
 #
 check_function_exists(ffs HAVE_FFS)
-
 if(HAVE_FFS)
     #
     # OK, we have ffs().  Is it declared in <strings.h>?
@@ -739,7 +644,6 @@ if(HAVE_ETHER_HOSTTON)
             set(HAVE_DECL_ETHER_HOSTTON TRUE)
         endif()
     endif()
-
     #
     # Did that succeed?
     #
@@ -758,7 +662,6 @@ if(HAVE_ETHER_HOSTTON)
             set(HAVE_DECL_ETHER_HOSTTON TRUE)
         endif()
     endif()
-
     #
     # Did that succeed?
     #
@@ -777,7 +680,6 @@ if(HAVE_ETHER_HOSTTON)
             set(HAVE_DECL_ETHER_HOSTTON TRUE)
         endif()
     endif()
-
     #
     # Did that succeed?
     #
@@ -800,7 +702,6 @@ if(HAVE_ETHER_HOSTTON)
             set(HAVE_DECL_ETHER_HOSTTON TRUE)
         endif()
     endif()
-
     #
     # After all that, is ether_hostton() declared?
     #
@@ -819,7 +720,6 @@ if(HAVE_ETHER_HOSTTON)
         cmake_pop_check_state()
     endif()
 endif()
-
 cmake_pop_check_state()
 
 #
@@ -868,8 +768,8 @@ if(NOT WIN32)
     # that require it.
     #
     set(CMAKE_THREAD_LIBS_INIT "")
-  endif()
-endif()
+  endif(NOT CMAKE_USE_PTHREADS_INIT)
+endif(NOT WIN32)
 
 ######################################
 # Input files
@@ -892,15 +792,15 @@ set(PROJECT_SOURCE_LIST_C
 )
 
 if(WIN32)
-    set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/win_snprintf.c pcap-trace.c pcap-namedb.c)
+    set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/win_snprintf.c)
 else()
     if(NOT HAVE_SNPRINTF)
         set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/snprintf.c)
-    endif()
+    endif(NOT HAVE_SNPRINTF)
     if(NOT HAVE_STRTOK_R)
         set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/strtok_r.c)
-    endif()
-endif()
+    endif(NOT HAVE_STRTOK_R)
+endif(WIN32)
 
 #
 # Determine the main pcap-XXX.c file to use, and the libraries with
@@ -958,12 +858,15 @@ else()
             # as it's a Linux, it should use packet sockets,
             # instead.
             #
-            #
             # We need:
             #
             #  sys/types.h, because FreeBSD 10's net/bpf.h
             #  requires that various BSD-style integer types
             #  be defined;
+            #
+            #  sys/time.h, because AIX 5.2 and 5.3's net/bpf.h
+            #  doesn't include it but does use struct timeval
+            #  in ioctl definitions;
             #
             #  sys/ioctl.h and, if we have it, sys/ioccom.h,
             #  because net/bpf.h defines ioctls;
@@ -979,12 +882,11 @@ else()
             # of those headers itself.
             #
             if(HAVE_SYS_IOCCOM_H)
-                check_symbol_exists(BIOCSETIF "sys/types.h;sys/ioctl.h;sys/socket.h;sys/ioccom.h;net/bpf.h;net/if.h" BPF_H_DEFINES_BIOCSETIF)
-            else()
-                check_symbol_exists(BIOCSETIF "sys/types.h;sys/ioctl.h;sys/socket.h;net/bpf.h;net/if.h" BPF_H_DEFINES_BIOCSETIF)
-            endif()
-        endif()
-
+                check_symbol_exists(BIOCSETIF "sys/types.h;sys/time.h;sys/ioctl.h;sys/socket.h;sys/ioccom.h;net/bpf.h;net/if.h" BPF_H_DEFINES_BIOCSETIF)
+            else(HAVE_SYS_IOCCOM_H)
+                check_symbol_exists(BIOCSETIF "sys/types.h;sys/time.h;sys/ioctl.h;sys/socket.h;net/bpf.h;net/if.h" BPF_H_DEFINES_BIOCSETIF)
+            endif(HAVE_SYS_IOCCOM_H)
+        endif(HAVE_NET_BPF_H)
         check_include_file(net/pfilt.h HAVE_NET_PFILT_H)
         check_include_file(net/enet.h HAVE_NET_ENET_H)
         check_include_file(net/nit.h HAVE_NET_NIT_H)
@@ -1042,7 +944,7 @@ else()
             set(PCAP_TYPE null)
         endif()
     endif()
-endif()
+endif(WIN32)
 message(STATUS "Packet capture mechanism type: ${PCAP_TYPE}")
 
 #
@@ -1055,13 +957,10 @@ if(WIN32)
         #
         set(PCAP_LINK_LIBRARIES ${PACKET_LIBRARIES} ${PCAP_LINK_LIBRARIES})
     elseif(PCAP_TYPE STREQUAL "null")
-        #
-        # Nop
-        #
     else()
         message(ERROR "${PCAP_TYPE} is not a valid pcap type")
     endif()
-else()
+else(WIN32)
     if(PCAP_TYPE STREQUAL "dlpi")
         #
         # Needed for common functions used by pcap-[dlpi,libdlpi].c
@@ -1210,7 +1109,7 @@ else()
     else()
         message(FATAL_ERROR "${PCAP_TYPE} is not a valid pcap type")
     endif()
-endif()
+endif(WIN32)
 
 set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} pcap-${PCAP_TYPE}.c)
 
@@ -1613,7 +1512,7 @@ if(ENABLE_REMOTE)
     # the check.
     #
     cmake_push_check_state()
-    set(CMAKE_REQUIRED_INCLUDES ${CMAKE_SOURCE_DIR})
+    set(CMAKE_REQUIRED_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR})
     check_struct_has_member("struct msghdr" msg_control "ftmacros.h;sys/socket.h" HAVE_STRUCT_MSGHDR_MSG_CONTROL)
     check_struct_has_member("struct msghdr" msg_flags "ftmacros.h;sys/socket.h" HAVE_STRUCT_MSGHDR_MSG_FLAGS)
     cmake_pop_check_state()
@@ -1628,7 +1527,7 @@ endif(ENABLE_REMOTE)
 #
 # Check and add warning options if we have a .devel file.
 #
-if(EXISTS ${CMAKE_SOURCE_DIR}/.devel OR EXISTS ${CMAKE_BINARY_DIR}/.devel)
+if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.devel OR EXISTS ${CMAKE_BINARY_DIR}/.devel)
     #
     # Warning options.
     #
@@ -1694,21 +1593,21 @@ if(EXISTS ${CMAKE_SOURCE_DIR}/.devel OR EXISTS ${CMAKE_BINARY_DIR}/.devel)
         # they might support GCC-style -W options.
         #
         check_and_add_compiler_option(-Wall)
-        check_and_add_compiler_option(-Wsign-compare)
-        check_and_add_compiler_option(-Wmissing-prototypes)
-        check_and_add_compiler_option(-Wstrict-prototypes)
-        check_and_add_compiler_option(-Wshadow)
-        check_and_add_compiler_option(-Wdeclaration-after-statement)
-        check_and_add_compiler_option(-Wused-but-marked-unused)
-        check_and_add_compiler_option(-Wdocumentation)
         check_and_add_compiler_option(-Wcomma)
-        check_and_add_compiler_option(-Wmissing-noreturn)
         # Warns about safeguards added in case the enums are extended
         # check_and_add_compiler_option(-Wcovered-switch-default)
-        check_and_add_compiler_option(-Wmissing-variable-declarations)
-        check_and_add_compiler_option(-Wunused-parameter)
+        check_and_add_compiler_option(-Wdocumentation)
         check_and_add_compiler_option(-Wformat-nonliteral)
+        check_and_add_compiler_option(-Wmissing-noreturn)
+        check_and_add_compiler_option(-Wmissing-prototypes)
+        check_and_add_compiler_option(-Wmissing-variable-declarations)
+        check_and_add_compiler_option(-Wshadow)
+        check_and_add_compiler_option(-Wsign-compare)
+        check_and_add_compiler_option(-Wshorten-64-to-32)
+        check_and_add_compiler_option(-Wstrict-prototypes)
         check_and_add_compiler_option(-Wunreachable-code)
+        check_and_add_compiler_option(-Wunused-parameter)
+        check_and_add_compiler_option(-Wused-but-marked-unused)
     endif()
 endif()
 
@@ -1839,10 +1738,12 @@ set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/grammar.c PROPERTIES
 
 #
 # Assume, by default, no support for shared libraries and V7/BSD
-# convention for man pages (file formats in section 5, miscellaneous
-# info in section 7, administrative commands and daemons in section 8).
+# convention for man pages (devices in section 4, file formats in
+# section 5, miscellaneous info in section 7, administrative commands
+# and daemons in section 8).  Individual cases can override this.
 # Individual cases can override this.
 #
+set(MAN_DEVICES 4)
 set(MAN_FILE_FORMATS 5)
 set(MAN_MISC_INFO 7)
 set(MAN_ADMIN_COMMANDS 8)
@@ -1900,6 +1801,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "OSF1")
     #
     set(MAN_FILE_FORMATS 4)
     set(MAN_MISC_INFO 5)
+    set(MAN_DEVICES 7)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "SunOS" AND CMAKE_SYSTEM_VERSION MATCHES "5[.][0-9.]*")
     #
     # SunOS 5.x.
@@ -1923,6 +1825,7 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "SunOS" AND CMAKE_SYSTEM_VERSION MATCHES "5[.]
         set(MAN_ADMIN_COMMANDS 1m)
         set(MAN_FILE_FORMATS 4)
         set(MAN_MISC_INFO 5)
+        set(MAN_DEVICES 7D)
     endif()
 endif()
 
@@ -1934,7 +1837,7 @@ if(WIN32)
     # Add pcap-dll.rc to the list of sources.
     #
     set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} ${pcap_SOURCE_DIR}/pcap-dll.rc)
-endif()
+endif(WIN32)
 
 #
 # Add subdirectories after we've set various variables, so they pick up
@@ -2038,7 +1941,7 @@ else(WIN32) # UN*X
     set_target_properties(${LIBRARY_NAME}_static PROPERTIES
         OUTPUT_NAME "${LIBRARY_NAME}"
     )
-endif()
+endif(WIN32)
 
 if(BUILD_SHARED_LIBS)
     if(NOT C_ADDITIONAL_FLAGS STREQUAL "")
@@ -2049,6 +1952,90 @@ endif(BUILD_SHARED_LIBS)
 
 if(NOT C_ADDITIONAL_FLAGS STREQUAL "")
     set_target_properties(${LIBRARY_NAME}_static PROPERTIES COMPILE_FLAGS ${C_ADDITIONAL_FLAGS})
+endif()
+
+#
+# On macOS, build libpcap for the appropriate architectures, if
+# CMAKE_OSX_ARCHITECTURES isn't set (if it is, let that control
+# the architectures for which to build it).
+#
+if(APPLE AND "${CMAKE_OSX_ARCHITECTURES}" STREQUAL "")
+    #
+    # Get the major version of Darwin.
+    #
+    string(REGEX MATCH "^([0-9]+)" SYSTEM_VERSION_MAJOR "${CMAKE_SYSTEM_VERSION}")
+
+    if(SYSTEM_VERSION_MAJOR LESS 8)
+        #
+        # Pre-Tiger.  Build only for 32-bit PowerPC.
+        #
+        set(OSX_LIBRARY_ARCHITECTURES "ppc")
+    elseif(SYSTEM_VERSION_MAJOR EQUAL 8)
+        #
+        # Tiger.  Is this prior to, or with, Intel support?
+        #
+        # Get the minor version of Darwin.
+        #
+        string(REPLACE "${SYSTEM_VERSION_MAJOR}." "" SYSTEM_MINOR_AND_PATCH_VERSION ${CMAKE_SYSTEM_VERSION})
+        string(REGEX MATCH "^([0-9]+)" SYSTEM_VERSION_MINOR "${SYSTEM_MINOR_AND_PATCH_VERSION}")
+        if(SYSTEM_VERSION_MINOR LESS 4)
+            #
+            # Prior to Intel support.  Build for 32-bit
+            # PowerPC and 64-bit PowerPC, with 32-bit PowerPC
+            # first.  (I'm guessing that's what Apple does.)
+            #
+            set(OSX_LIBRARY_ARCHITECTURES "ppc;ppc64")
+        elseif(SYSTEM_VERSION_MINOR LESS 7)
+            #
+            # With Intel support but prior to x86-64 support.
+            # Build for 32-bit PowerPC, 64-bit PowerPC, and 32-bit x86,
+            # with 32-bit PowerPC first.
+            # (I'm guessing that's what Apple does.)
+            #
+            set(OSX_LIBRARY_ARCHITECTURES "ppc;ppc64;i386")
+        else()
+            #
+            # With Intel support including x86-64 support.
+            # Build for 32-bit PowerPC, 64-bit PowerPC, 32-bit x86,
+            # and x86-64, with 32-bit PowerPC first.
+            # (I'm guessing that's what Apple does.)
+            #
+            set(OSX_LIBRARY_ARCHITECTURES "ppc;ppc64;i386;x86_64")
+        endif()
+    elseif(SYSTEM_VERSION_MAJOR EQUAL 9)
+        #
+        # Leopard.  Build for 32-bit PowerPC, 64-bit
+        # PowerPC, 32-bit x86, and x86-64, with 32-bit PowerPC
+        # first.  (That's what Apple does.)
+        #
+        set(OSX_LIBRARY_ARCHITECTURES "ppc;ppc64;i386;x86_64")
+    elseif(SYSTEM_VERSION_MAJOR EQUAL 10)
+        #
+        # Snow Leopard.  Build for x86-64, 32-bit x86, and
+        # 32-bit PowerPC, with x86-64 first.  (That's
+        # what Apple does, even though Snow Leopard
+        # doesn't run on PPC, so PPC libpcap runs under
+        # Rosetta, and Rosetta doesn't support BPF
+        # ioctls, so PPC programs can't do live
+        # captures.)
+        #
+        set(OSX_LIBRARY_ARCHITECTURES "x86_64;i386;ppc")
+    else()
+        #
+        # Post-Snow Leopard.  Build for x86-64 and 32-bit x86,
+        # with x86-64 first.  (That's what Apple does)
+        # XXX - update if and when Apple drops support
+        # for 32-bit x86 code and if and when Apple adds
+        # ARM-based Macs.  (You're on your own for iOS etc.)
+        #
+        set(OSX_LIBRARY_ARCHITECTURES "x86_64;i386")
+    endif()
+    if(BUILD_SHARED_LIBS)
+        set_target_properties(${LIBRARY_NAME} PROPERTIES
+            OSX_ARCHITECTURES "${OSX_LIBRARY_ARCHITECTURES}")
+    endif(BUILD_SHARED_LIBS)
+    set_target_properties(${LIBRARY_NAME}_static PROPERTIES
+        OSX_ARCHITECTURES "${OSX_LIBRARY_ARCHITECTURES}")
 endif()
 
 ######################################
@@ -2110,6 +2097,7 @@ set(MAN3PCAP_EXPAND
     pcap_list_tstamp_types.3pcap.in
     pcap_open_dead.3pcap.in
     pcap_open_offline.3pcap.in
+    pcap_set_immediate_mode.3pcap.in
     pcap_set_tstamp_precision.3pcap.in
     pcap_set_tstamp_type.3pcap.in
 )
@@ -2145,9 +2133,8 @@ set(MAN3PCAP_NOEXPAND
     pcap_open_live.3pcap
     pcap_set_buffer_size.3pcap
     pcap_set_datalink.3pcap
-    pcap_set_immediate_mode.3pcap
     pcap_set_promisc.3pcap
-    pcap_set_protocol.3pcap
+    pcap_set_protocol_linux.3pcap
     pcap_set_rfmon.3pcap
     pcap_set_snaplen.3pcap
     pcap_set_timeout.3pcap
@@ -2211,10 +2198,12 @@ if(WIN32)
     endif(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
 else(WIN32)
     install(TARGETS ${LIBRARY_NAME} ${LIBRARY_NAME_STATIC} DESTINATION lib)
-endif()
+endif(WIN32)
 
 install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/pcap/ DESTINATION include/pcap)
 install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pcap.h DESTINATION include)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pcap-bpf.h DESTINATION include)
+install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/pcap-namedb.h DESTINATION include)
 
 # On UN*X, and on Windows when not using MSVC, generate libpcap.pc and
 # pcap-config and process man pages and arrange that they be installed.
@@ -2254,8 +2243,8 @@ if(NOT MSVC)
     foreach(LIB ${PCAP_LINK_LIBRARIES})
         set(LIBS "${LIBS} -l${LIB}")
     endforeach(LIB)
-    configure_file(${CMAKE_SOURCE_DIR}/pcap-config.in ${CMAKE_CURRENT_BINARY_DIR}/pcap-config @ONLY)
-    configure_file(${CMAKE_SOURCE_DIR}/libpcap.pc.in ${CMAKE_CURRENT_BINARY_DIR}/libpcap.pc @ONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pcap-config.in ${CMAKE_CURRENT_BINARY_DIR}/pcap-config @ONLY)
+    configure_file(${CMAKE_CURRENT_SOURCE_DIR}/libpcap.pc.in ${CMAKE_CURRENT_BINARY_DIR}/libpcap.pc @ONLY)
     install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/pcap-config DESTINATION bin)
     install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libpcap.pc DESTINATION lib/pkgconfig)
 
@@ -2267,17 +2256,17 @@ if(NOT MSVC)
     #
     set(MAN1 "")
     foreach(MANPAGE ${MAN1_NOEXPAND})
-        set(MAN1 ${MAN1} ${CMAKE_SOURCE_DIR}/${MANPAGE})
+        set(MAN1 ${MAN1} ${CMAKE_CURRENT_SOURCE_DIR}/${MANPAGE})
     endforeach(MANPAGE)
     install(FILES ${MAN1} DESTINATION ${CMAKE_INSTALL_MANDIR}/man1)
 
     set(MAN3PCAP "")
     foreach(MANPAGE ${MAN3PCAP_NOEXPAND})
-        set(MAN3PCAP ${MAN3PCAP} ${CMAKE_SOURCE_DIR}/${MANPAGE})
+        set(MAN3PCAP ${MAN3PCAP} ${CMAKE_CURRENT_SOURCE_DIR}/${MANPAGE})
     endforeach(MANPAGE)
     foreach(TEMPLATE_MANPAGE ${MAN3PCAP_EXPAND})
         string(REPLACE ".in" "" MANPAGE ${TEMPLATE_MANPAGE})
-        configure_file(${CMAKE_SOURCE_DIR}/${TEMPLATE_MANPAGE} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE} @ONLY)
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${TEMPLATE_MANPAGE} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE} @ONLY)
         set(MAN3PCAP ${MAN3PCAP} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE})
     endforeach(TEMPLATE_MANPAGE)
     install(FILES ${MAN3PCAP} DESTINATION ${CMAKE_INSTALL_MANDIR}/man3)
@@ -2301,7 +2290,7 @@ if(NOT MSVC)
     set(MANFILE "")
     foreach(TEMPLATE_MANPAGE ${MANFILE_EXPAND})
         string(REPLACE ".manfile.in" ".${MAN_FILE_FORMATS}" MANPAGE ${TEMPLATE_MANPAGE})
-        configure_file(${CMAKE_SOURCE_DIR}/${TEMPLATE_MANPAGE} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE} @ONLY)
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${TEMPLATE_MANPAGE} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE} @ONLY)
         set(MANFILE ${MANFILE} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE})
     endforeach(TEMPLATE_MANPAGE)
     install(FILES ${MANFILE} DESTINATION ${CMAKE_INSTALL_MANDIR}/man${MAN_FILE_FORMATS})
@@ -2309,7 +2298,7 @@ if(NOT MSVC)
     set(MANMISC "")
     foreach(TEMPLATE_MANPAGE ${MANMISC_EXPAND})
         string(REPLACE ".manmisc.in" ".${MAN_MISC_INFO}" MANPAGE ${TEMPLATE_MANPAGE})
-        configure_file(${CMAKE_SOURCE_DIR}/${TEMPLATE_MANPAGE} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE} @ONLY)
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${TEMPLATE_MANPAGE} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE} @ONLY)
         set(MANMISC ${MANMISC} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE})
     endforeach(TEMPLATE_MANPAGE)
     install(FILES ${MANMISC} DESTINATION ${CMAKE_INSTALL_MANDIR}/man${MAN_MISC_INFO})

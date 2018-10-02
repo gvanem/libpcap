@@ -549,15 +549,35 @@
  */
 #define LINKTYPE_LAPD		203
 
+
 /*
- * Variants of various link-layer headers, with a one-byte direction
- * pseudo-header prepended - zero means "received by this host",
- * non-zero (any non-zero value) means "sent by this host" - as per
- * Will Barker <w.barker@zen.co.uk>.
+ * PPP, with a one-byte direction pseudo-header prepended - zero means
+ * "received by this host", non-zero (any non-zero value) means "sent by
+ * this host" - as per Will Barker <w.barker@zen.co.uk>.
  */
-#define LINKTYPE_PPP_WITH_DIR	204	/* PPP */
+#define LINKTYPE_PPP_WITH_DIR	204	/* Don't confuse with LINKTYPE_PPP_PPPD */
+
+/*
+ * Cisco HDLC, with a one-byte direction pseudo-header prepended - zero
+ * means "received by this host", non-zero (any non-zero value) means
+ * "sent by this host" - as per Will Barker <w.barker@zen.co.uk>.
+ */
 #define LINKTYPE_C_HDLC_WITH_DIR 205	/* Cisco HDLC */
+
+/*
+ * Frame Relay, with a one-byte direction pseudo-header prepended - zero
+ * means "received by this host" (DCE -> DTE), non-zero (any non-zero
+ * value) means "sent by this host" (DTE -> DCE) - as per Will Barker
+ * <w.barker@zen.co.uk>.
+ */
 #define LINKTYPE_FRELAY_WITH_DIR 206	/* Frame Relay */
+
+/*
+ * LAPB, with a one-byte direction pseudo-header prepended - zero means
+ * "received by this host" (DCE -> DTE), non-zero (any non-zero value)
+ * means "sent by this host" (DTE -> DCE)- as per Will Barker
+ * <w.barker@zen.co.uk>.
+ */
 #define LINKTYPE_LAPB_WITH_DIR	207	/* LAPB */
 
 /*
@@ -1081,7 +1101,37 @@
  */
 #define LINKTYPE_DISPLAYPORT_AUX	275
 
-#define LINKTYPE_MATCHING_MAX	275		/* highest value in the "matching" range */
+/*
+ * Linux cooked sockets v2.
+ */
+#define LINKTYPE_LINUX_SLL2	276
+
+/*
+ * Sercos Monitor, per Manuel Jacob <manuel.jacob at steinbeis-stg.de>
+ */
+#define LINKTYPE_SERCOS_MONITOR 277
+
+/*
+ * OpenVizsla http://openvizsla.org is open source USB analyzer hardware.
+ * It consists of FPGA with attached USB phy and FTDI chip for streaming
+ * the data to the host PC.
+ *
+ * Current OpenVizsla data encapsulation format is described here:
+ * https://github.com/matwey/libopenvizsla/wiki/OpenVizsla-protocol-description
+ *
+ */
+#define LINKTYPE_OPENVIZSLA     278
+
+#define LINKTYPE_MATCHING_MAX	278		/* highest value in the "matching" range */
+
+/*
+ * The DLT_ and LINKTYPE_ values in the "matching" range should be the
+ * same, so DLT_MATCHING_MAX and LINKTYPE_MATCHING_MAX should be the
+ * same.
+ */
+#if LINKTYPE_MATCHING_MAX != DLT_MATCHING_MAX
+#error The LINKTYPE_ matching range does not match the DLT_ matching range
+#endif
 
 static struct linktype_map {
 	int	dlt;
@@ -1269,7 +1319,7 @@ swap_linux_sll_header(const struct pcap_pkthdr *hdr, u_char *buf)
 		return;
 	}
 
-	protocol = EXTRACT_16BITS(&shdr->sll_protocol);
+	protocol = EXTRACT_BE_U_2(&shdr->sll_protocol);
 	if (protocol != LINUX_SLL_P_CAN && protocol != LINUX_SLL_P_CANFD)
 		return;
 

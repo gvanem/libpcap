@@ -50,6 +50,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <string.h>
 #include <dirent.h>
 #include <byteswap.h>
@@ -135,7 +136,7 @@ static int usb_stats_linux_bin(pcap_t *, struct pcap_stat *);
 static int usb_read_linux(pcap_t *, int , pcap_handler , u_char *);
 static int usb_read_linux_bin(pcap_t *, int , pcap_handler , u_char *);
 static int usb_read_linux_mmap(pcap_t *, int , pcap_handler , u_char *);
-static int usb_inject_linux(pcap_t *, const void *, size_t);
+static int usb_inject_linux(pcap_t *, const void *, int);
 static int usb_setdirection_linux(pcap_t *, pcap_direction_t);
 static void usb_cleanup_linux_mmap(pcap_t *);
 
@@ -144,7 +145,7 @@ have_binary_usbmon(void)
 {
 	struct utsname utsname;
 	char *version_component, *endp;
-	int major, minor, subminor;
+	long major, minor, subminor;
 
 	if (uname(&utsname) == 0) {
 		/*
@@ -733,6 +734,7 @@ usb_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_cha
 	struct pcap_usb_linux *handlep = handle->priv;
 	unsigned timestamp;
 	int tag, cnt, ep_num, dev_addr, dummy, ret, urb_len, data_len;
+	ssize_t read_ret;
 	char etype, pipeid1, pipeid2, status[16], urb_tag, line[USB_LINE_LEN];
 	char *string = line;
 	u_char * rawdata = handle->buffer;
@@ -743,14 +745,14 @@ usb_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_cha
 
 	/* ignore interrupt system call errors */
 	do {
-		ret = read(handle->fd, line, USB_LINE_LEN - 1);
+		read_ret = read(handle->fd, line, USB_LINE_LEN - 1);
 		if (handle->break_loop)
 		{
 			handle->break_loop = 0;
 			return -2;
 		}
-	} while ((ret == -1) && (errno == EINTR));
-	if (ret < 0)
+	} while ((read_ret == -1) && (errno == EINTR));
+	if (read_ret < 0)
 	{
 		if (errno == EAGAIN)
 			return 0;	/* no data there */
@@ -762,7 +764,7 @@ usb_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_cha
 
 	/* read urb header; %n argument may increment return value, but it's
 	* not mandatory, so does not count on it*/
-	string[ret] = 0;
+	string[read_ret] = 0;
 	ret = sscanf(string, "%x %d %c %c%c:%d:%d %s%n", &tag, &timestamp, &etype,
 		&pipeid1, &pipeid2, &dev_addr, &ep_num, status,
 		&cnt);
@@ -787,7 +789,7 @@ usb_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_cha
 		return -1;
 	}
 	uhdr->ts_sec = pkth.ts.tv_sec;
-	uhdr->ts_usec = pkth.ts.tv_usec;
+	uhdr->ts_usec = (int32_t)pkth.ts.tv_usec;
 
 	/* parse endpoint information */
 	if (pipeid1 == 'C')
@@ -911,7 +913,7 @@ got:
 		pkth.caplen = (bpf_u_int32)handle->snapshot;
 
 	if (handle->fcode.bf_insns == NULL ||
-	    bpf_filter(handle->fcode.bf_insns, handle->buffer,
+	    pcap_filter(handle->fcode.bf_insns, handle->buffer,
 	      pkth.len, pkth.caplen)) {
 		handlep->packets_read++;
 		callback(user, &pkth, handle->buffer);
@@ -921,7 +923,7 @@ got:
 }
 
 static int
-usb_inject_linux(pcap_t *handle, const void *buf _U_, size_t size _U_)
+usb_inject_linux(pcap_t *handle, const void *buf _U_, int size _U_)
 {
 	pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "inject not supported on "
 		"USB devices");
@@ -932,7 +934,8 @@ static int
 usb_stats_linux(pcap_t *handle, struct pcap_stat *stats)
 {
 	struct pcap_usb_linux *handlep = handle->priv;
-	int dummy, ret, consumed, cnt;
+	int dummy, cnt;
+	ssize_t ret, consumed;
 	char string[USB_LINE_LEN];
 	char token[USB_LINE_LEN];
 	char * ptr = string;
@@ -973,6 +976,10 @@ usb_stats_linux(pcap_t *handle, struct pcap_stat *stats)
 	}
 	string[ret] = 0;
 
+	stats->ps_recv = handlep->packets_read;
+	stats->ps_drop = 0;	/* unless we find text_lost */
+	stats->ps_ifdrop = 0;
+
 	/* extract info on dropped urbs */
 	for (consumed=0; consumed < ret; ) {
 		/* from the sscanf man page:
@@ -989,18 +996,16 @@ usb_stats_linux(pcap_t *handle, struct pcap_stat *stats)
 			break;
 		consumed += cnt;
 		ptr += cnt;
-		if (strcmp(token, "nreaders") == 0)
-			ret = sscanf(ptr, "%d", &stats->ps_drop);
+		if (strcmp(token, "text_lost") == 0)
+			ntok = sscanf(ptr, "%d%n", &stats->ps_drop, &cnt);
 		else
-			ret = sscanf(ptr, "%d", &dummy);
-		if (ntok != 1)
+			ntok = sscanf(ptr, "%d%n", &dummy, &cnt);
+		if ((ntok != 1) || (cnt < 0))
 			break;
 		consumed += cnt;
 		ptr += cnt;
 	}
 
-	stats->ps_recv = handlep->packets_read;
-	stats->ps_ifdrop = 0;
 	return 0;
 }
 
@@ -1080,7 +1085,7 @@ usb_read_linux_bin(pcap_t *handle, int max_packets _U_, pcap_handler callback, u
 	pkth.ts.tv_usec = info.hdr->ts_usec;
 
 	if (handle->fcode.bf_insns == NULL ||
-	    bpf_filter(handle->fcode.bf_insns, handle->buffer,
+	    pcap_filter(handle->fcode.bf_insns, handle->buffer,
 	      pkth.len, pkth.caplen)) {
 		handlep->packets_read++;
 		callback(user, &pkth, handle->buffer);
@@ -1162,7 +1167,7 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 			pkth.ts.tv_usec = hdr->ts_usec;
 
 			if (handle->fcode.bf_insns == NULL ||
-			    bpf_filter(handle->fcode.bf_insns, (u_char*) hdr,
+			    pcap_filter(handle->fcode.bf_insns, (u_char*) hdr,
 			      pkth.len, pkth.caplen)) {
 				handlep->packets_read++;
 				callback(user, &pkth, (u_char*) hdr);

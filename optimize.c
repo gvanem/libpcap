@@ -94,6 +94,7 @@ pcap_set_print_dot_graph(int value)
 {
 	pcap_print_dot_graph = value;
 }
+
 #endif
 
 /*
@@ -252,19 +253,19 @@ typedef struct {
  * True if a is in uset {p}
  */
 #define SET_MEMBER(p, a) \
-((p)[(unsigned)(a) / BITS_PER_WORD] & (1 << ((unsigned)(a) % BITS_PER_WORD)))
+((p)[(unsigned)(a) / BITS_PER_WORD] & ((bpf_u_int32)1 << ((unsigned)(a) % BITS_PER_WORD)))
 
 /*
  * Add 'a' to uset p.
  */
 #define SET_INSERT(p, a) \
-(p)[(unsigned)(a) / BITS_PER_WORD] |= (1 << ((unsigned)(a) % BITS_PER_WORD))
+(p)[(unsigned)(a) / BITS_PER_WORD] |= ((bpf_u_int32)1 << ((unsigned)(a) % BITS_PER_WORD))
 
 /*
  * Delete 'a' from uset p.
  */
 #define SET_DELETE(p, a) \
-(p)[(unsigned)(a) / BITS_PER_WORD] &= ~(1 << ((unsigned)(a) % BITS_PER_WORD))
+(p)[(unsigned)(a) / BITS_PER_WORD] &= ~((bpf_u_int32)1 << ((unsigned)(a) % BITS_PER_WORD))
 
 /*
  * a := a intersect b
@@ -681,7 +682,7 @@ F(opt_state_t *opt_state, int code, int v0, int v1)
 	int val;
 	struct valnode *p;
 
-	hash = (u_int)code ^ (v0 << 4) ^ (v1 << 8);
+	hash = (u_int)code ^ ((u_int)v0 << 4) ^ ((u_int)v1 << 8);
 	hash %= MODULUS;
 
 	for (p = opt_state->hashtbl[hash]; p; p = p->next)
@@ -1500,7 +1501,7 @@ opt_j(opt_state_t *opt_state, struct edge *ep)
 
 		while (x != 0) {
 			k = lowest_set_bit(x);
-			x &=~ (1 << k);
+			x &=~ ((bpf_u_int32)1 << k);
 			k += i * BITS_PER_WORD;
 
 			target = fold_edge(ep->succ, opt_state->edges[k]);
@@ -2361,7 +2362,7 @@ install_bpf_program(pcap_t *p, struct bpf_program *fp)
 	/*
 	 * Validate the program.
 	 */
-	if (!bpf_validate(fp->bf_insns, fp->bf_len)) {
+	if (!pcap_validate_filter(fp->bf_insns, fp->bf_len)) {
 		pcap_snprintf(p->errbuf, sizeof(p->errbuf),
 			"BPF program is not valid");
 		return (-1);

@@ -266,6 +266,14 @@ dnl Check whether the compiler option specified as the second argument
 dnl is supported by the compiler and, if so, add it to the macro
 dnl specified as the first argument
 dnl
+dnl If a third argument is supplied, treat it as C code to be compiled
+dnl with the flag in question, and the "treat warnings as errors" flag
+dnl set, and don't add the flag to the first argument if the compile
+dnl fails; this is for warning options cause problems that can't be
+dnl worked around.  If a third argument is supplied, a fourth argument
+dnl should also be supplied; it's a message desribing what the test
+dnl program is checking.
+dnl
 AC_DEFUN(AC_LBL_CHECK_COMPILER_OPT,
     [
 	AC_MSG_CHECKING([whether the compiler supports the $2 option])
@@ -287,8 +295,38 @@ AC_DEFUN(AC_LBL_CHECK_COMPILER_OPT,
 	    [return 0],
 	    [
 		AC_MSG_RESULT([yes])
+		can_add_to_cflags=yes
+		#
+		# The compile supports this; do we have some C code for
+		# which the warning should *not* appear?
+		# We test the fourth argument because the third argument
+		# could contain quotes, breaking the test.
+		#
+		if test "x$4" != "x"
+		then
+		    CFLAGS="$CFLAGS $ac_lbl_cc_force_warning_errors"
+		    AC_MSG_CHECKING(whether $2 $4)
+		    AC_COMPILE_IFELSE(
+		      [AC_LANG_SOURCE($3)],
+		      [
+			#
+			# Not a problem.
+			#
+			AC_MSG_RESULT(no)
+		      ],
+		      [
+			#
+			# A problem.
+			#
+			AC_MSG_RESULT(yes)
+			can_add_to_cflags=no
+		      ])
+		fi
 		CFLAGS="$save_CFLAGS"
-		$1="$$1 $2"
+		if test x"$can_add_to_cflags" = "xyes"
+		then
+		    $1="$$1 $2"
+		fi
 	    ],
 	    [
 		AC_MSG_RESULT([no])
@@ -715,106 +753,6 @@ AC_DEFUN(AC_LBL_HAVE_RUN_PATH,
     ])
 
 dnl
-dnl Checks to see if unaligned memory accesses fail
-dnl
-dnl usage:
-dnl
-dnl	AC_LBL_UNALIGNED_ACCESS
-dnl
-dnl results:
-dnl
-dnl	LBL_ALIGN (DEFINED)
-dnl
-AC_DEFUN(AC_LBL_UNALIGNED_ACCESS,
-    [AC_MSG_CHECKING(if unaligned accesses fail)
-    AC_CACHE_VAL(ac_cv_lbl_unaligned_fail,
-	[case "$host_cpu" in
-
-	#
-	# These are CPU types where:
-	#
-	#	the CPU faults on an unaligned access, but at least some
-	#	OSes that support that CPU catch the fault and simulate
-	#	the unaligned access (e.g., Alpha/{Digital,Tru64} UNIX) -
-	#	the simulation is slow, so we don't want to use it;
-	#
-	#	the CPU, I infer (from the old
-	#
-	# XXX: should also check that they don't do weird things (like on arm)
-	#
-	#	comment) doesn't fault on unaligned accesses, but doesn't
-	#	do a normal unaligned fetch, either (e.g., presumably, ARM);
-	#
-	#	for whatever reason, the test program doesn't work
-	#	(this has been claimed to be the case for several of those
-	#	CPUs - I don't know what the problem is; the problem
-	#	was reported as "the test program dumps core" for SuperH,
-	#	but that's what the test program is *supposed* to do -
-	#	it dumps core before it writes anything, so the test
-	#	for an empty output file should find an empty output
-	#	file and conclude that unaligned accesses don't work).
-	#
-	# This run-time test won't work if you're cross-compiling, so
-	# in order to support cross-compiling for a particular CPU,
-	# we have to wire in the list of CPU types anyway, as far as
-	# I know, so perhaps we should just have a set of CPUs on
-	# which we know it doesn't work, a set of CPUs on which we
-	# know it does work, and have the script just fail on other
-	# cpu types and update it when such a failure occurs.
-	#
-	alpha*|arm*|bfin*|hp*|mips*|sh*|sparc*|ia64|nv1)
-		ac_cv_lbl_unaligned_fail=yes
-		;;
-
-	*)
-		cat >conftest.c <<EOF
-#		include <sys/types.h>
-#		include <sys/wait.h>
-#		include <stdio.h>
-		unsigned char a[[5]] = { 1, 2, 3, 4, 5 };
-		main() {
-		unsigned int i;
-		pid_t pid;
-		int status;
-		/* avoid "core dumped" message */
-		pid = fork();
-		if (pid <  0)
-			exit(2);
-		if (pid > 0) {
-			/* parent */
-			pid = waitpid(pid, &status, 0);
-			if (pid < 0)
-				exit(3);
-			exit(!WIFEXITED(status));
-		}
-		/* child */
-		i = *(unsigned int *)&a[[1]];
-		printf("%d\n", i);
-		exit(0);
-		}
-EOF
-		${CC-cc} -o conftest $CFLAGS $CPPFLAGS $LDFLAGS \
-		    conftest.c $LIBS >/dev/null 2>&1
-		if test ! -x conftest ; then
-			dnl failed to compile for some reason
-			ac_cv_lbl_unaligned_fail=yes
-		else
-			./conftest >conftest.out
-			if test ! -s conftest.out ; then
-				ac_cv_lbl_unaligned_fail=yes
-			else
-				ac_cv_lbl_unaligned_fail=no
-			fi
-		fi
-		rm -f -r conftest* core core.conftest
-		;;
-	esac])
-    AC_MSG_RESULT($ac_cv_lbl_unaligned_fail)
-    if test $ac_cv_lbl_unaligned_fail = yes ; then
-	    AC_DEFINE(LBL_ALIGN,1,[if unaligned access fails])
-    fi])
-
-dnl
 dnl If the file .devel exists:
 dnl	Add some warning flags if the compiler supports them
 dnl	If an os prototype include exists, symlink os-proto.h to it
@@ -840,23 +778,58 @@ AC_DEFUN(AC_LBL_DEVEL,
 	    #
 	    if test "$ac_lbl_cc_dont_try_gcc_dashW" != yes; then
 		    AC_LBL_CHECK_UNKNOWN_WARNING_OPTION_ERROR()
+		    AC_LBL_CHECK_COMPILER_OPT($1, -W)
 		    AC_LBL_CHECK_COMPILER_OPT($1, -Wall)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wsign-compare)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wmissing-prototypes)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wstrict-prototypes)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wshadow)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wdeclaration-after-statement)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wused-but-marked-unused)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wdocumentation)
 		    AC_LBL_CHECK_COMPILER_OPT($1, -Wcomma)
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wdocumentation)
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wformat-nonliteral)
 		    AC_LBL_CHECK_COMPILER_OPT($1, -Wmissing-noreturn)
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wmissing-prototypes)
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wmissing-variable-declarations)
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wshadow)
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wsign-compare)
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wstrict-prototypes)
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wunused-parameter)
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wused-but-marked-unused)
 		    # Warns about safeguards added in case the enums are
 		    # extended
 		    # AC_LBL_CHECK_COMPILER_OPT($1, -Wcovered-switch-default)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wmissing-variable-declarations)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wunused-parameter)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wformat-nonliteral)
-		    AC_LBL_CHECK_COMPILER_OPT($1, -Wunreachable-code)
+		    #
+		    # This can cause problems with ntohs(), ntohl(),
+		    # htons(), and htonl() on some platforms, such
+		    # as OpenBSD 6.3 with Clang 5.0.1.  I guess the
+		    # problem is that the macro that ultimately does
+		    # the byte-swapping involves a conditional
+		    # expression that tests whether the value being
+		    # swapped is a compile-time constant or not,
+		    # using __builtin_constant_p(), and, depending
+		    # on whether it is, does a compile-time swap or
+		    # a run-time swap; perhaps the compiler always
+		    # considers one of the two results of the
+		    # conditional expressin is never evaluated,
+		    # because the conditional check is done at
+		    # compile time, and thus always says "that
+		    # expression is never executed".
+		    #
+		    # (Perhaps there should be a way of flagging
+		    # an expression that you *want* evaluated at
+		    # compile time, so that the compiler 1) warns
+		    # if it *can't* be evaluated at compile time
+		    # and 2) *doesn't* warn that the true or false
+		    # branch will never be reached.)
+		    #
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wunreachable-code,
+		      [
+#include <arpa/inet.h>
+
+unsigned short
+testme(unsigned short a)
+{
+	return ntohs(a);
+}
+		      ],
+		      [generates warnings from ntohs()])
+		    AC_LBL_CHECK_COMPILER_OPT($1, -Wshorten-64-to-32)
 	    fi
 	    AC_LBL_CHECK_DEPENDENCY_GENERATION_OPT()
 	    #

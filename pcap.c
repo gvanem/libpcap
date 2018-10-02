@@ -62,11 +62,7 @@ struct rtentry;		/* declarations in <net/if.h> */
 #endif
 #include <fcntl.h>
 #include <errno.h>
-#ifdef HAVE_LIMITS_H
 #include <limits.h>
-#else
-#define INT_MAX		2147483647
-#endif
 
 #ifdef HAVE_OS_PROTO_H
 #include "os-proto.h"
@@ -789,13 +785,12 @@ get_if_description(const char *name)
 	}
 #endif
 	return (description);
-}
 #else /* SIOCGIFDESCR */
 get_if_description(const char *name _U_)
 {
 	return (NULL);
-}
 #endif /* SIOCGIFDESCR */
+}
 
 /*
  * Look for a given device in the specified list of devices.
@@ -2140,6 +2135,13 @@ initialize_ops(pcap_t *p)
 	 * be used for pcap_next()/pcap_next_ex().
 	 */
 	p->oneshot_callback = pcap_oneshot;
+
+    /*
+     * Default breakloop operation - implementations can override
+     * this, but should call pcap_breakloop_common() before doing
+     * their own logic.
+     */
+    p->breakloop_op = pcap_breakloop_common;
 }
 
 static pcap_t *
@@ -2157,14 +2159,23 @@ pcap_alloc_pcap_t(char *ebuf, size_t size)
 	 * plus a structure following it of size "size".  The
 	 * structure following it is a private data structure
 	 * for the routines that handle this pcap_t.
+	 *
+	 * The structure following it must be aligned on
+	 * the appropriate alignment boundary for this platform.
+	 * We align on an 8-byte boundary as that's probably what
+	 * at least some platforms do, even with 32-bit integers,
+	 * and because we can't be sure that some values won't
+	 * require 8-byte alignment even on platforms with 32-bit
+	 * integers.
 	 */
-	chunk = malloc(sizeof (pcap_t) + size);
+#define PCAP_T_ALIGNED_SIZE	((sizeof(pcap_t) + 7) & ~0x7)
+	chunk = malloc(PCAP_T_ALIGNED_SIZE + size);
 	if (chunk == NULL) {
 		pcap_fmt_errmsg_for_errno(ebuf, PCAP_ERRBUF_SIZE,
 		    errno, "malloc");
 		return (NULL);
 	}
-	memset(chunk, 0, sizeof (pcap_t) + size);
+	memset(chunk, 0, PCAP_T_ALIGNED_SIZE + size);
 
 	/*
 	 * Get a pointer to the pcap_t at the beginning.
@@ -2189,7 +2200,7 @@ pcap_alloc_pcap_t(char *ebuf, size_t size)
 		 * Set the pointer to the private data; that's the structure
 		 * of size "size" following the pcap_t.
 		 */
-		p->priv = (void *)(chunk + sizeof (pcap_t));
+		p->priv = (void *)(chunk + PCAP_T_ALIGNED_SIZE);
 	}
 
 	return (p);
@@ -2555,13 +2566,13 @@ pcap_open_live(const char *device, int snaplen, int promisc, int to_ms, char *er
 	return (p);
 fail:
 	if (status == PCAP_ERROR)
-		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "%s: %s", device,
-		    p->errbuf);
+		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "%s: %.*s", device,
+		    PCAP_ERRBUF_SIZE - 3, p->errbuf);
 	else if (status == PCAP_ERROR_NO_SUCH_DEVICE ||
 	    status == PCAP_ERROR_PERM_DENIED ||
 	    status == PCAP_ERROR_PROMISC_PERM_DENIED)
-		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "%s: %s (%s)", device,
-		    pcap_statustostr(status), p->errbuf);
+		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "%s: %s (%.*s)", device,
+		    pcap_statustostr(status), PCAP_ERRBUF_SIZE - 6, p->errbuf);
 	else
 		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "%s: %s", device,
 		    pcap_statustostr(status));
@@ -2625,7 +2636,7 @@ pcap_loop(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 void
 pcap_breakloop(pcap_t *p)
 {
-	p->break_loop = 1;
+	p->breakloop_op(p);
 }
 
 int
@@ -2874,7 +2885,7 @@ static struct dlt_choice dlt_choices[] = {
 	DLT_CHOICE(FRELAY, "Frame Relay"),
 	DLT_CHOICE(LOOP, "OpenBSD loopback"),
 	DLT_CHOICE(ENC, "OpenBSD encapsulated IP"),
-	DLT_CHOICE(LINUX_SLL, "Linux cooked"),
+	DLT_CHOICE(LINUX_SLL, "Linux cooked v1"),
 	DLT_CHOICE(LTALK, "Localtalk"),
 	DLT_CHOICE(PFLOG, "OpenBSD pflog file"),
 	DLT_CHOICE(PFSYNC, "Packet filter state syncing"),
@@ -2992,6 +3003,7 @@ static struct dlt_choice dlt_choices[] = {
 	DLT_CHOICE(DOCSIS31_XRA31, "Excentis XRA-31 DOCSIS 3.1 RF sniffer frames"),
 	DLT_CHOICE(ETHERNET_MPACKET, "802.3br mPackets"),
 	DLT_CHOICE(DISPLAYPORT_AUX, "DisplayPort AUX channel monitoring data"),
+	DLT_CHOICE(LINUX_SLL2, "Linux cooked v2"),
 	DLT_CHOICE_SENTINEL
 };
 
@@ -3275,7 +3287,7 @@ pcap_win32_err_to_str(DWORD error, char *errbuf)
 	size_t errlen;
 	char *p;
 
-	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL, error, 0, errbuf,
+	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM, NULL, error, 0, errbuf,
 	    PCAP_ERRBUF_SIZE, NULL);
 
 	/*
@@ -3628,6 +3640,12 @@ pcap_remove_from_pcaps_to_close(pcap_t *p)
 }
 
 void
+pcap_breakloop_common(pcap_t *p)
+{
+	p->break_loop = 1;
+}
+
+void
 pcap_cleanup_live_common(pcap_t *p)
 {
 	if (p->buffer != NULL) {
@@ -3668,6 +3686,12 @@ pcap_cleanup_live_common(pcap_t *p)
 int
 pcap_sendpacket(pcap_t *p, const u_char *buf, int size)
 {
+	if (size <= 0) {
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "The number of bytes to be sent must be positive");
+		return (PCAP_ERROR);
+	}
+
 	if (p->inject_op(p, buf, size) == -1)
 		return (-1);
 	return (0);
@@ -3680,7 +3704,23 @@ pcap_sendpacket(pcap_t *p, const u_char *buf, int size)
 int
 pcap_inject(pcap_t *p, const void *buf, size_t size)
 {
-	return (p->inject_op(p, buf, size));
+	/*
+	 * We return the number of bytes written, so the number of
+	 * bytes to write must fit in an int.
+	 */
+	if (size > INT_MAX) {
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "More than %d bytes cannot be injected", INT_MAX);
+		return (PCAP_ERROR);
+	}
+
+	if (size == 0) {
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "The number of bytes to be injected must not be zero");
+		return (PCAP_ERROR);
+	}
+
+	return (p->inject_op(p, buf, (int)size));
 }
 
 void
@@ -3705,7 +3745,7 @@ pcap_offline_filter(const struct bpf_program *fp, const struct pcap_pkthdr *h,
 	const struct bpf_insn *fcode = fp->bf_insns;
 
 	if (fcode != NULL)
-		return (bpf_filter(fcode, pkt, h->len, h->caplen));
+		return (pcap_filter(fcode, pkt, h->len, h->caplen));
 	else
 		return (0);
 }
@@ -3728,7 +3768,7 @@ pcap_read_dead(pcap_t *p, int cnt _U_, pcap_handler callback _U_,
 }
 
 static int
-pcap_inject_dead(pcap_t *p, const void *buf _U_, size_t size _U_)
+pcap_inject_dead(pcap_t *p, const void *buf _U_, int size _U_)
 {
 	pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 	    "Packets can't be sent on a pcap_open_dead pcap_t");

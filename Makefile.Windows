@@ -1,5 +1,5 @@
 #
-# libpcap Makefile for MinGW, MSVC, clang-cl or Watcom / Win32.
+# libpcap Makefile for MinGW, MSVC or clang-cl (Win32/Win64).
 #
 # By G. Vanem <gvanem@yahoo.no>  2003 - 2017.
 #
@@ -12,11 +12,19 @@ MAKE_FILE = Makefile.Windows
 
 define USAGE
 
-  Usage: "$(MAKE) -f Makefile.Windows CC=[gcc | cl | clang-cl | wcc386] <CPU=x86|x64>
+  Usage: "$(MAKE) -f Makefile.Windows CC=[gcc | cl | clang-cl] <CPU=x86|x64>
          [all | clean | vclean | realclean | depend | install]"
 endef
 
 export USAGE
+
+ifeq ($(CC),cl)
+  MSVC_TYPE = 1
+else ifeq ($(CC),clang-cl)
+  MSVC_TYPE = 1
+else
+  MSVC_TYPE = 0
+endif
 
 #
 # Options, change to suite:
@@ -43,7 +51,7 @@ HAVE_AIRPCAP ?= 1
 # Set to 1 to build with WanPacket.cpp. Since it doesn't compile with MinGW,
 # we load WanPacket.dll indirectly via Win32/WanPacket_imp.c.
 #
-HAVE_WANPACKET ?= 0
+HAVE_WANPACKET ?= 1
 
 #
 # Enable WinPcap plugin support.
@@ -53,7 +61,7 @@ HAVE_PLUGINS ?= 1
 #
 # Build with CACE Tech's TurboCap API. MSVC only.
 #
-HAVE_TC_API ?= 0
+HAVE_TC_API ?= 1
 
 #
 # Build with CACE Tech's DAG API. Untested since I don't have it.
@@ -142,12 +150,12 @@ NETMAP_ROOT ?= ./libpcap-apps/netmap
 #
 # TurboCap base path.
 #
-TC_API_ROOT ?= "c:/Program Files (x86)/Riverbed/TurboCap"
+TC_API_ROOT ?= 'c:/Program Files (x86)/Riverbed/TurboCap'
 
 #
 # DAG API base path.
 #
-DAG_API_ROOT ?= f:/ProgramFiler/Riverbed/DagApi
+DAG_API_ROOT ?= "c:/Program Files (x86)/Riverbed/DagApi"
 
 #
 # Network Monitor SDK path.
@@ -166,28 +174,15 @@ USBPCAP_ROOT ?= $(MINGW_ROOT)/src/USB/USBPcap
 DECNET_ROOT = ./missing
 
 #
-# Modify above 'HAVE_x' and 'USE_x' based on compiler and other 'USE_x' / 'HAVE_x'.
+# Modify above 'HAVE_x' to avoid using such features with 'gcc'.
+# They won't work.!
 #
-ifeq ($(HAVE_TC_API),1)
-  ifeq ($(MSVC_TYPE),0)
+ifeq ($(CC),gcc)
+  ifeq ($(HAVE_TC_API),1)
     $(warning 'HAVE_TC_API=1' is impossible with $(CC).)
     HAVE_TC_API := 0
   endif
-endif
 
-ifeq ($(CC),wcc386)
-  ifeq ($(HAVE_AIRPCAP),1)
-    $(warning 'HAVE_AIPCAP=1' is impossible with $(CC).)
-    HAVE_AIRPCAP := 0
-  endif
-
-  ifeq ($(HAVE_PCAP_REMOTE),1)
-    $(warning 'HAVE_PCAP_REMOTE=1' is impossible with $(CC).)
-    HAVE_PCAP_REMOTE := 0
-  endif
-endif
-
-ifeq ($(CC),gcc)
   ifeq ($(HAVE_BLUETOOTH),1)
     $(warning 'HAVE_BLUETOOTH=1' is impossible with $(CC).)
     HAVE_BLUETOOTH := 0
@@ -217,12 +212,12 @@ endif
 # The following codes used in macro 'colour_msg' assumes you have
 # MSys/Cygwin's echo with colour support.
 #
-LIGHT_RED    = \e[1;31m
-LIGHT_GREEN  = \e[1;32m
-LIGHT_YELLOW = \e[1;33m
+BRIGHT_RED    = \e[1;31m
+BRIGHT_GREEN  = \e[1;32m
+BRIGHT_YELLOW = \e[1;33m
 
 colour_msg    = @echo -e "$(1)\e[0m"
-message_green = $(call colour_msg,$(LIGHT_GREEN)$(1))
+message_green = $(call colour_msg,$(BRIGHT_GREEN)$(1))
 
 VERSION     = $(shell cat ./VERSION)
 DATE_STAMP  = $(shell date +%d-%B-%Y)
@@ -239,11 +234,9 @@ ifeq ($(CPU),)
   #
   CPU := x86
   #
-  # Only 32-bit supported with clang-cl and Watcom.
+  # Only 32-bit supported with clang-cl.
   #
 else ifeq ($(CC),clang-cl)
-  CPU := x86
-else ifeq ($(CC),wcc386)
   CPU := x86
 endif
 
@@ -280,10 +273,9 @@ ifeq ($(CC),cl)
   #
   CL_CC     = $(VC_ROOT)/bin/HostX86/$(CPU)/cl.exe
   CL_LINK   = $(VC_ROOT)/bin/HostX86/$(CPU)/link.exe
-  CFLAGS    = -nologo -Zi -Ot -W2
+  CFLAGS    = -nologo -Zi -Zo -Ot -W2
   LDFLAGS   = -nologo -map -debug -incremental:no -verbose
   RCFLAGS   = -D_MSC_VER
-  MSVC_TYPE = 1
   O         = obj
   OBJ_DIR   = MSVC_obj
 
@@ -293,7 +285,7 @@ else ifeq ($(CC),clang-cl)
   #
   export CL=
 
-  CFLAGS = -nologo -Zi -Ot -fms-compatibility
+  CFLAGS = -nologo -Zi -Zo -Ot -fms-compatibility
 
   CFLAGS += -GS- -Wall                             \
             -Wno-reserved-id-macro                 \
@@ -321,8 +313,8 @@ else ifeq ($(CC),clang-cl)
             -Wno-nonportable-include-path          \
             -Wno-\#pragma-messages                 \
             -Wno-covered-switch-default            \
-          # -Wno-missing-noreturn                  \
-          # -Wno-missing-variable-declarations
+            -Wno-missing-variable-declarations     \
+          # -Wno-missing-noreturn
 
   #
   # Turn off these warnings:
@@ -344,7 +336,6 @@ else ifeq ($(CC),clang-cl)
   CL_LINK   = $(VC_ROOT)/bin/HostX86/$(CPU)/link.exe
   LDFLAGS   = -nologo -map -debug -incremental:no -verbose
   RCFLAGS   = -D__clang__
-  MSVC_TYPE = 1
   O         = obj
   OBJ_DIR   = clang_obj
 
@@ -352,7 +343,6 @@ else ifeq ($(CC),gcc)
   CFLAGS    = -m$(BITS)
   LDFLAGS   = -m$(BITS)
   RCFLAGS   = -D__MINGW32__
-  MSVC_TYPE = 0
   O         = o
   OBJ_DIR   = MinGW_obj
 
@@ -365,23 +355,11 @@ else ifeq ($(CC),gcc)
     RCFLAGS += --target=pe-i386
   endif
 
-else ifeq ($(CC),wcc386)
-  CFLAGS = -5s -hc -zff -zw -zgf -zq -zm -s -fr=nul -w2 -fpi -oilrtfm \
-           -bt=nt -d+ -bm -wx -mf -q -x -I$(WATCOM)\h -I$(WATCOM)\h\nt
-
- # CFLAGS += -bd -fp6 -zri
-
-  RCFLAGS   = -D__WATCOMC__
-  MSVC_TYPE = 0
-  OBJ_DIR   = Watcom_obj
-  O         = obj
-
 else
   $(error $(USAGE))
 endif
 
 RCFLAGS += -I.
-
 
 ifeq ($(MSVC_TYPE),1)
   CFLAGS += -D_CRT_NONSTDC_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -D_CRT_OBSOLETE_NO_WARNINGS
@@ -406,7 +384,7 @@ ifeq ($(MSVC_TYPE),1)
   WPCAP_DLL       = wpcap$(X64_SUFFIX).dll
   WPCAP2_DLL      = wpcap2$(X64_SUFFIX).dll
 
-else ifeq ($(CC),gcc)
+else
   WPCAP_STAT_LIB  = libwpcap$(X64_SUFFIX)_static.a
   WPCAP2_STAT_LIB = libwpcap2$(X64_SUFFIX)_static.a
 
@@ -415,16 +393,6 @@ else ifeq ($(CC),gcc)
 
   WPCAP_DLL       = wpcap$(X64_SUFFIX).dll
   WPCAP2_DLL      = wpcap2$(X64_SUFFIX).dll
-
-else ifeq ($(CC),wcc386)
-  WPCAP_STAT_LIB  = wpcap_wc.lib
-  WPCAP2_STAT_LIB = wpcap_wc_static.lib
-
-  WPCAP_IMP_LIB   = wpcap_wc_imp.lib
-  WPCAP2_IMP_LIB  = wpcap2_wc_imp.lib
-
-  WPCAP_DLL      = wpcap_wc.dll
-  WPCAP2_DLL     = wpcap2_wc.dll
 endif
 
 ###########################################################################################
@@ -488,10 +456,6 @@ CFLAGS += -I.
 
 ifeq ($(CC),cl)
   CFLAGS += -D_U_=
-
-else ifeq ($(CC),wcc386)
-  CFLAGS += -D_U_=
-
 else
   CFLAGS += -D_U_='__attribute__((unused))'
 endif
@@ -519,21 +483,15 @@ endif
 TARGETS = $(WPCAP_DLL) $(WPCAP2_DLL) $(WPCAP_STAT_LIB) $(WPCAP2_STAT_LIB) $(WPCAP_IMP_LIB) $(WPCAP2_IMP_LIB)
 
 #
-# Targets that should be copied to $(INSTALL_BIN_DIR):
+# BIN_TARGETS: Targets that should be copied to $(INSTALL_BIN_DIR):
+# LINK_CRAP:   Files to delete on 'make realclean':
 #
 BIN_TARGETS = $(WPCAP_DLL) $(WPCAP2_DLL)
+LINK_CRAP   = $(WPCAP_DLL:.dll=.map) $(WPCAP2_DLL:.dll=.map)
 
 ifeq ($(MSVC_TYPE),1)
   BIN_TARGETS += $(WPCAP_DLL:.dll=.pdb) $(WPCAP2_DLL:.dll=.pdb)
-endif
-
-#
-# Files to delete on 'make realclean':
-#
-LINK_CRAP = $(WPCAP_DLL:.dll=.map) $(WPCAP2_DLL:.dll=.map)
-
-ifeq ($(MSVC_TYPE),1)
-  LINK_CRAP += $(WPCAP_DLL:.dll=.pdb) $(WPCAP2_DLL:.dll=.pdb) vc1*.pdb
+  LINK_CRAP   += $(WPCAP_DLL:.dll=.pdb) $(WPCAP2_DLL:.dll=.pdb) vc1*.pdb
 endif
 
 LIBPCAP_C_SRC = bpf_dump.c           \
@@ -559,9 +517,6 @@ LIBPCAP_C_SRC = bpf_dump.c           \
 # Don't add this for MSVC/clang since 'strtok_r' is a macro in portability.h.
 #
 ifeq ($(CC),gcc)
-  LIBPCAP_C_SRC += missing/strtok_r.c
-
-else ifeq ($(CC),wcc386)
   LIBPCAP_C_SRC += missing/strtok_r.c
 endif
 
@@ -604,16 +559,12 @@ else
                     AdInfo.c)
 endif
 
-ifeq ($(CC),wcc386)
-  FEATURES += "Release build,"
-
-else ifeq ($(CC),gcc)
+ifeq ($(CC),gcc)
   ifeq ($(USE_CRT_DEBUG),1)
     CFLAGS += -O0 -gcoff
   else
     CFLAGS += -O2 -ffast-math -fomit-frame-pointer
   endif
-
 else
   ifeq ($(USE_CRT_DEBUG),1)
     CFLAGS   += -MDd
@@ -739,16 +690,12 @@ else
 endif
 
 ifeq ($(HAVE_TC_API),1)
-  WINPCAP_C_SRC += pcap-tc.c
+  LIBPCAP_C_SRC += pcap-tc.c
   CFLAGS        += -DHAVE_TC_API \
                    -I$(TC_API_ROOT)/devpack/include
 
-  ifeq ($(MSVC_TYPE),0)
-    $(warning 'HAVE_TC_API=1' is impossible with $(CC))
-  else
-    EX_LIBS   = $(TC_API_ROOT)/devpack/lib/$(CPU)/TcApi.lib
-    FEATURES += "TurboCap,"
-  endif
+  EX_LIBS   = $(TC_API_ROOT)/devpack/lib/$(CPU)/TcApi.lib
+  FEATURES += "TurboCap,"
 endif
 
 ifeq ($(HAVE_PCAP_REMOTE),1)
@@ -849,28 +796,6 @@ else ifeq ($(CC),gcc)
   #   make CC="gcc -m64"
   #
   PACKET_LIB = $(WINPCAP_ROOT)/lib/$(LIB_SUBDIR)libpacket.a
-
-else
-  #
-  # Watcom, 32-bit only.
-  #
-  ifeq ($(USE_WIN10PCAP),1)
-    #
-    # This is a static-library for Win10Pcap's Packet code.
-    #
-    PACKET_LIB = $(WIN10PCAP_ROOT)/Packet_dll/Packet32.lib
-  else
-    #
-    # This is an *import* library for CACE Tech's (Riverbed's) Packet.dll.
-    #
-    PACKET_LIB = $(WINPCAP_ROOT)/lib/Packet.lib
-  endif
-
-  EX_LIBS += ws2_32.lib, version.lib, advapi32.lib, user32.lib, kernel32.lib, iphlpapi.lib
-
-  ifeq ($(USE_WIN10PCAP),1)
-    EX_LIBS += , winmm.lib
-  endif
 endif
 
 #
@@ -882,11 +807,11 @@ GENERATED = Win32/config.h grammar.c grammar.h scanner.c scanner.h
 all: intro $(GENERATED) $(OBJ_DIR) docs $(TARGETS) programs epilogue
 
 intro:
-	$(call colour_msg,$(LIGHT_GREEN)Building $(VERSION) (CC=$(CC)) with "$(FEATURES)")
+	$(call colour_msg,$(BRIGHT_GREEN)Building $(VERSION) (CC=$(CC)) with "$(FEATURES)")
 
 epilogue:
-	$(call colour_msg,$(LIGHT_GREEN)Welcome to libpcap $(LIGHT_YELLOW)(CC=$(CC), $(BITS)-bits).)
-	$(call colour_msg,$(LIGHT_GREEN)Do a $(LIGHT_YELLOW)make CC=$(CC) -f $(MAKE_FILE) install$(LIGHT_GREEN) at own risk.)
+	$(call colour_msg,$(BRIGHT_GREEN)Welcome to libpcap $(BRIGHT_YELLOW)(CC=$(CC), $(BITS)-bits).)
+	$(call colour_msg,$(BRIGHT_GREEN)Do a $(BRIGHT_YELLOW)make CC=$(CC) -f $(MAKE_FILE) install$(BRIGHT_GREEN) at own risk.)
 
 #
 # These import libraries are generated by the 'link_DLL' rules for these .DLLs.
@@ -1130,41 +1055,6 @@ define CONFIG_H
     #if defined(_M_X64) || defined(_M_IA64) || defined(_M_AMD64)
       #pragma warning (disable:4267)  /* conversion from 'size_t' to 'u_int', possible loss of data */
     #endif
-
-  #elif defined(__WATCOMC__)
-    #define __STDC_WANT_LIB_EXT1__ 1
-
-    #include <stddef.h>
-
-    /*
-     * Watcpm does not have strtok_r(), but we add missing/strtok_r.c
-     */
-    #define HAVE_STRTOK_R 1
-
-    /*
-     * Watcom doesn't have <wspiapi.h> which is needed for IPv6.
-     */
-    #undef  INET6
-    #define WIN32
-    #define EAFNOSUPPORT WSAEAFNOSUPPORT
-    #define YY_NEVER_INTERACTIVE
-    #define _W64
-
-    #define strcasecmp(s1,s2)      stricmp(s1,s2)
-    #define MAX_NETWORK_ADDRESSES  16
-    #define _setmode               setmode
-    #define u_int64_t              uint64_t
-
-    extern const char *gai_strerror (int err); /* in Win32/win-misc.c */
-
-    #if !defined(COMPILING_WIN10PCAP)
-      #undef  _WIN32_WINNT
-      #define _WIN32_WINNT           0x0501
-      #undef  WINVER
-      #define WINVER                 0x0501
-      #undef  NTDDI_VERSION
-      #define NTDDI_VERSION          (WINVER*0x1000)
-    #endif
   #endif
 
   #if defined(__MINGW32__) || defined(__WATCOMC__)
@@ -1242,9 +1132,6 @@ define CONFIG_H
     #elif defined(__MINGW32__)
       #define RC_HOST "MinGW"
 
-    #elif defined(__WATCOMC__)
-      #define RC_HOST "OpenWatcom"
-
     #else
       #error "Who are you?"
     #endif
@@ -1309,7 +1196,7 @@ define WPCAP_RC
         VALUE "LegalCopyright",   "Copyright (c) The TCPdump Group"
         VALUE "LegalTrademarks",  ""
         VALUE "OriginalFilename", RC_DLL_NAME
-        VALUE "PrivateBuild",     "G. Vanem's private build at $(DATE_STAMP)"
+        VALUE "PrivateBuild",     "G. Vanem's private build of $(DATE_STAMP)"
         VALUE "ProductName",      RC_DLL_NAME " (" RC_HOST ", $(BITS)-bit)"
         VALUE "ProductVersion",   PACKAGE_VERSION  // _STR_VER
         VALUE "FileVersion",      _STR_VER
@@ -1327,27 +1214,9 @@ endef
 #
 # Force including the Win32/config.h file on every compile.
 #
-FORCE_INC =
-
 ifeq ($(CC),gcc)
   FORCE_INC = --include Win32/config.h
-
-else ifeq ($(CC),clang-cl)
-  #
-  # Force including the Win32/config.h file on every compile.
-  #
-  FORCE_INC = -FI./Win32/config.h
-
-else ifeq ($(CC),wcc386)
-  #
-  # Force including the Win32/config.h file on every compile.
-  #
-  FORCE_INC = # -fi=.\Win32\config.h
-
 else
-  #
-  # Force including the Win32/config.h file on every compile.
-  #
   FORCE_INC = -FI./Win32/config.h
 endif
 
@@ -1402,33 +1271,7 @@ $(WPCAP_DLL): $(WPCAP_OBJ) $(OBJ_DIR)/wpcap.res
 $(WPCAP2_DLL): $(WPCAP2_OBJ) $(OBJ_DIR)/wpcap2.res $(OBJ_DIR)/wpcap2.def
 	$(call link_DLL, $@, $(WPCAP2_IMP_LIB), \
 	                 $(WPCAP2_OBJ) $(OBJ_DIR)/wpcap2.res $(EX_LIBS) -def:$(OBJ_DIR)/wpcap2.def)
-
-else ifeq ($(CC),wcc386)
-
-$(WPCAP_DLL): $(WPCAP_OBJ) $(OBJ_DIR)/wpcap.res $(OBJ_DIR)/wpcap.args
-	$(call link_DLL, $@, @$(OBJ_DIR)\wpcap.args)
-
-$(WPCAP2_DLL): $(WPCAP2_OBJ) $(OBJ_DIR)/wpcap2.res $(OBJ_DIR)/wpcap2.def $(OBJ_DIR)/wpcap2.args
-	$(call link_DLL, $@, @$(OBJ_DIR)\wpcap2.args)
-
-$(OBJ_DIR)/wpcap.args: $(MAKE_FILE)
-	$(call colour_msg,Creating $(LIGHT_YELLOW)$@.)
-	@echo 'option implib=$(WPCAP_IMP_LIB), quiet, map, verbose,'             > $@
-	@echo 'caseexact, map=$(WPCAP_DLL:.dll=.map), res=$(OBJ_DIR)\wpcap.res' >> $@
-	@echo 'libpath $(WATCOM)\lib386;$(WATCOM)\lib386\nt'                    >> $@
-	@echo 'library $(subst /,\, $(PACKET_LIB), $(EX_LIBS))'                 >> $@
-	@echo 'file { $(subst /,\,$(WPCAP_OBJ)) }'                              >> $@
-
-$(OBJ_DIR)/wpcap2.args: $(MAKE_FILE)
-	$(call colour_msg,Creating $(LIGHT_YELLOW)$@.)
-	@echo 'option implib=$(WPCAP2_IMP_LIB), quiet, map, verbose,'               > $@
-	@echo 'caseexact, map=$(WPCAP2_DLL:.dll=.map), res=$(OBJ_DIR)\wpcap2.res,' >> $@
-	@echo 'export=$(OBJ_DIR)\wpcap2.def'                                       >> $@
-	@echo 'libpath $(WATCOM)\lib386;$(WATCOM)\lib386\nt'                       >> $@
-	@echo 'library $(EX_LIBS)'                                                 >> $@
-	@echo 'file { $(subst /,\,$(WPCAP2_OBJ)) }'                                >> $@
 endif
-
 
 #
 # Since the 'dflag' variable (which is not exported in the wpcap.dll)
@@ -1481,9 +1324,9 @@ ifeq ($(MAKE_MAN_PAGES),1)
 endif
 
 help:
-	$(call colour_msg,$(LIGHT_GREEN)$$USAGE)
-	$(call colour_msg,$(LIGHT_GREEN)  the "all" target will have these features:)
-	$(call colour_msg,$(LIGHT_YELLOW)     $(FEATURES))
+	$(call colour_msg,$(BRIGHT_GREEN)$$USAGE)
+	$(call colour_msg,  the $(BRIGHT_RED)all\e[0m target will have these features:)
+	$(call colour_msg,$(BRIGHT_YELLOW)     $(FEATURES))
 
 programs: $(TEST_PROGRAMS)
 
@@ -1568,26 +1411,12 @@ $(OBJ_DIR)/%.$(O): %.cpp
 # Uses the Python script 'cpp_filter.py' (generated below) and
 # GNU-indent on PATH.
 #
-# Note the special rule for the 'wcc386 preprocessor'. It's really
-# a compiler from hell!
-#
 %.i: $(WIN10PCAP_ROOT)/Packet_dll/%.c FORCE cpp_filter.py Win32/config.h
 	$(call C_preprocess, $(W10_CFLAGS) $<) | $(PYTHON) cpp_filter.py | indent -st > $@
 
-ifeq ($(CC),wcc386)
-%.i: %.c FORCE cpp_filter.py Win32/config.h
-	cp $< wcc386.tmp
-	$(CC) -pl $(FORCE_INC) -I$(WATCOM)\h -I$(WATCOM)\h\nt -i=. -i=.\Win32 \
-	      $(subst /,\,-i=$(WINPCAP_ROOT)/Include        \
-	                  -i=$(WINPCAP_ROOT)/PacketNtx/Dll) \
-	      wcc386.tmp > $@
-	@echo
-
-else
 %.i: %.c FORCE cpp_filter.py Win32/config.h
 	$(call C_preprocess, $<) | $(PYTHON) cpp_filter.py | indent -st > $@
 	@echo
-endif
 
 %.i: %.cpp FORCE cpp_filter.py Win32/config.h
 	$(call C_preprocess, $(FORCE_INC) $<) | $(PYTHON) cpp_filter.py > $@
@@ -1637,7 +1466,7 @@ $(OBJ_DIR)/wpcap2.rc: $(MAKE_FILE)
 $(OBJ_DIR)/wpcap2.def: $(MAKE_FILE)
 	$(call message_green,Generating $@ ...)
 	$(file  > $@, ;)
-	$(file >> $@, ; Generated $@ for MinGW, MSVC, clang-cl and Watcom.)
+	$(file >> $@, ; Generated $@ for MinGW, MSVC and clang-cl.)
 	$(file >> $@, ; DO NOT EDIT. Edit $(realpath $(MAKE_FILE)))
 	$(file >> $@, ; and/or $(realpath $(MAKE_FILE)) instead.)
 	$(file >> $@, ;)
@@ -1667,7 +1496,6 @@ endef
 C_compile_cl       = $(CL_CC) -c $(CFLAGS) -Fo./$(strip $(2)) $(1)
 C_compile_clang-cl = $(CC)    -c $(CFLAGS) -Fo./$(strip $(2)) $(1)
 C_compile_gcc      = $(CC)    -c $(CFLAGS) -o $(2) $(1)
-C_compile_wcc386   = $(CC)       $(subst /,\, $(CFLAGS) -fo=$(strip $(2)) $(1))
 
 ####### C++ COMPILE MACROS  ###########################################
 #
@@ -1682,7 +1510,6 @@ endef
 CPP_compile_cl       = $(call C_compile_cl,    -EHsc $(1), $(2))
 CPP_compile_clang-cl = $(call C_compile_clang, -EHsc $(1), $(2))
 CPP_compile_gcc      = $(call C_compile_gcc,   -x c++ $(1), $(2))
-CPP_compile_wcc386   = wpp386 $(subst /,\, $(CFLAGS) -fo=$(strip $(2)) $(1))
 
 #
 # C/C++ preprocessing macro.
@@ -1691,14 +1518,13 @@ CPP_compile_wcc386   = wpp386 $(subst /,\, $(CFLAGS) -fo=$(strip $(2)) $(1))
 #
 C_preprocess_cl       = $(CL_CC) -E $(CFLAGS)
 C_preprocess_gcc      = $(CC) -E $(CFLAGS)
-C_preprocess_wcc386   = $(CC) -p $(subst /,\, $(CFLAGS))
 C_preprocess_clang-cl = $(CC) -E $(CFLAGS)
 C_preprocess          = $(C_preprocess_$(CC)) $(1)
 
 ####### LINK MACRO (DLL + imp-lib) ####################################
 #
 # arg1, $(1): The name of the produced DLL.
-# arg2, $(2): The name of the import lib. For Watcom, this must be a response-file.
+# arg2, $(2): The name of the import lib.
 # arg3, $(3): The rest of the link arguments.
 #
 define link_DLL
@@ -1737,7 +1563,6 @@ endef
 
 link_DLL_clang-cl = $(call link_DLL_cl, $(1), $(2), $(3))
 link_DLL_gcc      = $(CC) $(LDFLAGS) -shared -o $(1) -Wl,--out-implib,$(strip $(2)) $(3) > $(1:.dll=.map)
-link_DLL_wcc386   = wlink system nt dll name $(1) $(2)
 
 define create_rsp_file
   $(file > $(1))
@@ -1763,17 +1588,15 @@ endef
 
 link_plugin_DLL_clang-cl = $(call link_plugin_DLL_cl, $(1), $(2))
 link_plugin_DLL_gcc      = $(CC) $(LDFLAGS) -shared -o $(1) $(2) > $(1:.dll=.map)
-link_plugin_DLL_wcc386   = wlink system nt dll name $(1) $(2)
 
 ####### LINK MACRO (EXE) ##############################################
 #
 # arg1, $(1): The name of the produced EXE.
 # arg2, $(2): The rest of the link arguments.
-# arg3, $(3): Arguments for Watcom only.
 #
 define link_EXE
   $(call message_green,Linking $(strip $(1)))
-  $(call link_EXE_$(CC), $(1), $(2), $(3))
+  $(call link_EXE_$(CC), $(1), $(2))
   @echo
 endef
 
@@ -1785,7 +1608,6 @@ endef
 
 link_EXE_clang-cl = $(call link_EXE_cl, $(1), $(2))
 link_EXE_gcc      = $(CC) $(LDFLAGS) -o $(1) $(2) > $(1:.exe=.map)
-link_EXE_wcc386   = to-do
 
 ####### MAKE RESOURCE (RES) ###########################################
 #
@@ -1795,7 +1617,6 @@ link_EXE_wcc386   = to-do
 make_res_cl       = rc -nologo -fo $(2) $(1)
 make_res_clang-cl = rc -nologo -fo $(2) $(1)
 make_res_gcc      = windres -O COFF -fo $(2) $(1)
-make_res_wcc386   = wrc -q -r -zm -fo=$(strip $(2)) $(1)
 
 define make_res
   $(call make_res_$(CC), $(RCFLAGS) $(1), $(2))
@@ -1809,7 +1630,7 @@ endef
 define Generate_file
   $(call message_green,Generating $(1) ...)
   $(file  > $(1), /*)
-  $(file >> $(1),  * Generated $(strip $(1)) for MinGW, MSVC, clang-cl and Watcom.)
+  $(file >> $(1),  * Generated $(strip $(1)) for MinGW, MSVC and clang-cl.)
   $(file >> $(1),  * DO NOT EDIT!)
   $(file >> $(1),  * Edit $(realpath $(MAKE_FILE)) instead.)
   $(file >> $(1),  */)

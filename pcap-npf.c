@@ -618,13 +618,13 @@ pcap_read_npf(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 		 * in kernel, no need to do it now - we already know
 		 * the packet passed the filter.
 		 *
-		 * XXX - bpf_filter() should always return TRUE if
+		 * XXX - pcap_filter() should always return TRUE if
 		 * handed a null pointer for the program, but it might
 		 * just try to "run" the filter, so we check here.
 		 */
 		if (pw->filtering_in_kernel ||
 		    p->fcode.bf_insns == NULL ||
-		    bpf_filter(p->fcode.bf_insns, datap, bhp->bh_datalen, caplen)) {
+		    pcap_filter(p->fcode.bf_insns, datap, bhp->bh_datalen, caplen)) {
 #ifdef ENABLE_REMOTE
 			switch (p->rmt_samp.method) {
 
@@ -838,7 +838,7 @@ pcap_read_win32_dag(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 		/* No underlaying filtering system. We need to filter on our own */
 		if (p->fcode.bf_insns)
 		{
-			if (bpf_filter(p->fcode.bf_insns, dp, packet_len, caplen) == 0)
+			if (pcap_filter(p->fcode.bf_insns, dp, packet_len, caplen) == 0)
 			{
 				/* Move to next packet */
 				header = (dag_record_t*)((char*)header + erf_record_len);
@@ -872,7 +872,7 @@ pcap_read_win32_dag(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 
 /* Send a packet to the network */
 static int
-pcap_inject_npf(pcap_t *p, const void *buf, size_t size)
+pcap_inject_npf(pcap_t *p, const void *buf, int size)
 {
 	struct pcap_win *pw = p->priv;
 	PACKET pkt;
@@ -888,7 +888,7 @@ pcap_inject_npf(pcap_t *p, const void *buf, size_t size)
 	 * "pcap_inject()" is expected to return the number of bytes
 	 * sent.
 	 */
-	return ((int)size);
+	return (size);
 }
 
 static void
@@ -1094,7 +1094,17 @@ pcap_activate_npf(pcap_t *p)
 	}
 	else
 	{
-		if (PacketSetHwFilter(pw->adapter,NDIS_PACKET_TYPE_ALL_LOCAL) == FALSE)
+		/* NDIS_PACKET_TYPE_ALL_LOCAL selects "All packets sent by installed
+		 * protocols and all packets indicated by the NIC" but if no protocol
+		 * drivers (like TCP/IP) are installed, NDIS_PACKET_TYPE_DIRECTED,
+		 * NDIS_PACKET_TYPE_BROADCAST, and NDIS_PACKET_TYPE_MULTICAST are needed to
+		 * capture incoming frames.
+		 */
+		if (PacketSetHwFilter(pw->adapter,
+			NDIS_PACKET_TYPE_ALL_LOCAL |
+			NDIS_PACKET_TYPE_DIRECTED |
+			NDIS_PACKET_TYPE_BROADCAST |
+			NDIS_PACKET_TYPE_MULTICAST) == FALSE)
 		{
 			pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "failed to set hardware filter to non-promiscuous mode");
 			goto bad;
@@ -1878,7 +1888,7 @@ pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
  */
 #define ADAPTERSNAME_LEN	8192
 char *
-pcap_lookupdev_npf(char *errbuf)
+pcap_lookupdev(char *errbuf)
 {
 	DWORD dwVersion;
 	DWORD dwWindowsMajorVersion;
@@ -2009,54 +2019,6 @@ pcap_lookupdev_npf(char *errbuf)
 		free(TAdaptersName);
 		return (char *)(AdaptersName);
 	}
-}
-
-/*
- * This is the same as in pcap.c for all non-Windows interfaces.
- */
-char *pcap_lookupdev_normal (char *errbuf)
-{
-	pcap_if_t *alldevs;
-	static char device[100];
-	char *ret;
-
-	if (pcap_findalldevs(&alldevs, errbuf) == -1)
-		return (NULL);
-
-	if (alldevs == NULL || (alldevs->flags & PCAP_IF_LOOPBACK)) {
-		/*
-		 * There are no devices on the list, or the first device
-		 * on the list is a loopback device, which means there
-		 * are no non-loopback devices on the list.  This means
-		 * we can't return any device.
-		 *
-		 * XXX - why not return a loopback device?  If we can't
-		 * capture on it, it won't be on the list, and if it's
-		 * on the list, there aren't any non-loopback devices,
-		 * so why not just supply it as the default device?
-		 */
-		(void)strlcpy(errbuf, "no suitable device found",
-		    PCAP_ERRBUF_SIZE);
-		ret = NULL;
-	} else {
-		/*
-		 * Return the name of the first device on the list.
-		 */
-		(void)strlcpy(device, alldevs->name, sizeof(device));
-		ret = device;
-	}
-
-	pcap_freealldevs(alldevs);
-	return (ret);
-}
-
-char *pcap_lookupdev(char *errbuf)
-{
-#if 0
-  return pcap_lookupdev_npf(errbuf);
-#else
-  return pcap_lookupdev_normal(errbuf);
-#endif
 }
 
 /*

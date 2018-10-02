@@ -1,5 +1,5 @@
 /*
- * pcap-dag.c: Packet capture interface for Emulex EndaceDAG cards.
+ * pcap-dag.c: Packet capture interface for Endace DAG cards.
  *
  * The functionality of this code attempts to mimic that of pcap-linux as much
  * as possible.  This code is compiled in several different ways depending on
@@ -12,7 +12,7 @@
  * Authors: Richard Littin, Sean Irvine ({richard,sean}@reeltwo.com)
  * Modifications: Jesper Peterson
  *                Koryn Grant
- *                Stephen Donnelly <stephen.donnelly@emulex.com>
+ *                Stephen Donnelly <stephen.donnelly@endace.com>
  */
 
 #ifdef HAVE_CONFIG_H
@@ -41,6 +41,7 @@ struct rtentry;		/* declarations in <net/if.h> */
 #include "dagnew.h"
 #include "dagapi.h"
 #include "dagpci.h"
+#include "dag_config_api.h"
 
 #include "pcap-dag.h"
 
@@ -185,6 +186,9 @@ struct pcap_dag {
 	int	dag_timeout;	/* timeout specified to pcap_open_live.
 				 * Same as in linux above, introduce
 				 * generally? */
+	dag_card_ref_t dag_ref; /* DAG Configuration/Status API card reference */
+	dag_component_t dag_root;	/* DAG CSAPI Root component */
+	attr_uuid_t drop_attr;  /* DAG Stream Drop Attribute handle, if available */
 	struct timeval required_select_timeout;
 				/* Timeout caller must use in event loops */
 };
@@ -252,14 +256,20 @@ dag_platform_cleanup(pcap_t *p)
 	if(dag_detach_stream(p->fd, pd->dag_stream) < 0)
 		fprintf(stderr,"dag_detach_stream: %s\n", strerror(errno));
 
-	if(p->fd != -1) {
-		if(dag_close(p->fd) < 0)
-			fprintf(stderr,"dag_close: %s\n", strerror(errno));
+	if(pd->dag_ref != NULL) {
+		dag_config_dispose(pd->dag_ref);
+		/*
+		 * Note: we don't need to call close(p->fd) or
+		 * dag_close(p->fd), as dag_config_dispose(pd->dag_ref)
+		 * does this.
+		 *
+		 * Set p->fd to -1 to make sure that's not done.
+		 */
 		p->fd = -1;
+		pd->dag_ref = NULL;
 	}
 	delete_pcap_dag(p);
 	pcap_cleanup_live_common(p);
-	/* Note: don't need to call close(p->fd) here as dag_close(p->fd) does this. */
 }
 
 static void
@@ -437,12 +447,8 @@ dag_read(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 			break;
 
 		default:
-			if (header->lctr) {
-				if (pd->stat.ps_drop > (UINT_MAX - ntohs(header->lctr))) {
-					pd->stat.ps_drop = UINT_MAX;
-				} else {
-					pd->stat.ps_drop += ntohs(header->lctr);
-				}
+			if ( (pd->drop_attr == kNullAttributeUuid) && (header->lctr) ) {
+				pd->stat.ps_drop += ntohs(header->lctr);
 			}
 		}
 
@@ -666,7 +672,7 @@ dag_read(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 			caplen = p->snapshot;
 
 		/* Run the packet filter if there is one. */
-		if ((p->fcode.bf_insns == NULL) || bpf_filter(p->fcode.bf_insns, dp, packet_len, caplen)) {
+		if ((p->fcode.bf_insns == NULL) || pcap_filter(p->fcode.bf_insns, dp, packet_len, caplen)) {
 
 			/* convert between timestamp formats */
 			register unsigned long long ts;
@@ -720,7 +726,7 @@ dag_read(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 }
 
 static int
-dag_inject(pcap_t *p, const void *buf _U_, size_t size _U_)
+dag_inject(pcap_t *p, const void *buf _U_, int size _U_)
 {
 	strlcpy(p->errbuf, "Sending packets isn't supported on DAG cards",
 	    PCAP_ERRBUF_SIZE);
@@ -746,18 +752,20 @@ static int dag_activate(pcap_t* p)
 	daginf_t* daginf;
 	char * newDev = NULL;
 	char * device = p->opt.device;
+	int ret;
 	dag_size_t mindata;
 	struct timeval maxwait;
 	struct timeval poll;
 
 	if (device == NULL) {
 		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "device is NULL");
-		return -1;
+		return PCAP_ERROR;
 	}
 
 	/* Initialize some components of the pcap structure. */
 	newDev = (char *)malloc(strlen(device) + 16);
 	if (newDev == NULL) {
+		ret = PCAP_ERROR;
 		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "Can't allocate string for device name");
 		goto fail;
@@ -765,6 +773,13 @@ static int dag_activate(pcap_t* p)
 
 	/* Parse input name to get dag device and stream number if provided */
 	if (dag_parse_name(device, newDev, strlen(device) + 16, &pd->dag_stream) < 0) {
+		/*
+		 * XXX - it'd be nice if this indicated what was wrong
+		 * with the name.  Does this reliably set errno?
+		 * Should this return PCAP_ERROR_NO_SUCH_DEVICE in some
+		 * cases?
+		 */
+		ret = PCAP_ERROR;
 		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "dag_parse_name");
 		goto fail;
@@ -772,22 +787,51 @@ static int dag_activate(pcap_t* p)
 	device = newDev;
 
 	if (pd->dag_stream%2) {
+		ret = PCAP_ERROR;
 		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_parse_name: tx (even numbered) streams not supported for capture");
 		goto fail;
 	}
 
 	/* setup device parameters */
-	if((p->fd = dag_open((char *)device)) < 0) {
+	if((pd->dag_ref = dag_config_init((char *)device)) == NULL) {
+		/*
+		 * XXX - does this reliably set errno?
+		 */
+		if (errno == ENOENT)
+			ret = PCAP_ERROR_NO_SUCH_DEVICE;
+		else if (errno == EPERM || errno == EACCES)
+			ret = PCAP_ERROR_PERM_DENIED;
+		else
+			ret = PCAP_ERROR;
 		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
-		    errno, "dag_open %s", device);
+		    errno, "dag_config_init %s", device);
 		goto fail;
+	}
+
+	if((p->fd = dag_config_get_card_fd(pd->dag_ref)) < 0) {
+		/*
+		 * XXX - does this reliably set errno?
+		 */
+		ret = PCAP_ERROR;
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_config_get_card_fd %s", device);
+		goto failclose;
 	}
 
 	/* Open requested stream. Can fail if already locked or on error */
 	if (dag_attach_stream64(p->fd, pd->dag_stream, 0, 0) < 0) {
+		ret = PCAP_ERROR;
 		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "dag_attach_stream");
 		goto failclose;
+	}
+
+	/* Try to find Stream Drop attribute */
+	pd->drop_attr = kNullAttributeUuid;
+	pd->dag_root = dag_config_get_root_component(pd->dag_ref);
+	if ( dag_component_get_subcomponent(pd->dag_root, kComponentStreamFeatures, 0) )
+	{
+		pd->drop_attr = dag_config_get_indexed_attribute_uuid(pd->dag_ref, kUint32AttributeStreamDropCount, pd->dag_stream/2);
 	}
 
 	/* Set up default poll parameters for stream
@@ -795,6 +839,7 @@ static int dag_activate(pcap_t* p)
 	 */
 	if (dag_get_stream_poll64(p->fd, pd->dag_stream,
 				&mindata, &maxwait, &poll) < 0) {
+		ret = PCAP_ERROR;
 		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "dag_get_stream_poll");
 		goto faildetach;
@@ -839,6 +884,7 @@ static int dag_activate(pcap_t* p)
 
 	if (dag_set_stream_poll64(p->fd, pd->dag_stream,
 				mindata, &maxwait, &poll) < 0) {
+		ret = PCAP_ERROR;
 		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "dag_set_stream_poll");
 		goto faildetach;
@@ -861,6 +907,7 @@ static int dag_activate(pcap_t* p)
 #endif
 
 	if(dag_start_stream(p->fd, pd->dag_stream) < 0) {
+		ret = PCAP_ERROR;
 		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "dag_start_stream %s", device);
 		goto faildetach;
@@ -896,6 +943,7 @@ static int dag_activate(pcap_t* p)
 			if ((n = atoi(s)) == 0 || n == 16 || n == 32) {
 				pd->dag_fcs_bits = n;
 			} else {
+				ret = PCAP_ERROR;
 				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 					"pcap_activate %s: bad ERF_FCS_BITS value (%d) in environment", device, n);
 				goto failstop;
@@ -918,12 +966,17 @@ static int dag_activate(pcap_t* p)
 	pd->dag_timeout	= p->opt.timeout;
 
 	p->linktype = -1;
-	if (dag_get_datalink(p) < 0)
+	if (dag_get_datalink(p) < 0) {
+		ret = PCAP_ERROR;
+		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
+		    errno, "dag_get_datalink %s", device);
 		goto failstop;
+	}
 
 	p->bufsize = 0;
 
 	if (new_pcap_dag(p) < 0) {
+		ret = PCAP_ERROR;
 		pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "new_pcap_dag %s", device);
 		goto failstop;
@@ -962,8 +1015,15 @@ faildetach:
 		fprintf(stderr,"dag_detach_stream: %s\n", strerror(errno));
 
 failclose:
-	if (dag_close(p->fd) < 0)
-		fprintf(stderr,"dag_close: %s\n", strerror(errno));
+	dag_config_dispose(pd->dag_ref);
+	/*
+	 * Note: we don't need to call close(p->fd) or dag_close(p->fd),
+	 * as dag_config_dispose(pd->dag_ref) does this.
+	 *
+	 * Set p->fd to -1 to make sure that's not done.
+	 */
+	p->fd = -1;
+	pd->dag_ref = NULL;
 	delete_pcap_dag(p);
 
 fail:
@@ -972,7 +1032,7 @@ fail:
 		free((char *)newDev);
 	}
 
-	return PCAP_ERROR;
+	return ret;
 }
 
 pcap_t *dag_create(const char *device, char *ebuf, int *is_ours)
@@ -1051,12 +1111,28 @@ pcap_t *dag_create(const char *device, char *ebuf, int *is_ours)
 static int
 dag_stats(pcap_t *p, struct pcap_stat *ps) {
 	struct pcap_dag *pd = p->priv;
+	uint32_t stream_drop;
+	dag_err_t dag_error;
 
-	/* This needs to be filled out correctly.  Hopefully a dagapi call will
-		 provide all necessary information.
-	*/
-	/*pd->stat.ps_recv = 0;*/
-	/*pd->stat.ps_drop = 0;*/
+	/*
+	 * Packet records received (ps_recv) are counted in dag_read().
+	 * Packet records dropped (ps_drop) are read from Stream Drop attribute if present,
+	 * otherwise integrate the ERF Header lctr counts (if available) in dag_read().
+	 * We are reporting that no records are dropped by the card/driver (ps_ifdrop).
+	 */
+
+	if(pd->drop_attr != kNullAttributeUuid) {
+		/* Note this counter is cleared at start of capture and will wrap at UINT_MAX.
+		 * The application is responsible for polling ps_drop frequently enough
+		 * to detect each wrap and integrate total drop with a wider counter */
+		if ((dag_error = dag_config_get_uint32_attribute_ex(pd->dag_ref, pd->drop_attr, &stream_drop) == kDagErrNone)) {
+			pd->stat.ps_drop = stream_drop;
+		} else {
+			pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "reading stream drop attribute: %s",
+				 dag_config_strerror(dag_error));
+			return -1;
+		}
+	}
 
 	*ps = pd->stat;
 
@@ -1108,7 +1184,7 @@ dag_findalldevs(pcap_if_list_t *devlistp, char *errbuf)
 			}
 			rxstreams = dag_rx_get_stream_count(dagfd);
 			for(stream=0;stream<DAG_STREAM_MAX;stream+=2) {
-				if (0 == dag_attach_stream(dagfd, stream, 0, 0)) {
+				if (0 == dag_attach_stream64(dagfd, stream, 0, 0)) {
 					dag_detach_stream(dagfd, stream);
 
 					pcap_snprintf(name,  10, "dag%d:%d", c, stream);

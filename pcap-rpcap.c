@@ -388,7 +388,7 @@ static int pcap_read_nocb_remote(pcap_t *p, struct pcap_pkthdr *pkt_header, u_ch
 	 * 'timeout', in pcap_t, is in milliseconds; we have to convert it into sec and microsec
 	 */
 	tv.tv_sec = p->opt.timeout / 1000;
-	tv.tv_usec = (p->opt.timeout - tv.tv_sec * 1000) * 1000;
+	tv.tv_usec = (suseconds_t)((p->opt.timeout - tv.tv_sec * 1000) * 1000);
 
 	/* Watch out sockdata to see if it has input */
 	FD_ZERO(&rfds);
@@ -908,7 +908,7 @@ static struct pcap_stat *rpcap_stats_rpcap(pcap_t *p, struct pcap_stat *ps, int 
 
 	/* Discard the rest of the message. */
 	if (rpcap_discard(pr->rmt_sockctrl, plen, p->errbuf) == -1)
-		goto error;
+		goto error_nodiscard;
 
 	return ps;
 
@@ -920,6 +920,7 @@ error:
 	 */
 	(void)rpcap_discard(pr->rmt_sockctrl, plen, NULL);
 
+error_nodiscard:
 	return NULL;
 }
 
@@ -1334,7 +1335,7 @@ static int pcap_startcapture_remote(pcap_t *fp)
 
 	/* Discard the rest of the message. */
 	if (rpcap_discard(pr->rmt_sockctrl, plen, fp->errbuf) == -1)
-		goto error;
+		goto error_nodiscard;
 
 	/*
 	 * In case the user does not want to capture RPCAP packets, let's update the filter
@@ -2276,12 +2277,11 @@ pcap_t *pcap_open_rpcap(const char *source, int snaplen, int flags, int read_tim
 		goto error;
 
 	/* Discard the rest of the message, if there is any. */
-	if (rpcap_discard(pr->rmt_sockctrl, plen, errbuf) == -1)
+	if (rpcap_discard(sockctrl, plen, errbuf) == -1)
 		goto error_nodiscard;
 
 	/* Set proper fields into the pcap_t struct */
 	fp->linktype = ntohl(openreply.linktype);
-	fp->tzoff = ntohl(openreply.tzoff);
 	pr->rmt_sockctrl = sockctrl;
 	pr->protocol_version = protocol_version;
 	pr->rmt_clientside = 1;
@@ -2314,7 +2314,7 @@ error:
 	 * We already reported an error; if this gets an error, just
 	 * drive on.
 	 */
-	(void)rpcap_discard(pr->rmt_sockctrl, plen, NULL);
+	(void)rpcap_discard(sockctrl, plen, NULL);
 
 error_nodiscard:
 	if (!active)
@@ -2648,7 +2648,7 @@ pcap_findalldevs_ex_remote(char *source, struct pcap_rmtauth *auth, pcap_if_t **
 
 	/* Discard the rest of the message. */
 	if (rpcap_discard(sockctrl, plen, errbuf) == 1)
-		return -1;
+		goto error_nodiscard;
 
 	/* Control connection has to be closed only in case the remote machine is in passive mode */
 	if (!active)
@@ -3110,7 +3110,7 @@ static int rpcap_check_msg_type(SOCKET sock, uint8 request_type, struct rpcap_he
 		}
 		return -1;
 	}
-	
+
 	return 0;
 }
 

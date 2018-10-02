@@ -197,9 +197,9 @@ typedef enum {
  * Per-interface information.
  */
 struct pcap_ng_if {
-	u_int tsresol;			/* time stamp resolution */
+	uint64_t tsresol;		/* time stamp resolution */
 	tstamp_scale_type_t scale_type;	/* how to scale */
-	u_int scale_factor;		/* time stamp scale factor for power-of-10 tsresol */
+	uint64_t scale_factor;		/* time stamp scale factor for power-of-10 tsresol */
 	uint64_t tsoffset;		/* time stamp offset */
 };
 
@@ -223,7 +223,7 @@ struct pcap_ng_if {
  * so we impose a limit regardless of the size of a pointer.
  */
 struct pcap_ng_sf {
-	u_int user_tsresol;		/* time stamp resolution requested by the user */
+	uint64_t user_tsresol;		/* time stamp resolution requested by the user */
 	u_int max_blocksize;		/* don't grow buffer size past this */
 	bpf_u_int32 ifcount;		/* number of interfaces seen in this capture */
 	bpf_u_int32 ifaces_size;	/* size of array below */
@@ -231,16 +231,21 @@ struct pcap_ng_sf {
 };
 
 /*
- * Maximum block size for a given maximum snapshot length; we calculate
- * this based
- *
- * We define it as the size of an EPB with a max_snaplen-sized
- * packet and 128KB of options.
+ * The maximum block size we start with; we use an arbitrary value of
+ * 16 MiB.
  */
-#define MAX_BLOCKSIZE(max_snaplen)	(sizeof (struct block_header) + \
-					 sizeof (struct enhanced_packet_block) + \
-					 (max_snaplen) + 131072 + \
-					 sizeof (struct block_trailer))
+#define INITIAL_MAX_BLOCKSIZE	(16*1024*1024)
+
+/*
+ * Maximum block size for a given maximum snapshot length; we define it
+ * as the size of an EPB with a max_snaplen-sized packet and 128KB of
+ * options.
+ */
+#define MAX_BLOCKSIZE_FOR_SNAPLEN(max_snaplen) \
+	(sizeof (struct block_header) + \
+	 sizeof (struct enhanced_packet_block) + \
+	 (max_snaplen) + 131072 + \
+	 sizeof (struct block_trailer))
 
 static void pcap_ng_cleanup(pcap_t *p);
 static int pcap_ng_next_packet(pcap_t *p, struct pcap_pkthdr *hdr,
@@ -261,9 +266,8 @@ read_bytes(FILE *fp, void *buf, size_t bytes_to_read, int fail_on_eof,
 			if (amt_read == 0 && !fail_on_eof)
 				return (0);	/* EOF */
 			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-			    "truncated dump file; tried to read %lu bytes, only got %lu",
-			    (unsigned long)bytes_to_read,
-			    (unsigned long)amt_read);
+			    "truncated dump file; tried to read %" PRIsize " bytes, only got %" PRIsize,
+			    bytes_to_read, amt_read);
 		}
 		return (-1);
 	}
@@ -291,29 +295,15 @@ read_block(FILE *fp, pcap_t *p, struct block_cursor *cursor, char *errbuf)
 	}
 
 	/*
-	 * Is this block "too big"?
-	 *
-	 * We choose 16MB as "too big", for now, so that we handle
-	 * "reasonably" large buffers but don't chew up all the
-	 * memory if we read a malformed file.
-	 */
-	if (bhdr.total_length > 16*1024*1024) {
-		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-		    "pcapng block size %u > maximum %u",
-		    bhdr.total_length, 16*1024*1024);
-		    return (-1);
-	}
-
-	/*
 	 * Is this block "too small" - i.e., is it shorter than a block
 	 * header plus a block trailer?
 	 */
 	if (bhdr.total_length < sizeof(struct block_header) +
 	    sizeof(struct block_trailer)) {
 		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-		    "block in pcapng dump file has a length of %u < %lu",
+		    "block in pcapng dump file has a length of %u < %" PRIsize,
 		    bhdr.total_length,
-		    (unsigned long)(sizeof(struct block_header) + sizeof(struct block_trailer)));
+		    sizeof(struct block_header) + sizeof(struct block_trailer));
 		return (-1);
 	}
 
@@ -322,12 +312,13 @@ read_block(FILE *fp, pcap_t *p, struct block_cursor *cursor, char *errbuf)
 	 */
 	if (p->bufsize < bhdr.total_length) {
 		/*
-		 * No - make it big enough, unless it's too big.
+		 * No - make it big enough, unless it's too big, in
+		 * which case we fail.
 		 */
 		void *bigger_buffer;
 
 		if (bhdr.total_length > ps->max_blocksize) {
-			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "block is larger than maximum block size %u",
+			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "pcapng block size %u > maximum %u", bhdr.total_length,
 			    ps->max_blocksize);
 			return (-1);
 		}
@@ -431,13 +422,13 @@ get_optvalue_from_block_data(struct block_cursor *cursor,
 }
 
 static int
-process_idb_options(pcap_t *p, struct block_cursor *cursor, u_int *tsresol,
+process_idb_options(pcap_t *p, struct block_cursor *cursor, uint64_t *tsresol,
     uint64_t *tsoffset, int *is_binary, char *errbuf)
 {
 	struct option_header *opthdr;
 	void *optvalue;
 	int saw_tsresol, saw_tsoffset;
-	u_char tsresol_opt;
+	uint8_t tsresol_opt;
 	u_int i;
 
 	saw_tsresol = 0;
@@ -495,31 +486,42 @@ process_idb_options(pcap_t *p, struct block_cursor *cursor, u_int *tsresol,
 				/*
 				 * Resolution is negative power of 2.
 				 */
+				uint8_t tsresol_shift = (tsresol_opt & 0x7F);
+
+				if (tsresol_shift > 63) {
+					/*
+					 * Resolution is too high; 2^-{res}
+					 * won't fit in a 64-bit value.
+					 */
+					pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+					    "Interface Description Block if_tsresol option resolution 2^-%u is too high",
+					    tsresol_shift);
+					return (-1);
+				}
 				*is_binary = 1;
-				*tsresol = 1 << (tsresol_opt & 0x7F);
+				*tsresol = ((uint64_t)1) << tsresol_shift;
 			} else {
 				/*
 				 * Resolution is negative power of 10.
 				 */
+				if (tsresol_opt > 19) {
+					/*
+					 * Resolution is too high; 2^-{res}
+					 * won't fit in a 64-bit value (the
+					 * largest power of 10 that fits
+					 * in a 64-bit value is 10^19, as
+					 * the largest 64-bit unsigned
+					 * value is ~1.8*10^19).
+					 */
+					pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+					    "Interface Description Block if_tsresol option resolution 10^-%u is too high",
+					    tsresol_opt);
+					return (-1);
+				}
 				*is_binary = 0;
 				*tsresol = 1;
 				for (i = 0; i < tsresol_opt; i++)
 					*tsresol *= 10;
-			}
-			if (*tsresol == 0) {
-				/*
-				 * Resolution is too high.
-				 */
-				if (tsresol_opt & 0x80) {
-					pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-					    "Interface Description Block if_tsresol option resolution 2^-%u is too high",
-					    tsresol_opt & 0x7F);
-				} else {
-					pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-					    "Interface Description Block if_tsresol option resolution 10^-%u is too high",
-					    tsresol_opt);
-				}
-				return (-1);
 			}
 			break;
 
@@ -554,7 +556,7 @@ static int
 add_interface(pcap_t *p, struct block_cursor *cursor, char *errbuf)
 {
 	struct pcap_ng_sf *ps;
-	u_int tsresol;
+	uint64_t tsresol;
 	uint64_t tsoffset;
 	int is_binary;
 
@@ -820,9 +822,20 @@ pcap_ng_check_header(bpf_u_int32 magic, FILE *fp, u_int precision, char *errbuf,
 	 */
 	if (total_length < sizeof(*bhdrp) + sizeof(*shbp) + sizeof(struct block_trailer)) {
 		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
-		    "Section Header Block in pcapng dump file has a length of %u < %lu",
+		    "Section Header Block in pcapng dump file has a length of %u < %" PRIsize,
 		    total_length,
-		    (unsigned long)(sizeof(*bhdrp) + sizeof(*shbp) + sizeof(struct block_trailer)));
+		    sizeof(*bhdrp) + sizeof(*shbp) + sizeof(struct block_trailer));
+		*err = 1;
+		return (NULL);
+	}
+
+	/*
+	 * Make sure it's not too big.
+	 */
+	if (total_length > INITIAL_MAX_BLOCKSIZE) {
+		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+		    "pcapng block size %u > maximum %u",
+		    total_length, INITIAL_MAX_BLOCKSIZE);
 		*err = 1;
 		return (NULL);
 	}
@@ -874,10 +887,10 @@ pcap_ng_check_header(bpf_u_int32 magic, FILE *fp, u_int precision, char *errbuf,
 	 *	leaving room for some options.
 	 *
 	 * If we find a bigger block, we reallocate the buffer, up to
-	 * the maximum size.  We start out with a maximum size based
-	 * on a maximum snapshot length of MAXIMUM_SNAPLEN; if we see
-	 * any link-layer header types with a larger maximum snapshot
-	 * length, we boost the maximum.
+	 * the maximum size.  We start out with a maximum size of
+	 * INITIAL_MAX_BLOCKSIZE; if we see any link-layer header types
+	 * with a maximum snapshot that results in a larger maximum
+	 * block length, we boost the maximum.
 	 */
 	p->bufsize = 2048;
 	if (p->bufsize < total_length)
@@ -889,7 +902,7 @@ pcap_ng_check_header(bpf_u_int32 magic, FILE *fp, u_int precision, char *errbuf,
 		*err = 1;
 		return (NULL);
 	}
-	ps->max_blocksize = MAX_BLOCKSIZE(MAXIMUM_SNAPLEN);
+	ps->max_blocksize = INITIAL_MAX_BLOCKSIZE;
 
 	/*
 	 * Copy the stuff we've read to the buffer, and read the rest
@@ -998,7 +1011,6 @@ pcap_ng_check_header(bpf_u_int32 magic, FILE *fp, u_int precision, char *errbuf,
 	}
 
 done:
-	p->tzoff = 0;	/* XXX - not used in pcap */
 	p->snapshot = idbp->snaplen;
 	if (p->snapshot <= 0) {
 		/*
@@ -1019,8 +1031,8 @@ done:
 	 * snapshot length for this DLT_ is bigger than the current
 	 * maximum block size, increase the maximum.
 	 */
-	if (MAX_BLOCKSIZE(max_snaplen_for_dlt(p->linktype)) > ps->max_blocksize)
-		ps->max_blocksize = MAX_BLOCKSIZE(max_snaplen_for_dlt(p->linktype));
+	if (MAX_BLOCKSIZE_FOR_SNAPLEN(max_snaplen_for_dlt(p->linktype)) > ps->max_blocksize)
+		ps->max_blocksize = MAX_BLOCKSIZE_FOR_SNAPLEN(max_snaplen_for_dlt(p->linktype));
 
 	p->next_packet_op = pcap_ng_next_packet;
 	p->cleanup_op = pcap_ng_cleanup;

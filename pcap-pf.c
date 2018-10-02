@@ -104,9 +104,7 @@ pcap_read_pf(pcap_t *pc, int cnt, pcap_handler callback, u_char *user)
 	register u_char *p, *bp;
 	register int cc, n, buflen, inc;
 	register struct enstamp *sp;
-#ifdef LBL_ALIGN
 	struct enstamp stamp;
-#endif
 	register u_int pad;
 
  again:
@@ -164,12 +162,10 @@ pcap_read_pf(pcap_t *pc, int cnt, pcap_handler callback, u_char *user)
 			    "pf short read (%d)", cc);
 			return (-1);
 		}
-#ifdef LBL_ALIGN
 		if ((long)bp & 3) {
 			sp = &stamp;
 			memcpy((char *)sp, (char *)bp, sizeof(*sp));
 		} else
-#endif
 			sp = (struct enstamp *)bp;
 		if (sp->ens_stamplen != sizeof(*sp)) {
 			pcap_snprintf(pc->errbuf, sizeof(pc->errbuf),
@@ -205,7 +201,7 @@ pcap_read_pf(pcap_t *pc, int cnt, pcap_handler callback, u_char *user)
 		 * skipping that padding.
 		 */
 		if (pf->filtering_in_kernel ||
-		    bpf_filter(pc->fcode.bf_insns, p, sp->ens_count, buflen)) {
+		    pcap_filter(pc->fcode.bf_insns, p, sp->ens_count, buflen)) {
 			struct pcap_pkthdr h;
 			pf->TotAccepted++;
 			h.ts = sp->ens_tstamp;
@@ -226,7 +222,7 @@ pcap_read_pf(pcap_t *pc, int cnt, pcap_handler callback, u_char *user)
 }
 
 static int
-pcap_inject_pf(pcap_t *p, const void *buf, size_t size)
+pcap_inject_pf(pcap_t *p, const void *buf, int size)
 {
 	int ret;
 

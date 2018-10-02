@@ -58,7 +58,7 @@
 /* forward declaration */
 static int bt_activate(pcap_t *);
 static int bt_read_linux(pcap_t *, int , pcap_handler , u_char *);
-static int bt_inject_linux(pcap_t *, const void *, size_t);
+static int bt_inject_linux(pcap_t *, const void *, int);
 static int bt_setdirection_linux(pcap_t *, pcap_direction_t);
 static int bt_stats_linux(pcap_t *, struct pcap_stat *);
 
@@ -74,7 +74,8 @@ bt_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 {
 	struct hci_dev_list_req *dev_list;
 	struct hci_dev_req *dev_req;
-	int i, sock;
+	int sock;
+	unsigned i;
 	int ret = 0;
 
 	sock  = socket(AF_BLUETOOTH, SOCK_RAW, BTPROTO_HCI);
@@ -109,10 +110,10 @@ bt_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 
 	dev_req = dev_list->dev_req;
 	for (i = 0; i < dev_list->dev_num; i++, dev_req++) {
-		char dev_name[20], dev_descr[30];
+		char dev_name[20], dev_descr[40];
 
-		pcap_snprintf(dev_name, 20, BT_IFACE"%d", dev_req->dev_id);
-		pcap_snprintf(dev_descr, 30, "Bluetooth adapter number %d", i);
+		pcap_snprintf(dev_name, sizeof(dev_name), BT_IFACE"%u", dev_req->dev_id);
+		pcap_snprintf(dev_descr, sizeof(dev_descr), "Bluetooth adapter number %u", i);
 
 		/*
 		 * Bluetooth is a wireless technology.
@@ -345,7 +346,7 @@ bt_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_char
 		return -1;
 	}
 
-	pkth.caplen = ret;
+	pkth.caplen = (bpf_u_int32)ret;
 
 	/* get direction and timestamp*/
 	cmsg = CMSG_FIRSTHDR(&msg);
@@ -369,7 +370,7 @@ bt_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_char
 	pkth.caplen+=sizeof(pcap_bluetooth_h4_header);
 	pkth.len = pkth.caplen;
 	if (handle->fcode.bf_insns == NULL ||
-	    bpf_filter(handle->fcode.bf_insns, pktd, pkth.len, pkth.caplen)) {
+	    pcap_filter(handle->fcode.bf_insns, pktd, pkth.len, pkth.caplen)) {
 		callback(user, &pkth, pktd);
 		return 1;
 	}
@@ -377,7 +378,7 @@ bt_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_char
 }
 
 static int
-bt_inject_linux(pcap_t *handle, const void *buf _U_, size_t size _U_)
+bt_inject_linux(pcap_t *handle, const void *buf _U_, int size _U_)
 {
 	pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "inject not supported on "
     		"bluetooth devices");
