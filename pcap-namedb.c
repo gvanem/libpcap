@@ -9,6 +9,8 @@
 #include <pcap-types.h>
 #include <pcap/pcap-inttypes.h>
 
+#include "portability.h"
+
 #define MAXALIASES  35
 
 static int net_stayopen;
