@@ -4,7 +4,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <pcap.h>
+#include <pcap/pcap.h>
 #include <pcap/namedb.h>
 #include <pcap-types.h>
 #include <pcap/pcap-inttypes.h>
@@ -281,7 +281,7 @@ pcap_etc_subpath (const char *file)
 	if (!env)
 		return (file);
 
-	snprintf (path, sizeof(path), "%s\\system32\\drivers\\etc\\%s", env, file);
+	pcap_snprintf (path, sizeof(path), "%s\\system32\\drivers\\etc\\%s", env, file);
 	return (path);
 }
 
