@@ -792,7 +792,7 @@ set(PROJECT_SOURCE_LIST_C
 )
 
 if(WIN32)
-    set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/win_snprintf.c)
+    set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/win_snprintf.c pcap-namedb.c)
 else()
     if(NOT HAVE_SNPRINTF)
         set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/snprintf.c)
