@@ -195,20 +195,18 @@ vclean: clean
 	-rmdir $(OBJ_DIR)
 
 define CONFIG_H
+  #ifndef PCAP_CONFIG_H
+  #define PCAP_CONFIG_H
+
   #define DEBUG          1
-  #define HAVE_FFS       1
-  #define HAVE_LIMITS_H  1
   #define HAVE_STRERROR  1
   #define HAVE_STRLCAT   1
   #define HAVE_STRLCPY   1
   #define HAVE_SNPRINTF  1
   #define HAVE_VSNPRINTF 1
-  #define in_addr_t      u_long /* Only needed in tests/filtertest.c */
-//#define yylval         pcap_lval
 
-//#define PCAP_TRACE(level, fmt, ...)  (void)0
   #define PACKAGE_VERSION              "libpcap version $(shell cat ./VERSION)"
-
+  #endif  /* PCAP_CONFIG_H */
 endef
 
 define PCAP_VERSION_H
