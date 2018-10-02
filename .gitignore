@@ -17,6 +17,8 @@ rpcapd/config.h
 new-plugin-architecture.*
 scanner.c
 adapter-description-problem.txt
+msdos/.depend.dj
+msdos/pcap_version.h
 diff-*.txt
 doc/*
 *.dot
@@ -33,3 +35,6 @@ doc/*
 *.bat
 *.btm
 *.filter
+*.map
+*.res
+zip-and-upload.mak
