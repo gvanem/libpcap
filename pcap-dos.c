@@ -762,11 +762,6 @@ int pcap_config_hook (const char *keyword, const char *value)
   return parse_config_table (debug_tab, NULL, keyword, value);
 }
 
-/*
- *  If building under Windows, there is a good chance there is aleady
- * "pcap_version.h" in the libpcap root. Hence this generated file
- *  is in the 'msdos' subdirectory.
- */
 #include "msdos/pcap_version.h"
 
 /*
