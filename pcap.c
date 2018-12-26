@@ -683,7 +683,7 @@ get_if_description(const char *name)
 	 * Get the description for the interface.
 	 */
 	memset(&ifrdesc, 0, sizeof ifrdesc);
-	strlcpy(ifrdesc.ifr_name, name, sizeof ifrdesc.ifr_name);
+	pcap_strlcpy(ifrdesc.ifr_name, name, sizeof ifrdesc.ifr_name);
 	s = socket(AF_INET, SOCK_DGRAM, 0);
 	if (s >= 0) {
 #ifdef __FreeBSD__
@@ -1316,14 +1316,14 @@ pcap_lookupdev(char *errbuf)
 		 * on the list, there aren't any non-loopback devices,
 		 * so why not just supply it as the default device?
 		 */
-		(void)strlcpy(errbuf, "no suitable device found",
+		(void)pcap_strlcpy(errbuf, "no suitable device found",
 		    PCAP_ERRBUF_SIZE);
 		ret = NULL;
 	} else {
 		/*
 		 * Return the name of the first device on the list.
 		 */
-		(void)strlcpy(device, alldevs->name, sizeof(device));
+		(void)pcap_strlcpy(device, alldevs->name, sizeof(device));
 		ret = device;
 	}
 
@@ -1390,7 +1390,7 @@ pcap_lookupnet(const char *device, bpf_u_int32 *netp, bpf_u_int32 *maskp,
 	/* XXX Work around Linux kernel bug */
 	ifr.ifr_addr.sa_family = AF_INET;
 #endif
-	(void)strlcpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
+	(void)pcap_strlcpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
 	if (ioctl(fd, SIOCGIFADDR, (char *)&ifr) < 0) {
 		if (errno == EADDRNOTAVAIL) {
 			(void)pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
@@ -1409,7 +1409,7 @@ pcap_lookupnet(const char *device, bpf_u_int32 *netp, bpf_u_int32 *maskp,
 	/* XXX Work around Linux kernel bug */
 	ifr.ifr_addr.sa_family = AF_INET;
 #endif
-	(void)strlcpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
+	(void)pcap_strlcpy(ifr.ifr_name, device, sizeof(ifr.ifr_name));
 	if (ioctl(fd, SIOCGIFNETMASK, (char *)&ifr) < 0) {
 		pcap_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
 		    errno, "SIOCGIFNETMASK: %s", device);
@@ -1829,9 +1829,9 @@ pcap_createsrcstr(char *source, int type, const char *host, const char *port,
 	switch (type) {
 
 	case PCAP_SRC_FILE:
-		strlcpy(source, PCAP_SRC_FILE_STRING, PCAP_BUF_SIZE);
+		pcap_strlcpy(source, PCAP_SRC_FILE_STRING, PCAP_BUF_SIZE);
 		if (name != NULL && *name != '\0') {
-			strlcat(source, name, PCAP_BUF_SIZE);
+			pcap_strlcat(source, name, PCAP_BUF_SIZE);
 			return (0);
 		} else {
 			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
@@ -1840,7 +1840,7 @@ pcap_createsrcstr(char *source, int type, const char *host, const char *port,
 		}
 
 	case PCAP_SRC_IFREMOTE:
-		strlcpy(source, PCAP_SRC_IF_STRING, PCAP_BUF_SIZE);
+		pcap_strlcpy(source, PCAP_SRC_IF_STRING, PCAP_BUF_SIZE);
 		if (host != NULL && *host != '\0') {
 			if (strchr(host, ':') != NULL) {
 				/*
@@ -1848,18 +1848,18 @@ pcap_createsrcstr(char *source, int type, const char *host, const char *port,
 				 * probably an IPv6 address, and needs to
 				 * be included in square brackets.
 				 */
-				strlcat(source, "[", PCAP_BUF_SIZE);
-				strlcat(source, host, PCAP_BUF_SIZE);
-				strlcat(source, "]", PCAP_BUF_SIZE);
+				pcap_strlcat(source, "[", PCAP_BUF_SIZE);
+				pcap_strlcat(source, host, PCAP_BUF_SIZE);
+				pcap_strlcat(source, "]", PCAP_BUF_SIZE);
 			} else
-				strlcat(source, host, PCAP_BUF_SIZE);
+				pcap_strlcat(source, host, PCAP_BUF_SIZE);
 
 			if (port != NULL && *port != '\0') {
-				strlcat(source, ":", PCAP_BUF_SIZE);
-				strlcat(source, port, PCAP_BUF_SIZE);
+				pcap_strlcat(source, ":", PCAP_BUF_SIZE);
+				pcap_strlcat(source, port, PCAP_BUF_SIZE);
 			}
 
-			strlcat(source, "/", PCAP_BUF_SIZE);
+			pcap_strlcat(source, "/", PCAP_BUF_SIZE);
 		} else {
 			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
 			    "The host name cannot be NULL.");
@@ -1867,15 +1867,15 @@ pcap_createsrcstr(char *source, int type, const char *host, const char *port,
 		}
 
 		if (name != NULL && *name != '\0')
-			strlcat(source, name, PCAP_BUF_SIZE);
+			pcap_strlcat(source, name, PCAP_BUF_SIZE);
 
 		return (0);
 
 	case PCAP_SRC_IFLOCAL:
-		strlcpy(source, PCAP_SRC_IF_STRING, PCAP_BUF_SIZE);
+		pcap_strlcpy(source, PCAP_SRC_IF_STRING, PCAP_BUF_SIZE);
 
 		if (name != NULL && *name != '\0')
-			strlcat(source, name, PCAP_BUF_SIZE);
+			pcap_strlcat(source, name, PCAP_BUF_SIZE);
 
 		return (0);
 
@@ -1914,7 +1914,7 @@ pcap_parsesrcstr(const char *source, int *type, char *host, char *port,
 		 * Local device.
 		 */
 		if (name && tmppath)
-			strlcpy(name, tmppath, PCAP_BUF_SIZE);
+			pcap_strlcpy(name, tmppath, PCAP_BUF_SIZE);
 		if (type)
 			*type = PCAP_SRC_IFLOCAL;
 		free(tmppath);
@@ -1936,12 +1936,12 @@ pcap_parsesrcstr(const char *source, int *type, char *host, char *port,
 				pcap_snprintf(host, PCAP_BUF_SIZE, "%s@%s",
 				    tmpuserinfo, tmphost);
 			else
-				strlcpy(host, tmphost, PCAP_BUF_SIZE);
+				pcap_strlcpy(host, tmphost, PCAP_BUF_SIZE);
 		}
 		if (port && tmpport)
-			strlcpy(port, tmpport, PCAP_BUF_SIZE);
+			pcap_strlcpy(port, tmpport, PCAP_BUF_SIZE);
 		if (name && tmppath)
-			strlcpy(name, tmppath, PCAP_BUF_SIZE);
+			pcap_strlcpy(name, tmppath, PCAP_BUF_SIZE);
 		if (type)
 			*type = PCAP_SRC_IFREMOTE;
 		free(tmppath);
@@ -1957,7 +1957,7 @@ pcap_parsesrcstr(const char *source, int *type, char *host, char *port,
 		 * file://
 		 */
 		if (name && tmppath)
-			strlcpy(name, tmppath, PCAP_BUF_SIZE);
+			pcap_strlcpy(name, tmppath, PCAP_BUF_SIZE);
 		if (type)
 			*type = PCAP_SRC_FILE;
 		free(tmppath);
@@ -1973,7 +1973,7 @@ pcap_parsesrcstr(const char *source, int *type, char *host, char *port,
 	 * as a local device.
 	 */
 	if (name)
-		strlcpy(name, source, PCAP_BUF_SIZE);
+		pcap_strlcpy(name, source, PCAP_BUF_SIZE);
 	if (type)
 		*type = PCAP_SRC_IFLOCAL;
 	free(tmppath);
@@ -3004,6 +3004,8 @@ static struct dlt_choice dlt_choices[] = {
 	DLT_CHOICE(ETHERNET_MPACKET, "802.3br mPackets"),
 	DLT_CHOICE(DISPLAYPORT_AUX, "DisplayPort AUX channel monitoring data"),
 	DLT_CHOICE(LINUX_SLL2, "Linux cooked v2"),
+	DLT_CHOICE(OPENVIZSLA, "OpenVizsla USB"),
+	DLT_CHOICE(EBHSCR, "Elektrobit High Speed Capture and Replay (EBHSCR)"),
 	DLT_CHOICE_SENTINEL
 };
 
@@ -3195,7 +3197,7 @@ pcap_getnonblock(pcap_t *p, char *errbuf)
 		 * We copy the error message to errbuf, so callers
 		 * can find it in either place.
 		 */
-		strlcpy(errbuf, p->errbuf, PCAP_ERRBUF_SIZE);
+		pcap_strlcpy(errbuf, p->errbuf, PCAP_ERRBUF_SIZE);
 	}
 	return (ret);
 }
@@ -3239,7 +3241,7 @@ pcap_setnonblock(pcap_t *p, int nonblock, char *errbuf)
 		 * We copy the error message to errbuf, so callers
 		 * can find it in either place.
 		 */
-		strlcpy(errbuf, p->errbuf, PCAP_ERRBUF_SIZE);
+		pcap_strlcpy(errbuf, p->errbuf, PCAP_ERRBUF_SIZE);
 	}
 	return (ret);
 }
@@ -3375,7 +3377,7 @@ pcap_strerror(int errnum)
 	errno_t err = strerror_s(errbuf, PCAP_ERRBUF_SIZE, errnum);
 
 	if (err != 0) /* err = 0 if successful */
-		strlcpy(errbuf, "strerror_s() error", PCAP_ERRBUF_SIZE);
+		pcap_strlcpy(errbuf, "strerror_s() error", PCAP_ERRBUF_SIZE);
 	return (errbuf);
 #else
 	return (strerror(errnum));
@@ -3597,7 +3599,7 @@ pcap_do_addexit(pcap_t *p)
 			/*
 			 * "atexit()" failed; let our caller know.
 			 */
-			strlcpy(p->errbuf, "atexit failed", PCAP_ERRBUF_SIZE);
+			pcap_strlcpy(p->errbuf, "atexit failed", PCAP_ERRBUF_SIZE);
 			return (0);
 		}
 		did_atexit = 1;
@@ -3644,6 +3646,7 @@ pcap_breakloop_common(pcap_t *p)
 {
 	p->break_loop = 1;
 }
+
 
 void
 pcap_cleanup_live_common(pcap_t *p)

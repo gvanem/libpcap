@@ -94,13 +94,27 @@ esac
 
 AC_LBL_FIXINCLUDES
 
-AC_CHECK_FUNCS(strerror strerror_r strerror_s strlcpy strlcat)
+AC_CHECK_FUNCS(strerror strerror_r strerror_s)
 
 needsnprintf=no
 AC_CHECK_FUNCS(vsnprintf snprintf,,
 	[needsnprintf=yes])
 if test $needsnprintf = yes; then
 	AC_LIBOBJ([snprintf])
+fi
+
+needstrlcat=no
+AC_CHECK_FUNCS(strlcat,,
+	[needstrlcat=yes])
+if test $needstrlcat = yes; then
+	AC_LIBOBJ([strlcat])
+fi
+
+needstrlcpy=no
+AC_CHECK_FUNCS(strlcpy,,
+	[needstrlcpy=yes])
+if test $needstrlcpy = yes; then
+	AC_LIBOBJ([strlcpy])
 fi
 
 needstrtok_r=no
@@ -1599,19 +1613,25 @@ darwin*)
 	if test "$enable_universal" != "no"; then
 		case "$host_os" in
 
-		darwin[0-7].*)
+		darwin[[0-7]].*)
 			#
 			# Pre-Tiger.  Build only for 32-bit PowerPC; no
 			# need for any special compiler or linker flags.
 			#
 			;;
 
-		darwin8.[0123]*)
+		darwin8.[[0123]]|darwin8.[[0123]].*)
 			#
 			# Tiger, prior to Intel support.  Build
 			# libraries and executables for 32-bit PowerPC
 			# and 64-bit PowerPC, with 32-bit PowerPC first.
 			# (I'm guessing that's what Apple does.)
+			#
+			# (The double brackets are needed because
+			# autotools/m4 use brackets as a quoting
+			# character; the double brackets turn into
+			# single brackets in the generated configure
+			# file.)
 			#
 			V_LIB_CCOPT_FAT="-arch ppc -arch ppc64"
 			V_LIB_LDFLAGS_FAT="-arch ppc -arch ppc64"
@@ -1619,13 +1639,19 @@ darwin*)
 			V_PROG_LDFLAGS_FAT="-arch ppc -arch ppc64"
 			;;
 
-		darwin8.[456]*)
+		darwin8.[[456]]|darwin.[[456]].*)
 			#
 			# Tiger, subsequent to Intel support but prior
 			# to x86-64 support.  Build libraries and
 			# executables for 32-bit PowerPC, 64-bit
 			# PowerPC, and 32-bit x86, with 32-bit PowerPC
 			# first.  (I'm guessing that's what Apple does.)
+			#
+			# (The double brackets are needed because
+			# autotools/m4 use brackets as a quoting
+			# character; the double brackets turn into
+			# single brackets in the generated configure
+			# file.)
 			#
 			V_LIB_CCOPT_FAT="-arch ppc -arch ppc64 -arch i386"
 			V_LIB_LDFLAGS_FAT="-arch ppc -arch ppc64 -arch i386"
@@ -1690,8 +1716,48 @@ darwin*)
 			# ARM-based Macs.  (You're on your own for iOS
 			# etc.)
 			#
-			V_LIB_CCOPT_FAT="-arch x86_64 -arch i386"
-			V_LIB_LDFLAGS_FAT="-arch x86_64 -arch i386"
+			# XXX - check whether we *can* build for
+			# i386 and, if not, suggest that the user
+			# install the /usr/include headers if they
+			# want to build fat.
+			#
+			AC_MSG_CHECKING(whether building for 32-bit x86 is supported)
+			save_CFLAGS="$CFLAGS"
+			CFLAGS="$CFLAGS -arch i386"
+			AC_TRY_COMPILE(
+			    [],
+			    [return 0;],
+			    [
+				AC_MSG_RESULT(yes)
+				V_LIB_CCOPT_FAT="-arch x86_64 -arch i386"
+				V_LIB_LDFLAGS_FAT="-arch x86_64 -arch i386"
+			    ],
+			    [
+				AC_MSG_RESULT(no)
+				V_LIB_CCOPT_FAT="-arch x86_64"
+				V_LIB_LDFLAGS_FAT="-arch x86_64"
+				case "$host_os" in
+
+				darwin18.*)
+					#
+					# Mojave; you need to install the
+					# /usr/include headers to get
+					# 32-bit x86 builds to work.
+					#
+					AC_MSG_WARN([Compiling for 32-bit x86 gives an error; try installing the command-line tools and, after that, installing the /usr/include headers from the /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg package])
+					;;
+
+				*)
+					#
+					# Pre-Mojave; the command-line
+					# tools should be sufficient to
+					# enable 32-bit x86 builds.
+					#
+					AC_MSG_WARN([Compiling for 32-bit x86 gives an error; try installing the command-line tools])
+					;;
+				esac
+			    ])
+			CFLAGS="$save_CFLAGS"
 			;;
 		esac
 	fi
@@ -2240,15 +2306,15 @@ fi
 AC_ARG_ENABLE([rdma],
 [AC_HELP_STRING([--enable-rdma],[enable RDMA capture support @<:@default=yes, if support available@:>@])],
     [],
-    [enable_rdmasniff=ifavailable])
+    [enable_rdma=ifavailable])
 
 if test "xxx_only" = yes; then
 	# User requested something-else-only pcap, so they don't
 	# want RDMA support.
-	enable_rdmasniff=no
+	enable_rdma=no
 fi
 
-if test "x$enable_rdmasniff" != "xno"; then
+if test "x$enable_rdma" != "xno"; then
 	AC_CHECK_LIB(ibverbs, ibv_get_device_list, [
 		AC_CHECK_HEADER(infiniband/verbs.h, [
 			#

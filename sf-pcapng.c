@@ -280,6 +280,7 @@ read_block(FILE *fp, pcap_t *p, struct block_cursor *cursor, char *errbuf)
 	struct pcap_ng_sf *ps;
 	int status;
 	struct block_header bhdr;
+	struct block_trailer *btrlr;
 	u_char *bdata;
 	size_t data_remaining;
 
@@ -304,6 +305,19 @@ read_block(FILE *fp, pcap_t *p, struct block_cursor *cursor, char *errbuf)
 		    "block in pcapng dump file has a length of %u < %" PRIsize,
 		    bhdr.total_length,
 		    sizeof(struct block_header) + sizeof(struct block_trailer));
+		return (-1);
+	}
+
+	/*
+	 * Is the block total length a multiple of 4?
+	 */
+	if ((bhdr.total_length % 4) != 0) {
+		/*
+		 * No.  Report that as an error.
+		 */
+		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+		    "block in pcapng dump file has a length of %u that is not a multiple of 4" PRIsize,
+		    bhdr.total_length);
 		return (-1);
 	}
 
@@ -339,6 +353,26 @@ read_block(FILE *fp, pcap_t *p, struct block_cursor *cursor, char *errbuf)
 	data_remaining = bhdr.total_length - sizeof(bhdr);
 	if (read_bytes(fp, bdata, data_remaining, 1, errbuf) == -1)
 		return (-1);
+
+	/*
+	 * Get the block size from the trailer.
+	 */
+	btrlr = (struct block_trailer *)(bdata + data_remaining - sizeof (struct block_trailer));
+	if (p->swapped)
+		btrlr->total_length = SWAPLONG(btrlr->total_length);
+
+	/*
+	 * Is the total length from the trailer the same as the total
+	 * length from the header?
+	 */
+	if (bhdr.total_length != btrlr->total_length) {
+		/*
+		 * No.
+		 */
+		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+		    "block total length in header and trailer don't match");
+		return (-1);
+	}
 
 	/*
 	 * Initialize the cursor.

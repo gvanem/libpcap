@@ -23,6 +23,6 @@
  * Some stuff for use when debugging the optimizer.
  */
 #ifdef BDEBUG
-#define NBIDS	1000
+#define NBIDS	10000
 extern int bids[NBIDS];
 #endif

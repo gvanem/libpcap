@@ -241,12 +241,12 @@ int main(int argc, char *argv[])
 				{
 					tmpport = pcap_strtok_r(NULL, RPCAP_HOSTLIST_SEP, &lasts);
 
-					strlcpy(activelist[i].address, tmpaddress, MAX_LINE);
+					pcap_strlcpy(activelist[i].address, tmpaddress, MAX_LINE);
 
 					if ((tmpport == NULL) || (strcmp(tmpport, "DEFAULT") == 0)) // the user choose a custom port
-						strlcpy(activelist[i].port, RPCAP_DEFAULT_NETPORT_ACTIVE, MAX_LINE);
+						pcap_strlcpy(activelist[i].port, RPCAP_DEFAULT_NETPORT_ACTIVE, MAX_LINE);
 					else
-						strlcpy(activelist[i].port, tmpport, MAX_LINE);
+						pcap_strlcpy(activelist[i].port, tmpport, MAX_LINE);
 
 					tmpaddress = pcap_strtok_r(NULL, RPCAP_HOSTLIST_SEP, &lasts);
 
@@ -261,18 +261,18 @@ int main(int argc, char *argv[])
 				break;
 			}
 			case 'f':
-				strlcpy(loadfile, optarg, MAX_LINE);
+				pcap_strlcpy(loadfile, optarg, MAX_LINE);
 				break;
 			case 's':
-				strlcpy(savefile, optarg, MAX_LINE);
+				pcap_strlcpy(savefile, optarg, MAX_LINE);
 				break;
 			case 'h':
 				printusage();
 				exit(0);
-				break;
+				/*NOTREACHED*/
 			default:
 				exit(1);
-				break;
+				/*NOTREACHED*/
 		}
 	}
 

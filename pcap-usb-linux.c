@@ -279,7 +279,7 @@ usb_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 		 * Split LINUX_USB_MON_DEV into a directory that we'll
 		 * scan and a file name prefix that we'll check for.
 		 */
-		strlcpy(usb_mon_dir, LINUX_USB_MON_DEV, sizeof usb_mon_dir);
+		pcap_strlcpy(usb_mon_dir, LINUX_USB_MON_DEV, sizeof usb_mon_dir);
 		usb_mon_prefix = strrchr(usb_mon_dir, '/');
 		if (usb_mon_prefix == NULL) {
 			/*
@@ -515,6 +515,7 @@ usb_activate(pcap_t* handle)
 {
 	struct pcap_usb_linux *handlep = handle->priv;
 	char 		full_path[USB_LINE_LEN];
+	int		ret;
 
 	/*
 	 * Turn a negative snapshot value (invalid), a snapshot value of
@@ -647,38 +648,38 @@ usb_activate(pcap_t* handle)
 				handle->fd = open(full_path, O_RDONLY, 0);
 			}
 			if (handle->fd < 0) {
-				/*
-				 * Is the problem that we didn't have
-				 * sufficient permission to open it?
-				 */
-				if (errno == EACCES) {
+				if (errno == ENOENT)
+				{
 					/*
-					 * Yes - return that error.
+					 * The problem is that the file
+					 * doesn't exist.  Report that as
+					 * "no such device".  (That could
+					 * mean "no such USB bus" or
+					 * "monitoring not supported".)
 					 */
-					return PCAP_ERROR_PERM_DENIED;
+					ret = PCAP_ERROR_NO_SUCH_DEVICE;
 				}
-
-				/*
-				 * No - was the problem something other
-				 * than "it doesn't exist"?
-				 */
-				if (errno != ENOENT) {
+				else if (errno == EACCES)
+				{
 					/*
-					 * Yes - return *that* error.
+					 * The problem is that we don't
+					 * have sufficient permission to
+					 * open the file.  Report that.
 					 */
-					pcap_fmt_errmsg_for_errno(handle->errbuf,
-					    PCAP_ERRBUF_SIZE, errno,
-					    "Can't open USB bus file %s",
-					    full_path);
-					return PCAP_ERROR;
+					ret = PCAP_ERROR_PERM_DENIED;
 				}
-
-				/*
-				 * No.  Report that as "no such device".
-				 * (That could mean "no such USB bus"
-				 * or "monitoring not supported".)
-				 */
-				return PCAP_ERROR_NO_SUCH_DEVICE;
+				else
+				{
+					/*
+					 * Some other error.
+					 */
+					ret = PCAP_ERROR;
+				}
+				pcap_fmt_errmsg_for_errno(handle->errbuf,
+				    PCAP_ERRBUF_SIZE, errno,
+				    "Can't open USB bus file %s",
+				    full_path);
+				return ret;
 			}
 		}
 
@@ -925,8 +926,8 @@ got:
 static int
 usb_inject_linux(pcap_t *handle, const void *buf _U_, int size _U_)
 {
-	pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "inject not supported on "
-		"USB devices");
+	pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+	    "Packet injection is not supported on USB devices");
 	return (-1);
 }
 

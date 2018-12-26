@@ -5024,7 +5024,7 @@ $as_echo "$ac_cv_lbl_gcc_fixincludes" >&6; }
 	    fi
     fi
 
-for ac_func in strerror strerror_r strerror_s strlcpy strlcat
+for ac_func in strerror strerror_r strerror_s
 do :
   as_ac_var=`$as_echo "ac_cv_func_$ac_func" | $as_tr_sh`
 ac_fn_c_check_func "$LINENO" "$ac_func" "$as_ac_var"
@@ -5056,6 +5056,52 @@ if test $needsnprintf = yes; then
 	case " $LIBOBJS " in
   *" snprintf.$ac_objext "* ) ;;
   *) LIBOBJS="$LIBOBJS snprintf.$ac_objext"
+ ;;
+esac
+
+fi
+
+needstrlcat=no
+for ac_func in strlcat
+do :
+  ac_fn_c_check_func "$LINENO" "strlcat" "ac_cv_func_strlcat"
+if test "x$ac_cv_func_strlcat" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_STRLCAT 1
+_ACEOF
+
+else
+  needstrlcat=yes
+fi
+done
+
+if test $needstrlcat = yes; then
+	case " $LIBOBJS " in
+  *" strlcat.$ac_objext "* ) ;;
+  *) LIBOBJS="$LIBOBJS strlcat.$ac_objext"
+ ;;
+esac
+
+fi
+
+needstrlcpy=no
+for ac_func in strlcpy
+do :
+  ac_fn_c_check_func "$LINENO" "strlcpy" "ac_cv_func_strlcpy"
+if test "x$ac_cv_func_strlcpy" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_STRLCPY 1
+_ACEOF
+
+else
+  needstrlcpy=yes
+fi
+done
+
+if test $needstrlcpy = yes; then
+	case " $LIBOBJS " in
+  *" strlcpy.$ac_objext "* ) ;;
+  *) LIBOBJS="$LIBOBJS strlcpy.$ac_objext"
  ;;
 esac
 
@@ -8045,19 +8091,25 @@ fi
 	if test "$enable_universal" != "no"; then
 		case "$host_os" in
 
-		darwin0-7.*)
+		darwin[0-7].*)
 			#
 			# Pre-Tiger.  Build only for 32-bit PowerPC; no
 			# need for any special compiler or linker flags.
 			#
 			;;
 
-		darwin8.0123*)
+		darwin8.[0123]|darwin8.[0123].*)
 			#
 			# Tiger, prior to Intel support.  Build
 			# libraries and executables for 32-bit PowerPC
 			# and 64-bit PowerPC, with 32-bit PowerPC first.
 			# (I'm guessing that's what Apple does.)
+			#
+			# (The double brackets are needed because
+			# autotools/m4 use brackets as a quoting
+			# character; the double brackets turn into
+			# single brackets in the generated configure
+			# file.)
 			#
 			V_LIB_CCOPT_FAT="-arch ppc -arch ppc64"
 			V_LIB_LDFLAGS_FAT="-arch ppc -arch ppc64"
@@ -8065,13 +8117,19 @@ fi
 			V_PROG_LDFLAGS_FAT="-arch ppc -arch ppc64"
 			;;
 
-		darwin8.456*)
+		darwin8.[456]|darwin.[456].*)
 			#
 			# Tiger, subsequent to Intel support but prior
 			# to x86-64 support.  Build libraries and
 			# executables for 32-bit PowerPC, 64-bit
 			# PowerPC, and 32-bit x86, with 32-bit PowerPC
 			# first.  (I'm guessing that's what Apple does.)
+			#
+			# (The double brackets are needed because
+			# autotools/m4 use brackets as a quoting
+			# character; the double brackets turn into
+			# single brackets in the generated configure
+			# file.)
 			#
 			V_LIB_CCOPT_FAT="-arch ppc -arch ppc64 -arch i386"
 			V_LIB_LDFLAGS_FAT="-arch ppc -arch ppc64 -arch i386"
@@ -8136,8 +8194,65 @@ fi
 			# ARM-based Macs.  (You're on your own for iOS
 			# etc.)
 			#
-			V_LIB_CCOPT_FAT="-arch x86_64 -arch i386"
-			V_LIB_LDFLAGS_FAT="-arch x86_64 -arch i386"
+			# XXX - check whether we *can* build for
+			# i386 and, if not, suggest that the user
+			# install the /usr/include headers if they
+			# want to build fat.
+			#
+			{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether building for 32-bit x86 is supported" >&5
+$as_echo_n "checking whether building for 32-bit x86 is supported... " >&6; }
+			save_CFLAGS="$CFLAGS"
+			CFLAGS="$CFLAGS -arch i386"
+			cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
+int
+main ()
+{
+return 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+
+				{ $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+				V_LIB_CCOPT_FAT="-arch x86_64 -arch i386"
+				V_LIB_LDFLAGS_FAT="-arch x86_64 -arch i386"
+
+else
+
+				{ $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+				V_LIB_CCOPT_FAT="-arch x86_64"
+				V_LIB_LDFLAGS_FAT="-arch x86_64"
+				case "$host_os" in
+
+				darwin18.*)
+					#
+					# Mojave; you need to install the
+					# /usr/include headers to get
+					# 32-bit x86 builds to work.
+					#
+					{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Compiling for 32-bit x86 gives an error; try installing the command-line tools and, after that, installing the /usr/include headers from the /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg package" >&5
+$as_echo "$as_me: WARNING: Compiling for 32-bit x86 gives an error; try installing the command-line tools and, after that, installing the /usr/include headers from the /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg package" >&2;}
+					;;
+
+				*)
+					#
+					# Pre-Mojave; the command-line
+					# tools should be sufficient to
+					# enable 32-bit x86 builds.
+					#
+					{ $as_echo "$as_me:${as_lineno-$LINENO}: WARNING: Compiling for 32-bit x86 gives an error; try installing the command-line tools" >&5
+$as_echo "$as_me: WARNING: Compiling for 32-bit x86 gives an error; try installing the command-line tools" >&2;}
+					;;
+				esac
+
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+			CFLAGS="$save_CFLAGS"
 			;;
 		esac
 	fi
@@ -10562,17 +10677,17 @@ fi
 if test "${enable_rdma+set}" = set; then :
   enableval=$enable_rdma;
 else
-  enable_rdmasniff=ifavailable
+  enable_rdma=ifavailable
 fi
 
 
 if test "xxx_only" = yes; then
 	# User requested something-else-only pcap, so they don't
 	# want RDMA support.
-	enable_rdmasniff=no
+	enable_rdma=no
 fi
 
-if test "x$enable_rdmasniff" != "xno"; then
+if test "x$enable_rdma" != "xno"; then
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for ibv_get_device_list in -libverbs" >&5
 $as_echo_n "checking for ibv_get_device_list in -libverbs... " >&6; }
 if ${ac_cv_lib_ibverbs_ibv_get_device_list+:} false; then :

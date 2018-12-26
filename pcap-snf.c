@@ -182,8 +182,8 @@ snf_read(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 			hdr.caplen = caplen;
 			hdr.len = req.length;
 			callback(user, &hdr, req.pkt_addr);
+			n++;
 		}
-		n++;
 
 		/* After one successful packet is received, we won't block
 		* again for that timeout. */
@@ -191,25 +191,6 @@ snf_read(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 			timeout = 0;
 	}
 	return (n);
-}
-
-static int
-snf_setfilter(pcap_t *p, struct bpf_program *fp)
-{
-	if (!p)
-		return -1;
-	if (!fp) {
-		strncpy(p->errbuf, "setfilter: No filter specified",
-			sizeof(p->errbuf));
-		return -1;
-	}
-
-	/* Make our private copy of the filter */
-
-	if (install_bpf_program(p, fp) < 0)
-		return -1;
-
-	return (0);
 }
 
 static int
@@ -237,7 +218,7 @@ snf_inject(pcap_t *p, const void *buf _U_, int size _U_)
 		return (-1);
 	}
 #else
-	strlcpy(p->errbuf, "Sending packets isn't supported with this snf version",
+	pcap_strlcpy(p->errbuf, "Sending packets isn't supported with this snf version",
 	    PCAP_ERRBUF_SIZE);
 	return (-1);
 #endif
@@ -327,7 +308,7 @@ snf_activate(pcap_t* p)
 	p->linktype = DLT_EN10MB;
 	p->read_op = snf_read;
 	p->inject_op = snf_inject;
-	p->setfilter_op = snf_setfilter;
+	p->setfilter_op = install_bpf_program;
 	p->setdirection_op = NULL; /* Not implemented.*/
 	p->set_datalink_op = snf_set_datalink;
 	p->getnonblock_op = snf_getnonblock;

@@ -202,7 +202,7 @@ C_SOURCES += rpcapd.c     \
              win32-svc.c  \
              ../missing/getopt.c
 
-OBJECTS = $(notdir $(C_SOURCES:.c=.$(O))) rpcapd$(X64).res
+OBJECTS = $(notdir $(C_SOURCES:.c=.$(O))) rpcapd$(X64)_$(CC).res
 
 all: rpcapd$(X64).exe
 
@@ -214,7 +214,7 @@ all: rpcapd$(X64).exe
 	$(CC) $(CFLAGS) -c -o $@ $<
 	@echo
 
-rpcapd$(X64).res: rpcapd.rc | ./config.h
+rpcapd$(X64)_cl.res rpcapd$(X64)_clang-cl.res rpcapd$(X64)_gcc.res: rpcapd.rc | ./config.h
 	$(call make_res, $<, $@)
 
 %.i: %.c FORCE cpp_filter.py
@@ -228,7 +228,7 @@ rpcapd$(X64).exe: $(OBJECTS) $(PCAP_LIB)
 
 clean:
 	rm -f $(OBJECTS) rpcap-protocol.$(O) sockutils.$(O)
-	rm -f rpcapd$(X64).res rpcapd$(X64).map ./config.h cpp_filter.py link.tmp
+	rm -f rpcapd$(X64)_*.res rpcapd$(X64).map ./config.h cpp_filter.py link.tmp
 
 realclean vclean: clean
 	rm -f rpcapd$(X64).exe .depend.Windows

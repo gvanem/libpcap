@@ -6,7 +6,7 @@
 
 .SUFFIXES: .dll .l .y .cpp .rc .res
 
-VPATH = Win32 missing testprogs
+VPATH = Win32 missing testprogs testprogs/fuzz
 
 MAKE_FILE = Makefile.Windows
 
@@ -28,8 +28,6 @@ endif
 
 #
 # Options, change to suite:
-#
-
 #
 # Set "HAVE_PCAP_REMOTE=1" to enable remote packet-capture
 # (impossible using MinGW?).
@@ -701,10 +699,6 @@ endif
 ifeq ($(HAVE_PCAP_REMOTE),1)
   CFLAGS += -DLIBPCAP_REMOTE -DENABLE_REMOTE
 
-  #
-  # Make this a plugin some day.
-  #   I.e. WinPcap-Plugins/winpcap_rpcap_plugin$(X64_SUFFIX).dll
-  #
   WINPCAP_C_SRC += pcap-new.c pcap-rpcap.c sockutils.c rpcap-protocol.c
   LIBPCAP_C_SRC += pcap-new.c pcap-rpcap.c sockutils.c rpcap-protocol.c
   TARGETS       += rpcapd/rpcapd$(X64_SUFFIX).exe
@@ -820,27 +814,9 @@ $(WPCAP_IMP_LIB):  $(WPCAP_DLL)
 $(WPCAP2_IMP_LIB): $(WPCAP2_DLL)
 
 #
-# We're on Windows 6.2. I.e. Win 8.
-#
-# ifeq ($(shell uname -s),MINGW32_NT-6.2)
-#   $(OBJ_DIR)/win_btooth.$(O): CFLAGS += -U_WIN32_WINNT -D_WIN32_WINNT=0x0600
-# endif
-#
-# We're on Windows 10
-#
-# ifeq ($(shell uname -s),CYGWIN_NT-10.0-WOW)
-#   $(OBJ_DIR)/win_btooth.$(O): CFLAGS += -U_WIN32_WINNT -D_WIN32_WINNT=0x0602
-# endif
-
-#
 # Because inet_ntop() needs '_WIN32_WINNT >= 0x0600'.
 #
 $(OBJ_DIR)/findalldevstest.$(O) findalldevstest.i: CFLAGS += -U_WIN32_WINNT -D_WIN32_WINNT=0x0600
-
-#
-# Just to check the dependency tree
-#
-# $(OBJ_DIR)/pcap-new.$(O) $(OBJ_DIR)/pcap.$(O): CFLAGS += -showIncludes
 
 TEST_SRC = $(addprefix testprogs/, \
              can_set_rfmon_test.c  \
@@ -856,6 +832,14 @@ endif
 
 TEST_OBJECTS  = $(addprefix $(OBJ_DIR)/, $(notdir $(TEST_SRC:.c=.$(O))))
 TEST_PROGRAMS = $(notdir $(TEST_SRC:.c=.exe))
+
+FUZZ_SRC = $(addprefix testprogs/fuzz, \
+             fuzz_both.c               \
+             fuzz_filter.c             \
+             fuzz_pcap.c               \
+             onefile.c)
+
+FUZZ_PROGRAMS = fuzz_both.exe fuzz_filter.exe fuzz_pcap.exe
 
 $(OBJ_DIR)/Packet32.$(O) \
 $(OBJ_DIR)/AdInfo.$(O):  CFLAGS += -DCOMPILING_PACKET32_C
@@ -877,7 +861,7 @@ ifeq ($(CC),clang-cl)
 endif
 
 #
-# Let $(TEST_PROGRAMS) use $(WPCAP_DLL) except when
+# Let $(TEST_PROGRAMS) and $(FUZZ_PROGRAMS) use $(WPCAP_DLL) except when
 # 'USE_WIN10PCAP=1' (see below).
 #
 $(TEST_OBJECTS) $(notdir $(TEST_OBJECTS:.$(O)=.i)): CFLAGS += -DPCAP_DLL
@@ -923,6 +907,9 @@ opentest.exe: $(OBJ_DIR)/opentest.$(O) $(OBJ_DIR)/getopt.$(O) $(WPCAP_LIB)
 	$(call link_EXE, $@, $^ $(PACKET_LIB) $(EX_LIBS))
 
 threadsignaltest.exe: $(OBJ_DIR)/threadsignaltest.$(O) $(OBJ_DIR)/getopt.$(O) $(WPCAP_LIB)
+	$(call link_EXE, $@, $^ $(PACKET_LIB) $(EX_LIBS))
+
+fuzz_%.exe: $(OBJ_DIR)/fuzz_%.$(O) $(OBJ_DIR)/onefile.$(O) $(WPCAP_LIB)
 	$(call link_EXE, $@, $^ $(PACKET_LIB) $(EX_LIBS))
 
 #
@@ -1305,14 +1292,16 @@ endif
 #
 $(OBJ_DIR)/win_btooth.$(O): CFLAGS += -U_WIN32_WINNT -D_WIN32_WINNT=0x0600
 
-LINK_CRAP += $(TEST_PROGRAMS:.exe=.map)
+LINK_CRAP += $(TEST_PROGRAMS:.exe=.map) $(FUZZ_PROGRAMS:.exe=.map)
 
 ifeq ($(MSVC_TYPE),1)
-  LINK_CRAP += $(TEST_PROGRAMS:.exe=.pdb)
+  LINK_CRAP += $(TEST_PROGRAMS:.exe=.pdb) \
+               $(FUZZ_PROGRAMS:.exe=.pdb)
 endif
 
 ALL_SOURCES = $(WINPCAP_C_SRC) $(WINPCAP_CPP_SRC) \
-              $(LIBPCAP_C_SRC) $(TEST_SRC) $(PLUGIN_SRC)
+              $(LIBPCAP_C_SRC) $(TEST_SRC) $(FUZZ_SRC) \
+              $(PLUGIN_SRC)
 
 ##################################################################################
 
@@ -1329,6 +1318,7 @@ help:
 	$(call colour_msg,$(BRIGHT_YELLOW)     $(FEATURES))
 
 programs: $(TEST_PROGRAMS)
+fuzzers:  $(FUZZ_PROGRAMS)
 
 $(OBJ_DIR) docs::
 	-mkdir $@
@@ -1817,7 +1807,7 @@ clean:
 	rm -f $(GENERATED) $(OBJ_DIR)/*
 
 vclean realclean: clean
-	- rm -f $(TARGETS) $(TEST_PROGRAMS) $(LINK_CRAP) $(MAN3_PAGES) .depend.Windows link.tmp cpp_filter.py
+	- rm -f $(TARGETS) $(TEST_PROGRAMS) $(FUZZ_PROGRAMS) $(LINK_CRAP) $(MAN3_PAGES) .depend.Windows link.tmp cpp_filter.py
 	- rmdir $(OBJ_DIR)
 ifeq ($(HAVE_PCAP_REMOTE),1)
 	$(MAKE) -C rpcapd -f Makefile.Windows CC=$(CC) $@

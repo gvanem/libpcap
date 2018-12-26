@@ -9,6 +9,13 @@ if(POLICY CMP0042)
     cmake_policy(SET CMP0042 OLD)
 endif()
 
+#
+# Squelch noise about quoted strings in if() statements.
+# WE KNOW WHAT WE'RE DOING, WE'RE DOING EVERYTHING THE WAY THAT NEWER
+# VERSIONS OF CMAKE EXPECT BY DEFAULT, DON'T WASTE OUR TIME WITH NOISE.
+#
+cmake_policy(SET CMP0054 NEW)
+
 set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Modules)
 
 project(pcap)
@@ -771,6 +778,93 @@ if(NOT WIN32)
   endif(NOT CMAKE_USE_PTHREADS_INIT)
 endif(NOT WIN32)
 
+#
+# Based on
+#
+#    https://github.com/commonmark/cmark/blob/master/FindAsan.cmake
+#
+# The MIT License (MIT)
+#
+# Copyright (c) 2013 Matthew Arsenault
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+#
+# Test if the each of the sanitizers in the ENABLE_SANITIZERS list are
+# supported by the compiler, and, if so, adds the appropriate flags to
+# CMAKE_C_FLAGS, CMAKE_CXX_FLAGS, and SANITIZER_FLAGS.  If not, it fails.
+#
+# Do this last, in the hope that it will prevent configuration on Linux
+# from somehow deciding it doesn't need -lpthread when building rpcapd
+# (it does require it, but somehow, in some mysterious fashion that no
+# obvious CMake debugging flag reveals, it doesn't realize that if we
+# turn sanitizer stuff on).
+#
+set(SANITIZER_FLAGS "")
+foreach(sanitizer IN LISTS ENABLE_SANITIZERS)
+    # Set -Werror to catch "argument unused during compilation" warnings
+
+    message(STATUS "Checking sanitizer ${sanitizer}")
+    set(sanitizer_variable "sanitize_${sanitizer}")
+    set(CMAKE_REQUIRED_FLAGS "-Werror -fsanitize=${sanitizer}")
+    check_c_compiler_flag("-fsanitize=${sanitizer}" ${sanitizer_variable})
+    if(${${sanitizer_variable}})
+        set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize=${sanitizer}")
+        message(STATUS "${sanitizer} sanitizer supported using -fsanitizer=${sanitizer}")
+    else()
+        #
+        # Try the versions supported prior to Clang 3.2.
+        # If the sanitizer is "address", try -fsanitize-address.
+        # If it's "undefined", try -fcatch-undefined-behavior.
+        # Otherwise, give up.
+        #
+        set(sanitizer_variable "OLD_${sanitizer_variable}")
+        if ("${sanitizer}" STREQUAL "address")
+            set(CMAKE_REQUIRED_FLAGS "-Werror -fsanitize-address")
+            check_c_compiler_flag("-fsanitize-address" ${sanitizer_variable})
+            if(${${sanitizer_variable}})
+                set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fsanitize-address")
+                message(STATUS "${sanitizer} sanitizer supported using -fsanitize-address")
+            else()
+                message(FATAL_ERROR "${sanitizer} isn't a supported sanitizer")
+            endif()
+        elseif("${sanitizer}" STREQUAL "undefined")
+            set(CMAKE_REQUIRED_FLAGS "-Werror -fcatch-undefined-behavior")
+            check_c_compiler_flag("-fcatch-undefined-behavior" ${sanitizer_variable})
+            if(${${sanitizer_variable}})
+                set(SANITIZER_FLAGS "${SANITIZER_FLAGS} -fcatch-undefined-behavior")
+                message(STATUS "${sanitizer} sanitizer supported using catch-undefined-behavior")
+            else()
+                message(FATAL_ERROR "${sanitizer} isn't a supported sanitizer")
+            endif()
+        else()
+            message(FATAL_ERROR "${sanitizer} isn't a supported sanitizer")
+        endif()
+    endif()
+
+    unset(CMAKE_REQUIRED_FLAGS)
+endforeach()
+
+if(NOT "${SANITIZER_FLAGS}" STREQUAL "")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O1 -g ${SANITIZER_FLAGS} -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O1 -g ${SANITIZER_FLAGS} -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+endif()
+
 ######################################
 # Input files
 ######################################
@@ -792,11 +886,17 @@ set(PROJECT_SOURCE_LIST_C
 )
 
 if(WIN32)
-    set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/win_snprintf.c pcap-namedb.c)
+    set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/win_snprintf.c)
 else()
     if(NOT HAVE_SNPRINTF)
         set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/snprintf.c)
     endif(NOT HAVE_SNPRINTF)
+    if(NOT HAVE_STRLCAT)
+        set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/strlcat.c)
+    endif(NOT HAVE_STRLCAT)
+    if(NOT HAVE_STRLCPY)
+        set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/strlcpy.c)
+    endif(NOT HAVE_STRLCPY)
     if(NOT HAVE_STRTOK_R)
         set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} missing/strtok_r.c)
     endif(NOT HAVE_STRTOK_R)
@@ -958,7 +1058,7 @@ if(WIN32)
         set(PCAP_LINK_LIBRARIES ${PACKET_LIBRARIES} ${PCAP_LINK_LIBRARIES})
     elseif(PCAP_TYPE STREQUAL "null")
     else()
-        message(ERROR "${PCAP_TYPE} is not a valid pcap type")
+        message(FATAL_ERROR "${PCAP_TYPE} is not a valid pcap type")
     endif()
 else(WIN32)
     if(PCAP_TYPE STREQUAL "dlpi")
@@ -1878,6 +1978,10 @@ if(BUILD_SHARED_LIBS)
     add_dependencies(${LIBRARY_NAME} SerializeTarget)
     set_target_properties(${LIBRARY_NAME} PROPERTIES
         COMPILE_DEFINITIONS BUILDING_PCAP)
+    if(NOT "${SANITIZER_FLAGS}" STREQUAL "")
+        set_target_properties(${LIBRARY_NAME} PROPERTIES
+            LINK_FLAGS "${SANITIZER_FLAGS}")
+    endif()
 endif(BUILD_SHARED_LIBS)
 
 add_library(${LIBRARY_NAME}_static STATIC
@@ -2028,7 +2132,35 @@ if(APPLE AND "${CMAKE_OSX_ARCHITECTURES}" STREQUAL "")
         # for 32-bit x86 code and if and when Apple adds
         # ARM-based Macs.  (You're on your own for iOS etc.)
         #
-        set(OSX_LIBRARY_ARCHITECTURES "x86_64;i386")
+        # XXX - check whether we *can* build for i386 and, if not,
+        # suggest that the user install the /usr/include headers if
+        # they want to build fat.
+        #
+        cmake_push_check_state()
+        set(CMAKE_REQUIRED_FLAGS "-arch i386")
+        check_c_source_compiles(
+"int
+main(void)
+{
+    return 0;
+}
+"
+                   X86_32_BIT_SUPPORTED)
+        cmake_pop_check_state()
+        if(X86_32_BIT_SUPPORTED)
+            set(OSX_LIBRARY_ARCHITECTURES "x86_64;i386")
+        else()
+            set(OSX_LIBRARY_ARCHITECTURES "x86_64")
+            if(SYSTEM_VERSION_MAJOR LESS 18)
+                #
+                # Pre-Mojave; the command-line tools should be sufficient to
+                # enable 32-bit x86 builds.
+                #
+                message(WARNING "Compiling for 32-bit x86 gives an error; try installing the command-line tools")
+            else()
+                message(WARNING "Compiling for 32-bit x86 gives an error; try installing the command-line tools and, after that, installing the /usr/include headers from the /Library/Developer/CommandLineTools/Packages/macOS_SDK_headers_for_macOS_10.14.pkg package")
+            endif()
+        endif()
     endif()
     if(BUILD_SHARED_LIBS)
         set_target_properties(${LIBRARY_NAME} PROPERTIES
