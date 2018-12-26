@@ -455,8 +455,8 @@ static void plugin_load_one (const char *pluginModuleName, const char *pluginFul
     goto Exit;
   }
 
-  strlcpy (plugin->PluginModuleName, pluginModuleName, sizeof(plugin->PluginModuleName));
-  strlcpy (plugin->PluginFullName, pluginFullName, sizeof(plugin->PluginFullName));
+  pcap_strlcpy (plugin->PluginModuleName, pluginModuleName, sizeof(plugin->PluginModuleName));
+  pcap_strlcpy (plugin->PluginFullName, pluginFullName, sizeof(plugin->PluginFullName));
 
 #undef  SET_ADDR
 #define SET_ADDR(required, func)                                               \
@@ -658,7 +658,7 @@ static int plugin_activate (pcap_t *p)
 
   if (!plugin_find_device(p->opt.device, &priv->PluginIndex))
   {
-    strlcpy (p->errbuf, "Failed to find a plugin to service the device", PCAP_ERRBUF_SIZE);
+    pcap_strlcpy (p->errbuf, "Failed to find a plugin to service the device", PCAP_ERRBUF_SIZE);
     PCAP_TRACE (2, "%s.\n", p->errbuf);
     return (-1);
   }
@@ -689,7 +689,7 @@ static int plugin_activate (pcap_t *p)
     p->dlt_list = malloc (sizeof(u_int));
     if (!p->dlt_list)
     {
-      strlcpy (p->errbuf, "Failed to allocate memory for the device's DLT list", PCAP_ERRBUF_SIZE);
+      pcap_strlcpy (p->errbuf, "Failed to allocate memory for the device's DLT list", PCAP_ERRBUF_SIZE);
       return (-1);
     }
     p->dlt_list[0] = p->linktype;
@@ -714,7 +714,7 @@ static int plugin_activate (pcap_t *p)
       p->dlt_list = malloc (listSizeInBytes);
       if (!p->dlt_list)
       {
-        strlcpy (p->errbuf, "Failed to allocate memory for the device's DLT list", PCAP_ERRBUF_SIZE);
+        pcap_strlcpy (p->errbuf, "Failed to allocate memory for the device's DLT list", PCAP_ERRBUF_SIZE);
         return (-1);
       }
     }
@@ -751,8 +751,8 @@ HANDLE plugin_get_read_event (pcap_t *p)
 
   if (!plugin->GetReadEvent)
   {
-    strlcpy (p->errbuf, "This device does not support the retrieval of a read event",
-             PCAP_ERRBUF_SIZE);
+    pcap_strlcpy (p->errbuf, "This device does not support the retrieval of a read event",
+                  PCAP_ERRBUF_SIZE);
     return (NULL);
   }
 
@@ -846,7 +846,7 @@ static int plugin_set_packet_filter (pcap_t *p, struct bpf_program *fp)
 
   if (!fp)
   {
-    strlcpy (p->errbuf, "No filter specified", PCAP_ERRBUF_SIZE);
+    pcap_strlcpy (p->errbuf, "No filter specified", PCAP_ERRBUF_SIZE);
     return (-1);
   }
 
@@ -903,7 +903,7 @@ static int plugin_setdirection (pcap_t *p, pcap_direction_t dir)
          localDir = PLUGIN_DIRECTION_OUT;
          break;
     default:
-        strlcpy (p->errbuf, "Unknown pcap direction encountered", PCAP_ERRBUF_SIZE);
+        pcap_strlcpy (p->errbuf, "Unknown pcap direction encountered", PCAP_ERRBUF_SIZE);
         return (-1);
   }
 
@@ -1004,7 +1004,7 @@ static int plugin_setmode (pcap_t *p, int mode)
          localMode = PLUGIN_MODE_STAT;
          break;
     default:
-        strlcpy (p->errbuf, "Unknown pcap mode encountered", PCAP_ERRBUF_SIZE);
+        pcap_strlcpy (p->errbuf, "Unknown pcap mode encountered", PCAP_ERRBUF_SIZE);
         return (-1);
   }
 

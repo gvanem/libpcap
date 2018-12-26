@@ -49,7 +49,7 @@ PLUGIN_API BOOL GetPluginName (OUT char  *out,
   const char *name = PCAP_PLUGIN_NAME;
 
   PCAP_TRACE (3, "%s() called.\n", __FUNCTION__);
-  strlcpy (out, name, nameSizeInBytes);
+  pcap_strlcpy (out, name, nameSizeInBytes);
   return (TRUE);
 }
 
@@ -63,7 +63,7 @@ PLUGIN_API BOOL GetDeviceList (OUT PLUGIN_DEVICE_DESCRIPTION **devices,
 
   if (!newDeviceDesc)
   {
-    strlcpy (errorMsg, "Failed to allocate memory for the device description", errorMsgSizeInBytes);
+    pcap_strlcpy (errorMsg, "Failed to allocate memory for the device description", errorMsgSizeInBytes);
     FreeDeviceList (*devices);
     return (FALSE);
   }

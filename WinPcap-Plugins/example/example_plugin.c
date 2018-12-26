@@ -64,7 +64,7 @@ PLUGIN_API BOOL GetPluginName (OUT char  *out,
   const char *name = PCAP_PLUGIN_NAME;
 
   PCAP_TRACE (3, "%s() called -> %s\n",  __FUNCTION__, name);
-  strlcpy (out, name, nameSizeInBytes);
+  pcap_strlcpy (out, name, nameSizeInBytes);
   return (TRUE);
 }
 
@@ -95,7 +95,7 @@ PLUGIN_API BOOL GetDeviceList (OUT PLUGIN_DEVICE_DESCRIPTION **devices,
 
     if (!newDeviceDesc)
     {
-      strlcpy (errorMsg, "Failed to allocate memory for the device description", errorMsgSizeInBytes);
+      pcap_strlcpy (errorMsg, "Failed to allocate memory for the device description", errorMsgSizeInBytes);
       FreeDeviceList (*devices);
       return (FALSE);
     }
@@ -120,7 +120,7 @@ PLUGIN_API BOOL OpenInstance (IN  char            *deviceName,
 
   if (!newInstance)
   {
-    strlcpy (errorMsg, "Failed to allocate memory for the instance handle", errorMsgSizeInBytes);
+    pcap_strlcpy (errorMsg, "Failed to allocate memory for the instance handle", errorMsgSizeInBytes);
     return (FALSE);
   }
   newInstance->deviceName = strdup (deviceName);
@@ -173,8 +173,8 @@ PLUGIN_API BOOL SetDatalink (IN  PluginInstance *instanceHandle,
 
   if (dlt != 0 && dlt != 1 && dlt != 147)
   {
-    strlcpy (errorMsg, "Currently, DLT_NULL, DLT_EN10MB and DLT_USER0 are the only supported link types",
-             errorMsgSizeInBytes);
+    pcap_strlcpy (errorMsg, "Currently, DLT_NULL, DLT_EN10MB and DLT_USER0 are the only supported link types",
+                  errorMsgSizeInBytes);
     return (FALSE);
   }
   return (TRUE);

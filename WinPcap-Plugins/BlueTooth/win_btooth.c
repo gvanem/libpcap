@@ -69,7 +69,7 @@ PLUGIN_API BOOL GetPluginName (OUT char  *out,
   const char *name = PCAP_PLUGIN_NAME;
 
   PCAP_TRACE (2, "%s() called.\n", __FUNCTION__);
-  strlcpy (out, name, nameSizeInBytes);
+  pcap_strlcpy (out, name, nameSizeInBytes);
   return (TRUE);
 }
 
