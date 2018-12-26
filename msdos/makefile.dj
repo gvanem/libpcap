@@ -12,12 +12,13 @@
 # Note 2:
 #  If using this makefile under Windows (ref. 'DJ_PREFIX' below),
 #  remember to do a 'make -f msdos/Makefile.dj clean' first in case
-#  there are any leftovers from a Win32 build. E.g. a 'pcap_version.h'
-#  generated for Windows does NOT work like 'msdos/pcap_version.h'.
+#  there are any leftovers from a Win32 build.
 #
-MAKEFILE = msdos/Makefile.dj
+THIS_FILE = msdos/Makefile.dj
 
-VPATH = missing msdos bpf/net testsprogs
+# VPATH = missing msdos testprogs
+
+VPATH = msdos testprogs
 
 WATT32_ROOT = $(realpath $(WATT_ROOT))
 
@@ -49,20 +50,35 @@ ifeq ($(OS),Windows_NT)
   #
   DJ_PREFIX ?= c:/djgpp_cross_install_root/bin/i586-pc-msdosdjgpp-
   CC = $(DJ_PREFIX)gcc
-  IS_WINDOWS_HOSTED = 1
 
   #
   # A MinGW or a CygWin 'gcc'.
   #
   HOST_CC = gcc
+  IS_WINDOWS_HOSTED = 1
 
 else
-  IS_WINDOWS_HOSTED = 0
   #
   # The normal djgpp 'gcc' for MSDOS.
   #
   CC      = gcc
   HOST_CC = $(CC)
+  IS_WINDOWS_HOSTED = 0
+endif
+
+ifeq ($(IS_WINDOWS_HOSTED),1)
+  #
+  # The following codes used in macro 'colour_msg' assumes you have
+  # MSys/Cygwin's echo with colour support.
+  #
+  BRIGHT_RED    = \e[1;31m
+  BRIGHT_GREEN  = \e[1;32m
+  BRIGHT_YELLOW = \e[1;33m
+
+  colour_msg    = @echo -e "$(1)\e[0m"
+  message_green = $(call colour_msg,$(BRIGHT_GREEN)$(1))
+else
+  message_green = @echo "$(1)"
 endif
 
 ASM  = nasm -fbin -dDEBUG
@@ -79,30 +95,29 @@ endif
 
 PCAP_LIB = msdos/libpcap.a
 
-GENERATED = msdos/config.h       \
-            msdos/pcap_version.h \
-            msdos/pkt_stub.inc   \
-            scanner.c            \
-            scanner.h            \
-            grammar.c            \
+GENERATED = msdos/config.h     \
+            msdos/pkt_stub.inc \
+            scanner.c          \
+            scanner.h          \
+            grammar.c          \
             grammar.h
 
-SOURCES = bpf/net/bpf_filter.c \
-          bpf_image.c          \
-          bpf_dump.c           \
-          etherent.c           \
-          fmtutils.c           \
-          gencode.c            \
-          grammar.c            \
-          nametoaddr.c         \
-          optimize.c           \
-          pcap.c               \
-          pcap-common.c        \
-          pcap-dos.c           \
-          savefile.c           \
-          sf-pcap.c            \
-          sf-pcap-ng.c         \
-          scanner.c            \
+SOURCES = bpf_filter.c  \
+          bpf_image.c   \
+          bpf_dump.c    \
+          etherent.c    \
+          fmtutils.c    \
+          gencode.c     \
+          grammar.c     \
+          nametoaddr.c  \
+          optimize.c    \
+          pcap.c        \
+          pcap-common.c \
+          pcap-dos.c    \
+          savefile.c    \
+          sf-pcap.c     \
+          sf-pcapng.c   \
+          scanner.c     \
           msdos/pktdrvr.c
 
 ifeq ($(HAVE_PCAP_REMOTE),1)
@@ -137,14 +152,14 @@ TEST_OBJ = $(addprefix $(OBJ_DIR)/, \
 .SECONDARY: $(TEST_OBJ)
 
 all: $(GENERATED) $(TARGETS)
-	@echo 'Welcome to libpcap/djgpp with samples.'
+	$(call message_green,Welcome to libpcap/djgpp with samples.)
 
 $(LIB_OBJ): $(OBJ_DIR)
 
 $(OBJ_DIR):
 	-mkdir $@
 
-$(PCAP_LIB): msdos/config.h msdos/pcap_version.h $(LIB_OBJ)
+$(PCAP_LIB): $(LIB_OBJ)
 	rm -f $@
 	ar rs $@ $^
 
@@ -165,38 +180,32 @@ msdos/pkt_stub.inc: msdos/bin2c.exe msdos/pkt_rx1.S
 	rm -f $(TEMP_BIN)
 
 grammar.h: grammar.c
-
 grammar.c: grammar.y
-	$(YACC) --yacc --defines grammar.y
-	@mv -f y.tab.c grammar.c
-	@mv -f y.tab.h grammar.h
+	$(YACC) --yacc --output=$@ --defines=grammar.h $<
 	@echo
 
-scanner.c scanner.h: scanner.l
-	$(FLEX) --header-file=scanner.h --outfile=scanner.c $<
+scanner.h: scanner.c
+scanner.c: scanner.l
+	$(FLEX) --header-file=scanner.h --outfile=$@ $<
 	@echo
 
-msdos/config.h: $(MAKEFILE)
+msdos/config.h:
 	$(call Generate_file, $@)
 	$(file >> $@,$(CONFIG_H))
-
-msdos/pcap_version.h: $(MAKEFILE) # ./VERSION
-	$(call Generate_file, $@)
-	$(file >> $@,$(PCAP_VERSION_H))
 
 msdos/bin2c.exe: msdos/bin2c.c
 	$(HOST_CC) $< -o $@
 
 clean:
-	rm -f $(LIB_OBJ) $(TEST_OBJ) $(GENERATED) msdos/pkt_rx1.lst msdos/bin2c.exe msdos/.depend.dj
+	rm -f $(LIB_OBJ) $(TEST_OBJ) $(GENERATED) msdos/pkt_rx1.lst msdos/bin2c.exe msdos/depend.dj
 
 vclean: clean
 	rm -f $(TARGETS) $(TARGETS:.exe=.map)
 	-rmdir $(OBJ_DIR)
 
 define CONFIG_H
-  #ifndef PCAP_CONFIG_H
-  #define PCAP_CONFIG_H
+  #ifndef msdos_config_h
+  #define msdos_config_h
 
   #define DEBUG          1
   #define HAVE_STRERROR  1
@@ -205,22 +214,8 @@ define CONFIG_H
   #define HAVE_SNPRINTF  1
   #define HAVE_VSNPRINTF 1
 
-  #define PACKAGE_VERSION              "libpcap version $(shell cat ./VERSION)"
-  #endif  /* PCAP_CONFIG_H */
-endef
-
-define PCAP_VERSION_H
-  #if !defined(MSDOS)
-    #error This file is for MSDOS only
+  #define PACKAGE_VERSION  "libpcap version $(shell cat ./VERSION)"
   #endif
-
-  /*
-   *  If building under Windows, there is a good chance there is aleady
-   * "pcap_version.h" in the libpcap root. Hence this generated file
-   *  is in the 'msdos' subdirectory.
-   */
-  #undef  PCAP_VERSION_STRING
-  #define PCAP_VERSION_STRING  "libpcap/djgpp ($(shell cat ./VERSION))"
 endef
 
 #
@@ -228,10 +223,10 @@ endef
 #  $(1): file to write to.
 #
 define Generate_file
-  $(info2 Generating $(1) ...)
+  $(call message_green,Generating $(strip $(1)).)
   $(file  > $(1), /*)
   $(file >> $(1),  * Generated $(strip $(1)) for djgpp.)
-  $(file >> $(1),  * DO NOT EDIT. Edit $(realpath $(MAKEFILE)) instead.)
+  $(file >> $(1),  * DO NOT EDIT. Edit $(realpath $(THIS_FILE)) instead.)
   $(file >> $(1),  */)
 endef
 
@@ -247,6 +242,7 @@ else ifeq ($(IS_WINDOWS_HOSTED),1)
   # Hence this special handling.
   #
   define link_EXE
+    $(call message_green,Linking $(strip $(1)).)
     $(CC) -Wl,--print-map -o $(1) $(2) > $(3)
     @echo
   endef
@@ -267,8 +263,6 @@ endif
 # Manually generated dependencies
 #
 msdos/pktdrvr.c: msdos/pkt_stub.inc
-scanner.c: scanner.l
-grammar.c: grammar.y
 grammar.h: grammar.y
 scanner.l: pcap-int.h pcap-namedb.h gencode.h grammar.h
 grammar.y: pcap-int.h gencode.h pcap-namedb.h
@@ -276,11 +270,12 @@ grammar.y: pcap-int.h gencode.h pcap-namedb.h
 #
 # Generate dependencies.
 #
-REPLACE = sed -e 's@\(.*\)\.o: @\n$$(OBJ_DIR)\/\1.o: @g' \
-              -e 's@$(WATT32_ROOT)@$$(WATT32_ROOT)@g'
+DEP_REPLACE = sed -e 's@\(.*\)\.o: @\n$$(OBJ_DIR)\/\1.o: @g' \
+                  -e 's@$(WATT32_ROOT)@$$(WATT32_ROOT)@g'
 
 depend: $(GENERATED)
-	$(CC) -MM $(CFLAGS) $(SOURCES) | $(REPLACE) > msdos/.depend.dj
+	$(call message_green,Generating dependencies for $(words $(SOURCES)) files.)
+	$(CC) -MM $(CFLAGS) $(SOURCES) | $(DEP_REPLACE) > msdos/depend.dj
 
--include msdos/.depend.dj
+-include msdos/depend.dj
 
