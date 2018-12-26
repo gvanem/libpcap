@@ -6,8 +6,9 @@
  *              NDIS2 + protected-mode drivers are no longer
  *              supported.
  */
+
 #ifdef HAVE_CONFIG_H
-#include "config.h"
+#include "msdos/config.h"
 #endif
 
 #include <stdio.h>
@@ -59,7 +60,7 @@ static int  pcap_read_dos (pcap_t *p, int cnt, pcap_handler callback,
                            u_char *data);
 static void pcap_cleanup_dos (pcap_t *p);
 static int  pcap_stats_dos (pcap_t *p, struct pcap_stat *ps);
-static int  pcap_sendpacket_dos (pcap_t *p, const void *buf, size_t len);
+static int  pcap_sendpacket_dos (pcap_t *p, const void *buf, int len);
 static int  pcap_setfilter_dos (pcap_t *p, struct bpf_program *fp);
 
 static void close_driver (void);
@@ -614,7 +615,6 @@ static void watt32_recv_hook (u_char *dummy, const struct pcap_pkthdr *pcap,
   ARGSUSED (dummy);
 }
 
-#if (WATTCP_VER >= 0x0224)
 /*
  * This function is used by Watt-32 to poll for a packet.
  * i.e. it's set to bypass _eth_arrived()
@@ -648,9 +648,8 @@ static int pcap_xmit_hook (const void *buf, unsigned len)
      dbug_write (rc ? "ok\n" : "fail\n");
   return (rc);
 }
-#endif
 
-static int pcap_sendpacket_dos (pcap_t *pcap, const void *buf, size_t len)
+static int pcap_sendpacket_dos (pcap_t *pcap, const void *buf, int len)
 {
   if (pcap->fd > -1)
      return pkt_xmit (pcap, buf, len);
@@ -718,10 +717,8 @@ static int init_watt32 (pcap_t *pcap)
 
   /* Set recv-hook for peeking in _eth_arrived().
    */
-#if (WATTCP_VER >= 0x0224)
   _eth_recv_hook = pcap_recv_hook;
   _eth_xmit_hook = pcap_xmit_hook;
-#endif
 
   /* Free the pkt-drvr handle allocated in pkt_init().
    * The above hooks should thus use the handle reopened in open_driver()
@@ -762,8 +759,6 @@ int pcap_config_hook (const char *keyword, const char *value)
   return parse_config_table (debug_tab, NULL, keyword, value);
 }
 
-#include "msdos/pcap_version.h"
-
 /*
  * Libpcap version string.
  */
@@ -772,4 +767,3 @@ pcap_lib_version(void)
 {
   return ("DOS-" PCAP_VERSION_STRING);
 }
-
