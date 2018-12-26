@@ -1,0 +1,16 @@
+Maybe putting it all in a table makes my point across better.
+
+The different `#define XX` which are needed to *build* and *use*
+libpcap on Windows are as follows:
+
+------------------- |---------------------|------------------|
+library type        | Building            | Using            |
+------------------- |---------------------|------------------|
+wpcap.lib (static)  | `-DBUILDING_PCAP` + | `-DPCAP_STATIC`  |
+                    | `-DPCAP_STATIC`     |                  |
+wpcap.dll + implib  | `-DBUILDING_PCAP`   | *nothing*        |
+------------------- |---------------------|------------------|
+
+You can probably agree it should be `-DLIBPCAP_DYNAMIC` instead of
+`-DLIBPCAP_EXPORTS`. IMHO more clear.
+
