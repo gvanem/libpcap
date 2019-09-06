@@ -102,7 +102,7 @@ static BOOL is_wow64_active (void);
 static BOOL is_plugin_device (const char *device);
 static void plugin_kill_instance (pcap_t *p, PLUGIN_INSTANCE *plugin);
 static int  plugin_read (pcap_t *p, int cnt, pcap_handler callback, u_char *user);
-static int  plugin_inject (pcap_t *p, const void *buf, size_t size);
+static int  plugin_inject (pcap_t *p, const void *buf, int size);
 static int  plugin_set_packet_filter (pcap_t *p, struct bpf_program *fp);
 static int  plugin_setdirection (pcap_t *p, pcap_direction_t dir);
 static int  plugin_set_datalink (pcap_t *p, int dlt);
@@ -382,10 +382,10 @@ static void plugin_print_info (const PLUGIN_INSTANCE *plugin)
 {
   int i, indent = sizeof(__FILE()) + 8;
 
-  _pcap_trace_color (TRACE_COLOR_START);
+  _pcap_trace_color (TRACE_COLOUR_START);
   printf ("%s(%u): ", __FILE(), __LINE__);
 
-  _pcap_trace_color (TRACE_COLOR_ARGS);
+  _pcap_trace_color (TRACE_COLOUR_ARGS);
   printf ("Module: %s, name: %s\n"
           "%*sdevices(s): ",
           plugin->PluginModuleName, plugin->PluginName, indent, "");
@@ -823,7 +823,7 @@ static int plugin_read (pcap_t *p, int cnt, pcap_handler callback, u_char *user)
   return (packetCount);
 }
 
-static int plugin_inject (pcap_t *p, const void *buf, size_t size)
+static int plugin_inject (pcap_t *p, const void *buf, int size)
 {
   void            *handle;
   PLUGIN_INSTANCE *plugin = plugin_get_instance (p, &handle);

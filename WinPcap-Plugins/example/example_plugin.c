@@ -26,7 +26,6 @@
  *
  */
 
-#define COMPILING_PCAP_PLUGIN
 #define PLUGIN_INSTANCE_TYPE   PluginInstance
 #define PCAP_PLUGIN_NAME       "ExamplePlugin"
 #define TRACE_PREFIX           "[Example] "

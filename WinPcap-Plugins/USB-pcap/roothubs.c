@@ -4,6 +4,7 @@
  * Based on devcon sample
  *   Copyright (c) Microsoft Corporation
  */
+#include "Win32/config.h"
 
 #include <windows.h>
 #include <setupapi.h>
@@ -133,10 +134,7 @@ static PTSTR build_non_standard_reg_multi_sz(StringArray *a,
 
     for (ptr = multi_sz, i = 0; i < a->used; i++)
     {
-#pragma warning(push)
-#pragma warning(disable:4996)
         _tcscpy(ptr, a->array[i]);
-#pragma warning(pop)
         ptr += _tcslen(a->array[i]) + 1;
     }
 

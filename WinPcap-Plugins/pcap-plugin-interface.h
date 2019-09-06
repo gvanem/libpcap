@@ -39,14 +39,11 @@
  */
 #if defined(COMPILING_PCAP_PLUGIN)
   #define PLUGIN_API __declspec(dllexport)
+
+  #undef  TRACE_COLOUR_START
+  #define TRACE_COLOUR_START TRACE_COLOUR_YELLOW
 #else
   #define PLUGIN_API __declspec(dllimport)
-
-  #undef  TRACE_COLOR_START
-  #define TRACE_COLOR_START TRACE_COLOR_MAGENTA
-
-  #undef  TRACE_COLOR_ARGS
-  #define TRACE_COLOR_ARGS  TRACE_COLOR_YELLOW
 #endif
 
 #ifndef UNUSED

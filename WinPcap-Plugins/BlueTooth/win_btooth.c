@@ -10,11 +10,9 @@
  */
 
 #define INITGUID
-#define COMPILING_PCAP_PLUGIN
 #define PLUGIN_INSTANCE_TYPE  struct _PluginInstance
 #define PCAP_PLUGIN_NAME      "PCAP-BlueTooth"
 #define TRACE_PREFIX          "[Bluetooth] "
-
 #define __FILE()              "WinPcap-plugin/BlueTooth/win_btooth.c"
 
 #include "./Win32/config.h"

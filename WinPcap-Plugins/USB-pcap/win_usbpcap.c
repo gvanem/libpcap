@@ -9,7 +9,6 @@
  * By G. Vanem <gvanem@yahoo.no> 2013.
  */
 
-#define COMPILING_PCAP_PLUGIN
 #define PLUGIN_INSTANCE_TYPE   struct _PluginInstance
 #define PCAP_PLUGIN_NAME       "USB-Pcap"
 #define TRACE_PREFIX           "[USB-Pcap] "
