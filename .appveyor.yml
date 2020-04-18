@@ -6,40 +6,60 @@ matrix:
   fast_finish: true
 
 install:
-  - cinst winflexbison
-  - win_flex --version
-  - win_bison --version
-  - appveyor DownloadFile https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip
-  - 7z x .\WpdPack_4_1_2.zip -oc:\projects\libpcap\Win32
-  - appveyor DownloadFile https://nmap.org/npcap/dist/npcap-sdk-1.05.zip
-  - 7z x .\npcap-sdk-1.05.zip -oc:\projects\libpcap\Win32
-  - cinst winpcap
+  - cmd: >-
+    set _ECHO=c:\msys64\usr\bin\echo.exe -e
+
+    if not exist c:\Users\appveyor\AppData\Local\Temp\1\chocolatey\winflexbison (
+      %_ECHO% "\e[1;33mDownloading and installing WinFlexBison.\e[0m"
+      cinst winflexbison
+    )
+    where win_flex  & win_flex  --version
+    where win_bison & win_bison --version
+
+    if not exist c:\projects\libpcap\Win32\WpdPack (
+      %_ECHO% "\e[1;33mDownloading and installing WinPcap developer pack.\e[0m"
+      curl -O -# https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip &
+      7z x .\WpdPack_4_1_2.zip -oc:\projects\libpcap\Win32 > NUL
+    )
+
+    if not exist c:\projects\libpcap\Win32\Npcap_Guide.html (
+      %_ECHO% "\e[1;33mDownloading and installing NPcap.\e[0m"
+      curl -O -# https://nmap.org/npcap/dist/npcap-sdk-1.05.zip &
+      7z x .\npcap-sdk-1.05.zip -oc:\projects\libpcap\Win32 > NUL
+    )
+
+    if not exist "c:\Program Files (x86)\WinPcap\Uninstall.exe" (
+      %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m"
+      cinst winpcap
+    )
 
 environment:
   matrix:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
       GENERATOR: "MinGW Makefiles"
-      SDK: WpdPack
+      SDK:        WpdPack
       MINGW_ROOT: C:\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0
 
 build_script:
-  #
-  # Appveyor defaults to cmd.exe, so use cmd.exe syntax.
-  #
   - type NUL >.devel
   - md build
   - cd build
+  - %_ECHO% "\e[1;33mBuilding using SDK=%SDK% and GENERATOR=%GENERATOR%.\e[0m"
+
   # Remove the default MinGW path
-  - if "%GENERATOR%"=="MinGW Makefiles" set PATH=%PATH:C:\MinGW\bin;=%
+  #
+  - if "%GENERATOR%" == "MinGW Makefiles" set PATH=%PATH:C:\MinGW\bin;=%
+
   # Add the specified MinGW path
-  - if "%GENERATOR%"=="MinGW Makefiles" set PATH=%MINGW_ROOT%\mingw64\bin;%PATH%
+  #
+  - if "%GENERATOR%" == "MinGW Makefiles" set PATH=%MINGW_ROOT%\mingw64\bin;%PATH%
+
   # Remove the path to Git, so that we don't pick up its sh.exe, as
-  # that breaks MinGW builds - CMake checks for that and fails in the
-  # configuration stage
-  - if "%GENERATOR%"=="MinGW Makefiles" set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
-  - cmake -DPacket_ROOT=c:\projects\libpcap\Win32\%SDK% -G"%GENERATOR%" ..
-  - if NOT "%GENERATOR%"=="MinGW Makefiles" msbuild /m /nologo /p:Configuration=Release pcap.sln
-  - if "%GENERATOR%"=="MinGW Makefiles" mingw32-make
+  # that breaks MinGW builds - CMake checks for that and fails in the configuration stage
+  #
+  - if "%GENERATOR%" == "MinGW Makefiles" set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
+  - cmake -DPacket_ROOT=c:\projects\libpcap\Win32\%SDK% -G "%GENERATOR%" ..
+  - if "%GENERATOR%" == "MinGW Makefiles" mingw32-make else msbuild -nologo -m -p:Configuration=Release pcap.sln
 
 # test_script:
 #    - cmd: echo Trying to run 'run\rpcapd.exe' with the above 'winpcap' installation
@@ -48,3 +68,4 @@ build_script:
 cache:
    - 'c:\Users\appveyor\AppData\Local\1\Temp\chocolatey'
    - 'c:\ProgramData\chocolatey'
+   - 'c:\Program Files (x86)\WinPcap'
