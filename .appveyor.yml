@@ -27,15 +27,12 @@ install:
 
   - cmd: (%_ECHO% "\e[1;33mDownloading and installing WinPcap developer pack.\e[0m" &
           curl -o .\WpdPack_4_1_2.zip -# https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip &
-          dir *.zip                          &
           md c:\projects\libpcap\Win32 > NUL &
-          7z x .\WpdPack_4_1_2.zip -oc:\projects\libpcap\Win32 )
+          7z x .\WpdPack_4_1_2.zip -oc:\projects\libpcap\Win32 > NUL )
 
   - cmd: (%_ECHO% "\e[1;33mDownloading and installing NPcap.\e[0m"                       &
           curl -o .\npcap-sdk-1.05.zip -# https://nmap.org/npcap/dist/npcap-sdk-1.05.zip &
-          dir *.zip                                                                      &
           7z x .\npcap-sdk-1.05.zip -oc:\projects\libpcap\Win32 > NUL )
-
 
 build_script:
   - (type NUL >.devel & md build & cd build &
@@ -54,7 +51,7 @@ build_script:
   #
   - if "%GENERATOR%" == "MinGW Makefiles" set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
   - cmake -DPacket_ROOT=c:\projects\libpcap\Win32\%SDK% -G "%GENERATOR%" ..
-  - if "%GENERATOR%" == "MinGW Makefiles" mingw32-make else msbuild -nologo -m -p:Configuration=Release pcap.slna
+  - if "%GENERATOR%" == "MinGW Makefiles" ( mingw32-make ) else ( msbuild -nologo -m -p:Configuration=Release pcap.sln )
 
 # test_script:
 #    - cmd: echo Trying to run 'run\rpcapd.exe' with the above 'winpcap' installation
