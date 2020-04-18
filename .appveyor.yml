@@ -8,6 +8,9 @@ environment:
       GENERATOR: "MinGW Makefiles"
       SDK:        WpdPack
       MINGW_ROOT: C:\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0
+    - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2017
+      GENERATOR: "Visual Studio 15 2017"
+      SDK:        WpdPack
 
 matrix:
   fast_finish: true
@@ -18,8 +21,8 @@ install:
       %_ECHO% "\e[1;33mDownloading and installing win_flex and win_bison.\e[0m"
       cinst winflexbison )
 
-  - cmd: where win_flex  & win_flex  --version
-  - cmd: where win_bison & win_bison --version
+  - cmd: where win_flex
+  - cmd: where win_bison
 
   - cmd: if not exist "c:\Program Files (x86)\WinPcap\Uninstall.exe" (
       %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m"
