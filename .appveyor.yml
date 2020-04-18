@@ -2,37 +2,6 @@ version: '{build}'
 
 clone_depth: 5
 
-matrix:
-  fast_finish: true
-
-install:
-  - cmd: >-
-    set _ECHO=c:\msys64\usr\bin\echo.exe -e
-
-    if not exist c:\Users\appveyor\AppData\Local\Temp\1\chocolatey\winflexbison (
-      %_ECHO% "\e[1;33mDownloading and installing WinFlexBison.\e[0m"
-      cinst winflexbison
-    )
-    where win_flex  & win_flex  --version
-    where win_bison & win_bison --version
-
-    if not exist c:\projects\libpcap\Win32\WpdPack (
-      %_ECHO% "\e[1;33mDownloading and installing WinPcap developer pack.\e[0m"
-      curl -O -# https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip &
-      7z x .\WpdPack_4_1_2.zip -oc:\projects\libpcap\Win32 > NUL
-    )
-
-    if not exist c:\projects\libpcap\Win32\Npcap_Guide.html (
-      %_ECHO% "\e[1;33mDownloading and installing NPcap.\e[0m"
-      curl -O -# https://nmap.org/npcap/dist/npcap-sdk-1.05.zip &
-      7z x .\npcap-sdk-1.05.zip -oc:\projects\libpcap\Win32 > NUL
-    )
-
-    if not exist "c:\Program Files (x86)\WinPcap\Uninstall.exe" (
-      %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m"
-      cinst winpcap
-    )
-
 environment:
   matrix:
     - APPVEYOR_BUILD_WORKER_IMAGE: Visual Studio 2015
@@ -40,11 +9,36 @@ environment:
       SDK:        WpdPack
       MINGW_ROOT: C:\mingw-w64\x86_64-8.1.0-posix-seh-rt_v6-rev0
 
+matrix:
+  fast_finish: true
+
+install:
+  - set _ECHO=c:\msys64\usr\bin\echo.exe -e
+  - cmd: if not exist c:\Users\appveyor\AppData\Local\Temp\1\chocolatey\winflexbison (
+      %_ECHO% "\e[1;33mDownloading and installing WinFlexBison.\e[0m"
+      cinst winflexbison )
+
+  - cmd: where win_flex  & win_flex  --version
+  - cmd: where win_bison & win_bison --version
+
+  - cmd: if not exist "c:\Program Files (x86)\WinPcap\Uninstall.exe" (
+      %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m"
+      cinst winpcap )
+
+  - cmd: if not exist c:\projects\libpcap\Win32\WpdPack (
+      %_ECHO% "\e[1;33mDownloading and installing WinPcap developer pack.\e[0m"
+      curl -O -# https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip &
+      7z x .\WpdPack_4_1_2.zip -oc:\projects\libpcap\Win32 > NUL )
+
+  - cmd: if not exist c:\projects\libpcap\Win32\Npcap_Guide.html (
+      %_ECHO% "\e[1;33mDownloading and installing NPcap.\e[0m"
+      curl -O -# https://nmap.org/npcap/dist/npcap-sdk-1.05.zip &
+      7z x .\npcap-sdk-1.05.zip -oc:\projects\libpcap\Win32 > NUL )
+
+
 build_script:
-  - type NUL >.devel
-  - md build
-  - cd build
-  - %_ECHO% "\e[1;33mBuilding using SDK=%SDK% and GENERATOR=%GENERATOR%.\e[0m"
+  - (type NUL >.devel & md build & cd build &
+    %_ECHO% "\e[1;33mBuilding using SDK=%SDK% and GENERATOR=%GENERATOR%.\e[0m")
 
   # Remove the default MinGW path
   #
@@ -59,7 +53,7 @@ build_script:
   #
   - if "%GENERATOR%" == "MinGW Makefiles" set PATH=%PATH:C:\Program Files\Git\usr\bin;=%
   - cmake -DPacket_ROOT=c:\projects\libpcap\Win32\%SDK% -G "%GENERATOR%" ..
-  - if "%GENERATOR%" == "MinGW Makefiles" mingw32-make else msbuild -nologo -m -p:Configuration=Release pcap.sln
+  - if "%GENERATOR%" == "MinGW Makefiles" mingw32-make else msbuild -nologo -m -p:Configuration=Release pcap.slna
 
 # test_script:
 #    - cmd: echo Trying to run 'run\rpcapd.exe' with the above 'winpcap' installation
