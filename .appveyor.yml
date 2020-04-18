@@ -70,5 +70,6 @@ build_script:
   - if "%GENERATOR%"=="MinGW Makefiles" mingw32-make
 
 test_script:
-   - cmd: echo Trying to run 'findalldevstest.exe' with the above 'winpcap' installation
-   - cmd: findalldevstest.exe
+   - cmd: echo Trying to run 'run\rpcapd.exe' with the above 'winpcap' installation
+   - cmd: run\rpcapd.exe
+
