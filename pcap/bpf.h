@@ -86,8 +86,8 @@ extern "C" {
   typedef unsigned long bpf_u_int32;
 
 #else
-  typedef int   bpf_int32;
-  typedef u_int bpf_u_int32;
+typedef int   bpf_int32;
+typedef u_int bpf_u_int32;
 #endif
 
 /*

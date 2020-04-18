@@ -1,15 +1,6 @@
 /*
  * pcap-septel.c: Packet capture interface for Intel/Septel card.
  *
- * The functionality of this code attempts to mimic that of pcap-linux as much
- * as possible.  This code is compiled in several different ways depending on
- * whether SEPTEL_ONLY and HAVE_SEPTEL_API are defined.  If HAVE_SEPTEL_API is
- * not defined it should not get compiled in, otherwise if SEPTEL_ONLY is
- * defined then the 'septel_' function calls are renamed to 'pcap_'
- * equivalents.  If SEPTEL_ONLY is not defined then nothing is altered - the
- * septel_ functions will be called as required from their
- * pcap-linux/equivalents.
- *
  * Authors: Gilbert HOYEK (gil_hoyek@hotmail.com), Elias M. KHOURY
  * (+961 3 485243)
  */
@@ -26,7 +17,6 @@
 
 #include "pcap-int.h"
 
-#include <ctype.h>
 #include <netinet/in.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -324,7 +314,7 @@ pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 pcap_t *
 pcap_create_interface(const char *device, char *errbuf)
 {
-  pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+  snprintf(errbuf, PCAP_ERRBUF_SIZE,
                 "This version of libpcap only supports Septel cards");
   return (NULL);
 }

@@ -69,6 +69,49 @@
 #ifndef lib_pcap_pcap_h
 #define lib_pcap_pcap_h
 
+/*
+ * Some software that uses libpcap/WinPcap/Npcap defines _MSC_VER before
+ * includeing pcap.h if it's not defined - and it defines it to 1500.
+ * (I'm looking at *you*, lwIP!)
+ *
+ * Attempt to detect this, and undefine _MSC_VER so that we can *reliably*
+ * use it to know what compiler is being used and, if it's Visual Studio,
+ * what version is being used.
+ */
+#if defined(_MSC_VER)
+  /*
+   * We assume here that software such as that doesn't define _MSC_FULL_VER
+   * as well and that it defines _MSC_VER with a value > 1200.
+   *
+   * DO NOT BREAK THESE ASSUMPTIONS.  IF YOU FEEL YOU MUST DEFINE _MSC_VER
+   * WITH A COMPILER THAT'S NOT MICROSOFT'S C COMPILER, PLEASE CONTACT
+   * US SO THAT WE CAN MAKE IT SO THAT YOU DON'T HAVE TO DO THAT.  THANK
+   * YOU.
+   *
+   * OK, is _MSC_FULL_VER defined?
+   */
+  #if !defined(_MSC_FULL_VER)
+    /*
+     * According to
+     *
+     *    https://sourceforge.net/p/predef/wiki/Compilers/
+     *
+     * with "Visual C++ 6.0 Processor Pack"/Visual C++ 6.0 SP6 and
+     * later, _MSC_FULL_VER is defined, so either this is an older
+     * version of Visual C++ or it's not Visual C++ at all.
+     *
+     * For Visual C++ 6.0, _MSC_VER is defined as 1200.
+     */
+    #if _MSC_VER > 1200
+      /*
+       * If this is Visual C++, _MSC_FULL_VER should be defined, so we
+       * assume this isn't Visual C++, and undo the lie that it is.
+       */
+      #undef _MSC_VER
+    #endif
+  #endif
+#endif
+
 #include <pcap/funcattrs.h>
 
 #include <pcap/pcap-inttypes.h>
@@ -83,6 +126,8 @@
   #include <sys/types.h>	/* u_int, u_char etc. */
   #include <sys/time.h>
 #endif /* _WIN32/MSDOS/UN*X */
+
+#include <pcap/socket.h>	/* for SOCKET, as the active-mode rpcap APIs use it */
 
 #ifndef PCAP_DONT_INCLUDE_PCAP_BPF_H
 #include <pcap/bpf.h>
@@ -289,6 +334,26 @@ typedef void (*pcap_handler)(u_char *, const struct pcap_pkthdr *,
 #define PCAP_NETMASK_UNKNOWN	0xffffffff
 
 /*
+ * Initialize pcap.  If this isn't called, pcap is initialized to
+ * a mode source-compatible and binary-compatible with older versions
+ * that lack this routine.
+ */
+
+/*
+ * Initialization options.
+ * All bits not listed here are reserved for expansion.
+ *
+ * On UNIX-like systems, the local character encoding is assumed to be
+ * UTF-8, so no character encoding transformations are done.
+ *
+ * On Windows, the local character encoding is the local ANSI code page.
+ */
+#define PCAP_CHAR_ENC_LOCAL	0x00000000U	/* strings are in the local character encoding */
+#define PCAP_CHAR_ENC_UTF_8	0x00000001U	/* strings are in UTF-8 */
+
+PCAP_API int	pcap_init(unsigned int, char *);
+
+/*
  * We're deprecating pcap_lookupdev() for various reasons (not
  * thread-safe, can behave weirdly with WinPcap).  Callers
  * should use pcap_findalldevs() and use the first device.
@@ -327,8 +392,7 @@ PCAP_API int	pcap_set_protocol_linux(pcap_t *, int);
  *
  * A system that supports PCAP_TSTAMP_HOST is offering time stamps
  * provided by the host machine, rather than by the capture device,
- * but not committing to any characteristics of the time stamp;
- * it will not offer any of the PCAP_TSTAMP_HOST_ subtypes.
+ * but not committing to any characteristics of the time stamp.
  *
  * PCAP_TSTAMP_HOST_LOWPREC is a time stamp, provided by the host machine,
  * that's low-precision but relatively cheap to fetch; it's normally done
@@ -336,10 +400,15 @@ PCAP_API int	pcap_set_protocol_linux(pcap_t *, int);
  * fetch from system calls.
  *
  * PCAP_TSTAMP_HOST_HIPREC is a time stamp, provided by the host machine,
- * that's high-precision; it might be more expensive to fetch.  It might
- * or might not be synchronized with the system clock, and might have
+ * that's high-precision; it might be more expensive to fetch.  It is
+ * synchronized with the system clock.
+ *
+ * PCAP_TSTAMP_HOST_HIPREC_UNSYNCED is a time stamp, provided by the host
+ * machine, that's high-precision; it might be more expensive to fetch.
+ * It is not synchronized with the system clock, and might have
  * problems with time stamps for packets received on different CPUs,
- * depending on the platform.
+ * depending on the platform.  It might be more likely to be strictly
+ * monotonic than PCAP_TSTAMP_HOST_HIPREC.
  *
  * PCAP_TSTAMP_ADAPTER is a high-precision time stamp supplied by the
  * capture device; it's synchronized with the system clock.
@@ -360,10 +429,11 @@ PCAP_API int	pcap_set_protocol_linux(pcap_t *, int);
  * of interrupts for packet arrival, queueing delays, etc..
  */
 #define PCAP_TSTAMP_HOST		0	/* host-provided, unknown characteristics */
-#define PCAP_TSTAMP_HOST_LOWPREC	1	/* host-provided, low precision */
-#define PCAP_TSTAMP_HOST_HIPREC		2	/* host-provided, high precision */
+#define PCAP_TSTAMP_HOST_LOWPREC		1	/* host-provided, low precision, synced with the system clock */
+#define PCAP_TSTAMP_HOST_HIPREC			2	/* host-provided, high precision, synced with the system clock */
 #define PCAP_TSTAMP_ADAPTER		3	/* device-provided, synced with the system clock */
 #define PCAP_TSTAMP_ADAPTER_UNSYNCED	4	/* device-provided, not synced with the system clock */
+#define PCAP_TSTAMP_HOST_HIPREC_UNSYNCED	5	/* host-provided, high precision, not synced with the system clock */
 
 /*
  * Time stamp resolution types.
@@ -438,6 +508,7 @@ PCAP_API void	pcap_free_datalinks(int *);
 PCAP_API int	pcap_datalink_name_to_val(const char *);
 PCAP_API const char *pcap_datalink_val_to_name(int);
 PCAP_API const char *pcap_datalink_val_to_description(int);
+PCAP_API const char *pcap_datalink_val_to_description_or_dlt(int);
 PCAP_API int	pcap_snapshot(pcap_t *);
 PCAP_API int	pcap_is_swapped(pcap_t *);
 PCAP_API int	pcap_major_version(pcap_t *);
@@ -453,7 +524,28 @@ PCAP_API int	pcap_fileno(pcap_t *);
 #endif
 
 PCAP_API pcap_dumper_t *pcap_dump_open(pcap_t *, const char *);
-PCAP_API pcap_dumper_t *pcap_dump_fopen(pcap_t *, FILE *fp);
+#ifdef _WIN32
+  PCAP_API pcap_dumper_t *pcap_dump_hopen(pcap_t *, intptr_t);
+  /*
+   * If we're building libpcap, this is an internal routine in sf-pcap.c, so
+   * we must not define it as a macro.
+   *
+   * If we're not building libpcap, given that the version of the C runtime
+   * with which libpcap was built might be different from the version
+   * of the C runtime with which an application using libpcap was built,
+   * and that a FILE structure may differ between the two versions of the
+   * C runtime, calls to _fileno() must use the version of _fileno() in
+   * the C runtime used to open the FILE *, not the version in the C
+   * runtime with which libpcap was built.  (Maybe once the Universal CRT
+   * rules the world, this will cease to be a problem.)
+   */
+  #ifndef BUILDING_PCAP
+    #define pcap_dump_fopen(p,f) \
+	pcap_dump_hopen(p, _get_osfhandle(_fileno(f)))
+  #endif
+#else /*_WIN32*/
+  PCAP_API pcap_dumper_t *pcap_dump_fopen(pcap_t *, FILE *fp);
+#endif /*_WIN32*/
 PCAP_API pcap_dumper_t *pcap_dump_open_append(pcap_t *, const char *);
 PCAP_API FILE	*pcap_dump_file(pcap_dumper_t *);
 PCAP_API long	pcap_dump_ftell(pcap_dumper_t *);
@@ -470,7 +562,7 @@ PCAP_API void	pcap_freealldevs(pcap_if_t *);
  * version string directly.
  *
  * On at least some UNIXes, if you import data from a shared library into
- * an program, the data is bound into the program binary, so if the string
+ * a program, the data is bound into the program binary, so if the string
  * in the version of the library with which the program was linked isn't
  * the same as the string in the version of the library with which the
  * program is being run, various undesirable things may happen (warnings,
@@ -558,7 +650,7 @@ PCAP_API const char *pcap_lib_version(void);
    */
 
   PCAP_API int	pcap_get_selectable_fd(pcap_t *);
-  PCAP_API struct timeval *pcap_get_required_select_timeout(pcap_t *);
+  PCAP_API const struct timeval *pcap_get_required_select_timeout(pcap_t *);
 
 #endif /* _WIN32/MSDOS/UN*X */
 
@@ -598,6 +690,9 @@ PCAP_API const char *pcap_lib_version(void);
  * - file://folder/ [lists all the files in the given folder]
  * - rpcap:// [lists all local adapters]
  * - rpcap://host:port/ [lists the devices available on a remote host]
+ *
+ * In all the above, "rpcaps://" can be substituted for "rpcap://" to enable
+ * SSL (if it has been compiled in).
  *
  * Referring to the 'host' and 'port' parameters, they can be either numeric or literal. Since
  * IPv6 is fully supported, these are the allowed formats:
@@ -659,7 +754,7 @@ PCAP_API const char *pcap_lib_version(void);
 #define PCAP_OPENFLAG_DATATX_UDP		0x00000002
 
 /*
- * Specifies wheether the remote probe will capture its own generated
+ * Specifies whether the remote probe will capture its own generated
  * traffic.
  *
  * In case the remote probe uses the same interface to capture traffic
@@ -728,7 +823,7 @@ PCAP_API const char *pcap_lib_version(void);
 #define RPCAP_RMTAUTH_PWD 1
 
 /*
- * This structure keeps the information needed to autheticate the user
+ * This structure keeps the information needed to authenticate the user
  * on a remote machine.
  *
  * The remote machine can either grant or refuse the access according
@@ -813,8 +908,8 @@ PCAP_API int	pcap_parsesrcstr(const char *source, int *type, char *host,
  * For listing remote capture devices, pcap_findalldevs_ex() is currently
  * the only API available.
  */
-PCAP_API int	pcap_findalldevs_ex(char *source, struct pcap_rmtauth *auth,
-	    pcap_if_t **alldevs, char *errbuf);
+PCAP_API int	pcap_findalldevs_ex(const char *source,
+	    struct pcap_rmtauth *auth, pcap_if_t **alldevs, char *errbuf);
 
 /*
  * Sampling methods.
@@ -892,35 +987,12 @@ PCAP_API struct pcap_samp *pcap_setsampling(pcap_t *p);
 /* Maximum length of an host name (needed for the RPCAP active mode) */
 #define RPCAP_HOSTLIST_SIZE 1024
 
-/*
- * Some minor differences between UN*X sockets and and Winsock sockets.
- */
-#ifndef _WIN32
-  /*!
-   * \brief In Winsock, a socket handle is of type SOCKET; in UN*X, it's
-   * a file descriptor, and therefore a signed integer.
-   * We define SOCKET to be a signed integer on UN*X, so that it can
-   * be used on both platforms.
-   */
-  #define SOCKET int
-
-  /*!
-   * \brief In Winsock, the error return if socket() fails is INVALID_SOCKET;
-   * in UN*X, it's -1.
-   * We define INVALID_SOCKET to be -1 on UN*X, so that it can be used on
-   * both platforms.
-   *
-   * Also defined in <sys/socket.h> for MSDOS (i.e Watt-32). But it is only
-   * used in Remote capture code which seems impossible (?) on MSDOS.
-   * Hence this value doesn't really matter.
-   */
-  #undef  INVALID_SOCKET
-  #define INVALID_SOCKET -1
-#endif
-
 PCAP_API SOCKET	pcap_remoteact_accept(const char *address, const char *port,
 	    const char *hostlist, char *connectinghost,
 	    struct pcap_rmtauth *auth, char *errbuf);
+PCAP_API SOCKET	pcap_remoteact_accept_ex(const char *address, const char *port,
+	    const char *hostlist, char *connectinghost,
+	    struct pcap_rmtauth *auth, int uses_ssl, char *errbuf);
 PCAP_API int	pcap_remoteact_list(char *hostlist, char sep, int size,
 	    char *errbuf);
 PCAP_API int	pcap_remoteact_close(const char *host, char *errbuf);

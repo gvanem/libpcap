@@ -17,7 +17,7 @@
 .\" WARRANTIES, INCLUDING, WITHOUT LIMITATION, THE IMPLIED WARRANTIES OF
 .\" MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
 .\"
-.TH PCAP 3PCAP "25 July 2018"
+.TH PCAP 3PCAP "29 January 2020"
 .SH NAME
 pcap \- Packet Capture library
 .SH SYNOPSIS
@@ -35,12 +35,62 @@ on the network, even those destined for other hosts, are accessible
 through this mechanism.
 It also supports saving captured packets to a ``savefile'', and reading
 packets from a ``savefile''.
+.SS Initializing
+.BR pcap_init ()
+initializes the library.  It takes an argument giving options;
+currently, the options are:
+.TP
+.B PCAP_CHAR_ENC_LOCAL
+Treat all strings supplied as arguments, and return all strings to the
+caller, as being in the local character encoding.
+.TP
+.B PCAP_CHAR_ENC_UTF_8
+Treat all strings supplied as arguments, and return all strings to the
+caller, as being in UTF-8.
+.PP
+On UNIX-like systems, the local character encoding is assumed to be
+UTF-8, so no character encoding transformations are done.
+.PP
+On Windows, the local character encoding is the local ANSI code page.
+.PP
+If
+.BR pcap_init ()
+is called, the deprecated
+.BR pcap_lookupdev ()
+routine always fails, so it should not be used, and, on Windows,
+.BR pcap_create ()
+does not attempt to handle UTF-16LE strings.
+.PP
+If
+.BR pcap_init ()
+is not called, strings are treated as being in the local ANSI code page
+on Windows,
+.BR pcap_lookupdev ()
+will succeed if there is a device on which to capture, and
+.BR pcap_create ()
+makes an attempt to check whether the string passed as an argument is a
+UTF-16LE string - note that this attempt is unsafe, as it may run past
+the end of the string - to handle
+.BR pcap_lookupdev ()
+returning a UTF-16LE string. Programs that don't call
+.BR pcap_init ()
+should, on Windows, call
+.BR pcap_wsockinit ()
+to initialize Winsock; this is not necessary if
+.BR pcap_init ()
+is called, as
+.BR pcap_init ()
+will initialize Winsock itself on Windows.
 .SS Opening a capture handle for reading
 To open a handle for a live capture, given the name of the network or
 other interface on which the capture should be done, call
 .BR pcap_create (),
 set the appropriate options on the handle, and then activate it with
 .BR pcap_activate ().
+If
+.BR pcap_activate ()
+fails, the handle should be closed with
+.BR pcap_close ().
 .PP
 To obtain a list of devices that can be opened for a live capture, call
 .BR pcap_findalldevs ();
@@ -249,7 +299,7 @@ that device.  A user can be given that privilege by, for example, adding
 that privilege to the user's
 .B defaultpriv
 key with the
-.B usermod (@MAN_ADMIN_COMMANDS@)
+.BR usermod (@MAN_ADMIN_COMMANDS@)
 command.
 .TP
 .B Under HP-UX with DLPI:
@@ -320,6 +370,8 @@ any given link-layer header type, such as
 for Ethernet.  For example, the "any" device on Linux will have a
 link-layer header type of
 .B DLT_LINUX_SLL
+or
+.B DLT_LINUX_SLL2
 even if all devices on the system at the time the "any" device is opened
 have some other data link type, such as
 .B DLT_EN10MB
@@ -420,7 +472,7 @@ set packet buffer timeout for a not-yet-activated
 .B pcap_t
 for live capture
 .TP
-.BR pcap_set_immediate mode (3PCAP)
+.BR pcap_set_immediate_mode (3PCAP)
 set immediate mode for a not-yet-activated
 .B pcap_t
 for live capture
@@ -648,7 +700,7 @@ from the device.
 Not all handles have such a descriptor available;
 .BR pcap_get_selectable_fd ()
 will return
-.B PCAP_ERROR
+.B \-1
 if no such descriptor is available.  If no such
 descriptor is available, this may be because the device must be polled
 periodically for packets; in that case,
@@ -723,13 +775,12 @@ and
 .BR poll (2)
 .TP
 .BR pcap_get_required_select_timeout (3PCAP)
-if no descriptor usable with
+attempt to get a timeout required for using a
+.B pcap_t
+in calls such as
 .BR select (2)
 and
 .BR poll (2)
-is available for the
-.BR pcap_t ,
-attempt to get a timeout usable with those routines
 .RE
 .SS Filters
 In order to cause only certain packets to be returned when reading
@@ -958,8 +1009,12 @@ use an
 script or some other configuration script to check whether the libpcap
 1.0 APIs are available and use them only if they are.
 .SH SEE ALSO
-autoconf(1), tcpdump(1), tcpslice(1), pcap-filter(@MAN_MISC_INFO@), pfconfig(8),
-usermod(@MAN_ADMIN_COMMANDS@)
+.BR autoconf (1),
+.BR tcpdump (1),
+.BR tcpslice (1),
+.BR pcap-filter (@MAN_MISC_INFO@),
+.BR pfconfig (8),
+.BR usermod (@MAN_ADMIN_COMMANDS@)
 .SH AUTHORS
 The original authors of libpcap are:
 .LP
@@ -978,5 +1033,5 @@ To report a security issue please send an e-mail to security@tcpdump.org.
 .LP
 To report bugs and other problems, contribute patches, request a
 feature, provide generic feedback etc please see the file
-.I CONTRIBUTING
+.I CONTRIBUTING.md
 in the libpcap source tree root.

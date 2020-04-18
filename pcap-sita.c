@@ -266,7 +266,7 @@ int acn_parse_hosts_file(char *errbuf) {				/* returns: -1 = error, 0 = OK */
 
 	empty_unit_table();
 	if ((fp = fopen("/etc/hosts", "r")) == NULL) {										/* try to open the hosts file and if it fails */
-		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "Cannot open '/etc/hosts' for reading.");	/* return the nohostsfile error response */
+		snprintf(errbuf, PCAP_ERRBUF_SIZE, "Cannot open '/etc/hosts' for reading.");	/* return the nohostsfile error response */
 		return -1;
 	}
 	while (fgets(buf, MAX_LINE_SIZE-1, fp)) {			/* while looping over the file */
@@ -289,15 +289,15 @@ int acn_parse_hosts_file(char *errbuf) {				/* returns: -1 = error, 0 = OK */
 		geoslot = *(ptr2 + 5) - '0';					/* and geo-slot number */
 		if (chassis < 1 || chassis > MAX_CHASSIS ||
 			geoslot < 1 || geoslot > MAX_GEOSLOT) {		/* if the chassis and/or slot numbers appear to be bad... */
-			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE, "Invalid ACN name in '/etc/hosts'.");	/* warn the user */
+			snprintf(errbuf, PCAP_ERRBUF_SIZE, "Invalid ACN name in '/etc/hosts'.");	/* warn the user */
 			continue;																	/* and ignore the entry */
 		}
-		if ((ptr2 = (char *)malloc(strlen(ptr) + 1)) == NULL) {
+		ptr2 = strdup(ptr);					/* copy the IP address into our malloc'ed memory */
+		if (ptr2 == NULL) {
 			pcap_fmt_errmsg_for_errno(errbuf, PCAP_ERRBUF_SIZE,
 			    errno, "malloc");
 			continue;
 		}
-		strcpy(ptr2, ptr);								/* copy the IP address into our malloc'ed memory */
 		u = &units[chassis][geoslot];
 		u->ip = ptr2;									/* and remember the whole shebang */
 		u->chassis = chassis;
@@ -407,19 +407,18 @@ static void acn_freealldevs(void) {
 
 static void nonUnified_IOP_port_name(char *buf, size_t bufsize, const char *proto, unit_t *u) {
 
-	pcap_snprintf(buf, bufsize, "%s_%d_%d", proto, u->chassis, u->geoslot);
+	snprintf(buf, bufsize, "%s_%d_%d", proto, u->chassis, u->geoslot);
 }
 
 static void unified_IOP_port_name(char *buf, size_t bufsize, const char *proto, unit_t *u, int IOPportnum) {
 	int			portnum;
 
 	portnum = ((u->chassis - 1) * 64) + ((u->geoslot - 1) * 8) + IOPportnum + 1;
-	pcap_snprintf(buf, bufsize, "%s_%d", proto, portnum);
+	snprintf(buf, bufsize, "%s_%d", proto, portnum);
 }
 
 static char *translate_IOP_to_pcap_name(unit_t *u, char *IOPname, bpf_u_int32 iftype) {
 	iface_t		*iface_ptr, *iface;
-	char		*name;
 	char		buf[32];
 	char		*proto;
 	char		*port;
@@ -434,14 +433,11 @@ static char *translate_IOP_to_pcap_name(unit_t *u, char *IOPname, bpf_u_int32 if
 
 	iface->iftype = iftype;					/* remember the interface type of this interface */
 
-	name = malloc(strlen(IOPname) + 1);		/* get memory for the IOP's name */
-        if (name == NULL) {    /* oops, we didn't get the memory requested     */
+	iface->IOPname = strdup(IOPnam);			/* copy it and stick it into the structure */
+        if (iface->IOPname == NULL) {    /* oops, we didn't get the memory requested     */
                 fprintf(stderr, "Error...couldn't allocate memory for IOPname...value of errno is: %d\n", errno);
                 return NULL;
         }
-
-	strcpy(name, IOPname);					/* and copy it in */
-	iface->IOPname = name;					/* and stick it into the structure */
 
 	if (strncmp(IOPname, "lo", 2) == 0) {
 		IOPportnum = atoi(&IOPname[2]);
@@ -478,14 +474,11 @@ static char *translate_IOP_to_pcap_name(unit_t *u, char *IOPname, bpf_u_int32 if
 		return NULL;
 	}
 
-	name = malloc(strlen(buf) + 1);			/* get memory for that name */
-        if (name == NULL) {    /* oops, we didn't get the memory requested     */
+	iface->name = strdup(buf);					/* make a copy and stick it into the structure */
+        if (iface->name == NULL) {    /* oops, we didn't get the memory requested     */
                 fprintf(stderr, "Error...couldn't allocate memory for IOP port name...value of errno is: %d\n", errno);
                 return NULL;
         }
-
-	strcpy(name, buf);						/* and copy it in */
-	iface->name = name;						/* and stick it into the structure */
 
 	if (u->iface == 0) {					/* if this is the first name */
 		u->iface = iface;					/* stick this entry at the head of the list */
@@ -915,12 +908,6 @@ static int pcap_setfilter_acn(pcap_t *handle, struct bpf_program *bpf) {
 	return 0;
 }
 
-static int pcap_setdirection_acn(pcap_t *handle, pcap_direction_t d) {
-	pcap_snprintf(handle->errbuf, sizeof(handle->errbuf),
-	    "Setting direction is not supported on ACN adapters");
-	return -1;
-}
-
 static int acn_read_n_bytes_with_timeout(pcap_t *handle, int count) {
 	struct		timeval tv;
 	int			retval, fd;
@@ -942,7 +929,7 @@ static int acn_read_n_bytes_with_timeout(pcap_t *handle, int count) {
 		retval = select(fd + 1, &w_fds, NULL, NULL, &tv);
 		if (retval == -1) {											/* an error occured !!!!! */
 //			fprintf(stderr, "error during packet data read\n");
-			return -1;												/* but we need to return a good indication to prevent unneccessary popups */
+			return -1;										/* but we need to return a good indication to prevent unnecessary popups */
 		} else if (retval == 0) {									/* timeout occured, so process what we've got sofar and return */
 //			fprintf(stderr, "timeout during packet data read\n");
 			return -1;
@@ -997,7 +984,7 @@ static int pcap_activate_sita(pcap_t *handle) {
 
 	handle->inject_op = pcap_inject_acn;
 	handle->setfilter_op = pcap_setfilter_acn;
-	handle->setdirection_op = pcap_setdirection_acn;
+	handle->setdirection_op = NULL; /* Not implemented */
 	handle->set_datalink_op = NULL;	/* can't change data link type */
 	handle->getnonblock_op = pcap_getnonblock_fd;
 	handle->setnonblock_op = pcap_setnonblock_fd;

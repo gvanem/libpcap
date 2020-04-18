@@ -289,7 +289,7 @@ pcap_process_mactype(pcap_t *p, u_int mactype)
 		 * XXX - DL_IPNET devices default to "raw IP" rather than
 		 * "IPNET header"; see
 		 *
-		 *    http://seclists.org/tcpdump/2009/q1/202
+		 *    https://seclists.org/tcpdump/2009/q1/202
 		 *
 		 * We'd have to do DL_IOC_IPNET_INFO to enable getting
 		 * the IPNET header.
@@ -300,7 +300,7 @@ pcap_process_mactype(pcap_t *p, u_int mactype)
 #endif
 
 	default:
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "unknown mactype 0x%x",
+		snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "unknown mactype 0x%x",
 		    mactype);
 		retv = -1;
 	}

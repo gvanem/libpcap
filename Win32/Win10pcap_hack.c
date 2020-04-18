@@ -18,7 +18,6 @@
 #include <Packet_dll/NdisDriverUser.h>
 #include <Packet_dll/Packet32_Internal.h>
 
-
 /*
  * Adapt the original function 'PacketFindAdInfo()' in:
  *  $(WINPCAP_ROOT)/PacketNtx/AdInfo.c

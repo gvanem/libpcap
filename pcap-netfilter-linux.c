@@ -159,7 +159,18 @@ netfilter_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_c
 			} else
 				return count;
 		}
-		if (ep - bp < NLMSG_SPACE(0)) {
+		/*
+		 * NLMSG_SPACE(0) might be signed or might be unsigned,
+		 * depending on whether the kernel defines NLMSG_ALIGNTO
+		 * as 4, which older kernels do, or as 4U, which newer
+		 * kernels do.
+		 *
+		 * ep - bp is of type ptrdiff_t, which is signed.
+		 *
+		 * To squelch warnings, we cast both to size_t, which
+		 * is unsigned; ep >= bp, so the cast is safe.
+		 */
+		if ((size_t)(ep - bp) < (size_t)NLMSG_SPACE(0)) {
 			/*
 			 * There's less than one netlink message left
 			 * in the buffer.  Give up.
@@ -168,7 +179,7 @@ netfilter_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_c
 		}
 
 		if (nlh->nlmsg_len < sizeof(struct nlmsghdr) || (u_int)len < nlh->nlmsg_len) {
-			pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "Message truncated: (got: %zd) (nlmsg_len: %u)", len, nlh->nlmsg_len);
+			snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "Message truncated: (got: %zd) (nlmsg_len: %u)", len, nlh->nlmsg_len);
 			return -1;
 		}
 
@@ -190,7 +201,7 @@ netfilter_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_c
 				const struct nfattr *payload_attr = NULL;
 
 				if (nlh->nlmsg_len < HDR_LENGTH) {
-					pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "Malformed message: (nlmsg_len: %u)", nlh->nlmsg_len);
+					snprintf(handle->errbuf, PCAP_ERRBUF_SIZE, "Malformed message: (nlmsg_len: %u)", nlh->nlmsg_len);
 					return -1;
 				}
 
@@ -262,8 +273,15 @@ netfilter_read_linux(pcap_t *handle, int max_packets, pcap_handler callback, u_c
 		 * If the message length would run past the end of the
 		 * buffer, truncate it to the remaining space in the
 		 * buffer.
+		 *
+		 * To squelch warnings, we cast ep - bp to uint32_t, which
+		 * is unsigned and is the type of msg_len; ep >= bp, and
+		 * len should fit in 32 bits (either it's set from an int
+		 * or it's set from a recv() call with a buffer size that's
+		 * an int, and we're assuming either ILP32 or LP64), so
+		 * the cast is safe.
 		 */
-		if (msg_len > ep - bp)
+		if (msg_len > (uint32_t)(ep - bp))
 			msg_len = (uint32_t)(ep - bp);
 
 		bp += msg_len;
@@ -301,7 +319,7 @@ netfilter_stats_linux(pcap_t *handle, struct pcap_stat *stats)
 static int
 netfilter_inject_linux(pcap_t *handle, const void *buf _U_, int size _U_)
 {
-	pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+	snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 	    "Packet injection is not supported on netfilter devices");
 	return (-1);
 }
@@ -316,6 +334,7 @@ static int
 netfilter_send_config_msg(const pcap_t *handle, uint16_t msg_type, int ack, u_int8_t family, u_int16_t res_id, const struct my_nfattr *mynfa)
 {
 	char buf[1024] __attribute__ ((aligned));
+	memset(buf, 0, sizeof(buf));
 
 	struct nlmsghdr *nlh = (struct nlmsghdr *) buf;
 	struct nfgenmsg *nfg = (struct nfgenmsg *) (buf + sizeof(struct nlmsghdr));
@@ -513,7 +532,7 @@ netfilter_activate(pcap_t* handle)
 			char *end_dev;
 
 			if (group_count == 32) {
-				pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+				snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 						"Maximum 32 netfilter groups! dev: %s",
 						handle->opt.device);
 				return PCAP_ERROR;
@@ -522,7 +541,7 @@ netfilter_activate(pcap_t* handle)
 			group_id = strtol(dev, &end_dev, 0);
 			if (end_dev != dev) {
 				if (group_id < 0 || group_id > 65535) {
-					pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+					snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 							"Netfilter group range from 0 to 65535 (got %ld)",
 							group_id);
 					return PCAP_ERROR;
@@ -538,7 +557,7 @@ netfilter_activate(pcap_t* handle)
 	}
 
 	if (type == OTHER || *dev) {
-		pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 				"Can't get netfilter group(s) index from %s",
 				handle->opt.device);
 		return PCAP_ERROR;
@@ -619,7 +638,7 @@ netfilter_activate(pcap_t* handle)
 			if (nflog_send_config_cmd(handle, groups[i], NFULNL_CFG_CMD_BIND, AF_UNSPEC) < 0) {
 				pcap_fmt_errmsg_for_errno(handle->errbuf,
 				    PCAP_ERRBUF_SIZE, errno,
-				    "Can't listen on group group index");
+				    "Can't listen on group index");
 				goto close_fail;
 			}
 
@@ -649,7 +668,7 @@ netfilter_activate(pcap_t* handle)
 			if (nfqueue_send_config_cmd(handle, groups[i], NFQNL_CFG_CMD_BIND, AF_UNSPEC) < 0) {
 				pcap_fmt_errmsg_for_errno(handle->errbuf,
 				    PCAP_ERRBUF_SIZE, errno,
-				    "Can't listen on group group index");
+				    "Can't listen on group index");
 				goto close_fail;
 			}
 

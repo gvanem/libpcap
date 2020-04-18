@@ -149,16 +149,9 @@ bt_monitor_read(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_ch
 static int
 bt_monitor_inject(pcap_t *handle, const void *buf _U_, int size _U_)
 {
-    pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+    snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
         "Packet injection is not supported yet on Bluetooth monitor devices");
     return -1;
-}
-
-static int
-bt_monitor_setdirection(pcap_t *p, pcap_direction_t d)
-{
-    p->direction = d;
-    return 0;
 }
 
 static int
@@ -200,7 +193,7 @@ bt_monitor_activate(pcap_t* handle)
     handle->read_op = bt_monitor_read;
     handle->inject_op = bt_monitor_inject;
     handle->setfilter_op = install_bpf_program; /* no kernel filtering */
-    handle->setdirection_op = bt_monitor_setdirection;
+    handle->setdirection_op = NULL; /* Not implemented */
     handle->set_datalink_op = NULL; /* can't change data link type */
     handle->getnonblock_op = pcap_getnonblock_fd;
     handle->setnonblock_op = pcap_setnonblock_fd;

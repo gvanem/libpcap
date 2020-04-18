@@ -1,9 +1,8 @@
 
-#include <winsock2.h>
-#include <iphlpapi.h>
-#include <stdio.h>
-#include <malloc.h>
+#include "Win32/config.h"
+
 #include <pcap-int.h>
+#include <iphlpapi.h>
 
 /* Printing a wide string on Windows.
  * E.g. printf (buf, "%"WIDESTR_FMT, wide_str);

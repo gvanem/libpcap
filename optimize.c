@@ -137,7 +137,7 @@ lowest_set_bit(int mask)
 	 * (It's currently not, in MSVC, even on 64-bit platforms, but....)
 	 */
 	if (_BitScanForward(&bit, (unsigned int)mask) == 0)
-		return -1;	/* mask is zero */
+		abort();	/* mask is zero */
 	return (int)bit;
 }
 #elif defined(MSDOS) && defined(__DJGPP__)
@@ -1012,10 +1012,10 @@ opt_peep(opt_state_t *opt_state, struct block *b)
 	 */
 	if (b->s.code == (BPF_JMP|BPF_JEQ|BPF_K) &&
 	    !ATOMELEM(b->out_use, A_ATOM)) {
-	    	/*
-	    	 * We can optimize away certain subtractions of the
-	    	 * X register.
-	    	 */
+			/*
+			 * We can optimize away certain subtractions of the
+			 * X register.
+			 */
 		if (last->s.code == (BPF_ALU|BPF_SUB|BPF_X)) {
 			val = b->val[X_ATOM];
 			if (opt_state->vmap[val].is_const) {
@@ -2070,7 +2070,7 @@ opt_error(opt_state_t *opt_state, const char *fmt, ...)
 
 	if (opt_state->errbuf != NULL) {
 		va_start(ap, fmt);
-		(void)pcap_vsnprintf(opt_state->errbuf,
+		(void)vsnprintf(opt_state->errbuf,
 		    PCAP_ERRBUF_SIZE, fmt, ap);
 		va_end(ap);
 	}
@@ -2183,7 +2183,6 @@ opt_init(opt_state_t *opt_state, struct icode *ic)
 	opt_state->n_edges = 2 * opt_state->n_blocks;
 	opt_state->edges = (struct edge **)calloc(opt_state->n_edges, sizeof(*opt_state->edges));
 	if (opt_state->edges == NULL) {
-		free(opt_state->blocks);
 		opt_error(opt_state, "malloc");
 	}
 
@@ -2192,8 +2191,6 @@ opt_init(opt_state_t *opt_state, struct icode *ic)
 	 */
 	opt_state->levels = (struct block **)calloc(opt_state->n_blocks, sizeof(*opt_state->levels));
 	if (opt_state->levels == NULL) {
-		free(opt_state->edges);
-		free(opt_state->blocks);
 		opt_error(opt_state, "malloc");
 	}
 
@@ -2204,9 +2201,6 @@ opt_init(opt_state_t *opt_state, struct icode *ic)
 	opt_state->space = (bpf_u_int32 *)malloc(2 * opt_state->n_blocks * opt_state->nodewords * sizeof(*opt_state->space)
 				 + opt_state->n_edges * opt_state->edgewords * sizeof(*opt_state->space));
 	if (opt_state->space == NULL) {
-		free(opt_state->levels);
-		free(opt_state->edges);
-		free(opt_state->blocks);
 		opt_error(opt_state, "malloc");
 	}
 	p = opt_state->space;
@@ -2246,19 +2240,10 @@ opt_init(opt_state_t *opt_state, struct icode *ic)
 	opt_state->maxval = 3 * max_stmts;
 	opt_state->vmap = (struct vmapinfo *)calloc(opt_state->maxval, sizeof(*opt_state->vmap));
 	if (opt_state->vmap == NULL) {
-		free(opt_state->space);
-		free(opt_state->levels);
-		free(opt_state->edges);
-		free(opt_state->blocks);
 		opt_error(opt_state, "malloc");
 	}
 	opt_state->vnode_base = (struct valnode *)calloc(opt_state->maxval, sizeof(*opt_state->vnode_base));
 	if (opt_state->vnode_base == NULL) {
-		free(opt_state->vmap);
-		free(opt_state->space);
-		free(opt_state->levels);
-		free(opt_state->edges);
-		free(opt_state->blocks);
 		opt_error(opt_state, "malloc");
 	}
 }
@@ -2417,45 +2402,45 @@ filled:
 		extrajmps = 0;
 		off = JT(p)->offset - (p->offset + slen) - 1;
 		if (off >= 256) {
-		    /* offset too large for branch, must add a jump */
-		    if (p->longjt == 0) {
-		    	/* mark this instruction and retry */
-			p->longjt++;
-			return(0);
-		    }
-		    /* branch if T to following jump */
-		    if (extrajmps >= 256) {
-			conv_error(conv_state, "too many extra jumps");
-			/*NOTREACHED*/
-		    }
-		    dst->jt = (u_char)extrajmps;
-		    extrajmps++;
-		    dst[extrajmps].code = BPF_JMP|BPF_JA;
-		    dst[extrajmps].k = off - extrajmps;
+			/* offset too large for branch, must add a jump */
+			if (p->longjt == 0) {
+				/* mark this instruction and retry */
+				p->longjt++;
+				return(0);
+			}
+			/* branch if T to following jump */
+			if (extrajmps >= 256) {
+				conv_error(conv_state, "too many extra jumps");
+				/*NOTREACHED*/
+			}
+			dst->jt = (u_char)extrajmps;
+			extrajmps++;
+			dst[extrajmps].code = BPF_JMP|BPF_JA;
+			dst[extrajmps].k = off - extrajmps;
 		}
 		else
-		    dst->jt = (u_char)off;
+			dst->jt = (u_char)off;
 		off = JF(p)->offset - (p->offset + slen) - 1;
 		if (off >= 256) {
-		    /* offset too large for branch, must add a jump */
-		    if (p->longjf == 0) {
-		    	/* mark this instruction and retry */
-			p->longjf++;
-			return(0);
-		    }
-		    /* branch if F to following jump */
-		    /* if two jumps are inserted, F goes to second one */
-		    if (extrajmps >= 256) {
-			conv_error(conv_state, "too many extra jumps");
-			/*NOTREACHED*/
-		    }
-		    dst->jf = (u_char)extrajmps;
-		    extrajmps++;
-		    dst[extrajmps].code = BPF_JMP|BPF_JA;
-		    dst[extrajmps].k = off - extrajmps;
+			/* offset too large for branch, must add a jump */
+			if (p->longjf == 0) {
+				/* mark this instruction and retry */
+				p->longjf++;
+				return(0);
+			}
+			/* branch if F to following jump */
+			/* if two jumps are inserted, F goes to second one */
+			if (extrajmps >= 256) {
+				conv_error(conv_state, "too many extra jumps");
+				/*NOTREACHED*/
+			}
+			dst->jf = (u_char)extrajmps;
+			extrajmps++;
+			dst[extrajmps].code = BPF_JMP|BPF_JA;
+			dst[extrajmps].k = off - extrajmps;
 		}
 		else
-		    dst->jf = (u_char)off;
+			dst->jf = (u_char)off;
 	}
 	return (1);
 }
@@ -2504,7 +2489,7 @@ icode_to_fcode(struct icode *ic, struct block *root, u_int *lenp,
 
 	    fp = (struct bpf_insn *)malloc(sizeof(*fp) * n);
 	    if (fp == NULL) {
-		(void)pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+		(void)snprintf(errbuf, PCAP_ERRBUF_SIZE,
 		    "malloc");
 		free(fp);
 		return NULL;
@@ -2531,7 +2516,7 @@ conv_error(conv_state_t *conv_state, const char *fmt, ...)
 	va_list ap;
 
 	va_start(ap, fmt);
-	(void)pcap_vsnprintf(conv_state->errbuf,
+	(void)vsnprintf(conv_state->errbuf,
 	    PCAP_ERRBUF_SIZE, fmt, ap);
 	va_end(ap);
 	longjmp(conv_state->top_ctx, 1);
@@ -2555,7 +2540,7 @@ install_bpf_program(pcap_t *p, struct bpf_program *fp)
 	 * Validate the program.
 	 */
 	if (!pcap_validate_filter(fp->bf_insns, fp->bf_len)) {
-		pcap_snprintf(p->errbuf, sizeof(p->errbuf),
+		snprintf(p->errbuf, sizeof(p->errbuf),
 			"BPF program is not valid");
 		return (-1);
 	}
@@ -2644,7 +2629,7 @@ dot_dump_edge(struct icode *ic, struct block *block, FILE *out)
     	"block1":sw -> "block3":n [label="F"];
     }
  *
- *  After install graphviz on http://www.graphviz.org/, save it as bpf.dot
+ *  After install graphviz on https://www.graphviz.org/, save it as bpf.dot
  *  and run `dot -Tpng -O bpf.dot' to draw the graph.
  */
 static int

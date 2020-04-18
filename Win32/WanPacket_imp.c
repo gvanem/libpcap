@@ -11,7 +11,9 @@
 
 /* Add this since we want the definition in Packet32.h.
  */
-#define PCAP_DONT_INCLUDE_PCAP_BPF_H
+#if !defined USE_WIN10PCAP
+  #define PCAP_DONT_INCLUDE_PCAP_BPF_H
+#endif
 
 #include <stdio.h>
 #include <Packet32.h>

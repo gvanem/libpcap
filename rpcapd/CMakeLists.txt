@@ -50,8 +50,8 @@ if(WIN32 OR ((CMAKE_USE_PTHREADS_INIT OR PTHREADS_FOUND) AND HAVE_CRYPT))
   if(WIN32)
     set(RPCAPD_EXTRA_SOURCES
         win32-svc.c
+        ${pcap_SOURCE_DIR}/charconv.c
         ${pcap_SOURCE_DIR}/missing/getopt.c
-        ${pcap_SOURCE_DIR}/missing/win_snprintf.c
         rpcapd.rc)
     include_directories(${pcap_SOURCE_DIR}/rpcapd ${pcap_SOURCE_DIR}/missing)
   endif(WIN32)
@@ -59,10 +59,11 @@ if(WIN32 OR ((CMAKE_USE_PTHREADS_INIT OR PTHREADS_FOUND) AND HAVE_CRYPT))
   add_executable(rpcapd
     daemon.c
     fileconf.c
-    log-stderr.c
+    log.c
     rpcapd.c
     ${pcap_SOURCE_DIR}/rpcap-protocol.c
     ${pcap_SOURCE_DIR}/sockutils.c
+    ${pcap_SOURCE_DIR}/sslutils.c
     ${pcap_SOURCE_DIR}/fmtutils.c
     ${RPCAPD_EXTRA_SOURCES}
   )
@@ -132,6 +133,8 @@ if(WIN32 OR ((CMAKE_USE_PTHREADS_INIT OR PTHREADS_FOUND) AND HAVE_CRYPT))
 
   set(MANADMIN_EXPAND rpcapd.manadmin.in)
 
+  set(MANFILE_EXPAND rpcapd-config.manfile.in)
+
   if(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     install(TARGETS rpcapd DESTINATION bin/amd64)
   else(MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
@@ -154,5 +157,13 @@ if(WIN32 OR ((CMAKE_USE_PTHREADS_INIT OR PTHREADS_FOUND) AND HAVE_CRYPT))
         set(MANADMIN ${MANADMIN} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE})
     endforeach(TEMPLATE_MANPAGE)
     install(FILES ${MANADMIN} DESTINATION ${CMAKE_INSTALL_MANDIR}/man${MAN_ADMIN_COMMANDS})
+
+    set(MANFILE "")
+    foreach(TEMPLATE_MANPAGE ${MANFILE_EXPAND})
+        string(REPLACE ".manfile.in" ".${MAN_FILE_FORMATS}" MANPAGE ${TEMPLATE_MANPAGE})
+        configure_file(${CMAKE_CURRENT_SOURCE_DIR}/${TEMPLATE_MANPAGE} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE} @ONLY)
+        set(MANFILE ${MANFILE} ${CMAKE_CURRENT_BINARY_DIR}/${MANPAGE})
+    endforeach(TEMPLATE_MANPAGE)
+    install(FILES ${MANFILE} DESTINATION ${CMAKE_INSTALL_MANDIR}/man${MAN_FILE_FORMATS})
   endif(NOT MSVC)
 endif(WIN32 OR ((CMAKE_USE_PTHREADS_INIT OR PTHREADS_FOUND) AND HAVE_CRYPT))

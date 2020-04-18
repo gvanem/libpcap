@@ -30,7 +30,7 @@ Note:
    For chrome, you can run it using following command to avoid this:
        chromium --disable-web-security
    That's why this program start a localhost http server.
-2. expr1.html use jquery from http://ajax.googleapis.com, so you need internet
+2. expr1.html use jquery from https://ajax.googleapis.com, so you need internet
    access to show the web page.
 """
 
@@ -52,7 +52,7 @@ html_template = string.Template("""
       }
     </style>
 
-    <script type="text/javascript" src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"/></script>
+    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"/></script>
     <!--script type="text/javascript" src="./jquery.min.js"/></script-->
     <script type="text/javascript">
       var expr = '$expr';
@@ -142,7 +142,7 @@ html_template = string.Template("""
       }
       function load_left(index) {
         var url = gurl(index);
-        var frag = "<embed id='leftsvgc'  type='image/svg+xml' pluginspage='http://www.adobe.com/svg/viewer/install/' src='" + url + "'/>";
+        var frag = "<embed id='leftsvgc'  type='image/svg+xml' pluginspage='https://www.adobe.com/svg/viewer/install/' src='" + url + "'/>";
         $$("#lsvg").html(frag);
         $$("#lcomment").html(logs[index]);
         $$("#lsvglink").attr("href", url);
@@ -151,7 +151,7 @@ html_template = string.Template("""
       }
       function load_right(index) {
         var url = gurl(index);
-        var frag = "<embed id='rightsvgc' type='image/svg+xml' pluginspage='http://www.adobe.com/svg/viewer/install/' src='" + url + "'/>";
+        var frag = "<embed id='rightsvgc' type='image/svg+xml' pluginspage='https://www.adobe.com/svg/viewer/install/' src='" + url + "'/>";
         $$("#rsvg").html(frag);
         $$("#rcomment").html(logs[index]);
         $$("#rsvglink").attr("href", url);
@@ -283,7 +283,7 @@ def run_httpd():
         allow_reuse_address = True
     Handler = SimpleHTTPServer.SimpleHTTPRequestHandler
     httpd = MySocketServer(("localhost", 0), Handler)
-    print "open this link: http://localhost:%d/expr1.html" % (httpd.server_address[1])
+    print ("open this link: http://localhost:%d/expr1.html" % httpd.server_address[1])
     try:
         httpd.serve_forever()
     except KeyboardInterrupt as e:
@@ -293,10 +293,14 @@ def main():
     import tempfile
     import atexit
     import shutil
-    os.chdir(tempfile.mkdtemp(prefix="visopts-"))
-    atexit.register(shutil.rmtree, os.getcwd())
-    print "generated files under directory: %s" % os.getcwd()
-    print "  the directory will be removed when this programs finished."
+
+    tmp_dir = tempfile.mkdtemp(prefix="visopts-")
+    os.chdir (tmp_dir)
+
+    if os.sys.platform != 'win32':
+      atexit.register (shutil.rmtree, tmp_dir + "/..")
+      print ("generated files under directory: %s" % tmp_dir)
+      print ("  the directory will be removed when this programs finished.")
 
     if not render_on_html(sys.stdin):
         return 1
@@ -305,6 +309,6 @@ def main():
 
 if __name__ == "__main__":
     if '-h' in sys.argv or '--help' in sys.argv:
-        print __doc__
+        print (__doc__)
         exit(0)
     exit(main())

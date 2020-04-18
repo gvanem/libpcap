@@ -175,7 +175,7 @@ capture_thread_func(THREAD_FUNC_ARG_TYPE arg)
 		/*
 		 * Error.  Report it.
 		 */
-		(void)fprintf(stderr, "%s: pcap_loop: %s\n",
+		(void)fprintf(stderr, "%s: pcap_dispatch: %s\n",
 		    program_name, pcap_geterr(pd));
 	}
 	return 0;
@@ -193,7 +193,10 @@ main(int argc, char **argv)
 	char ebuf[PCAP_ERRBUF_SIZE];
 	int status;
 	THREAD_HANDLE capture_thread;
-#ifndef _WIN32
+
+#ifdef _WIN32
+	pcap_wsockinit();
+#else
 	void *retval;
 #endif
 

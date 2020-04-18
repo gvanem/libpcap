@@ -283,7 +283,7 @@ pcap_etc_subpath (const char *file)
 	if (!env)
 		return (file);
 
-	pcap_snprintf (path, sizeof(path), "%s\\system32\\drivers\\etc\\%s", env, file);
+	snprintf (path, sizeof(path), "%s\\system32\\drivers\\etc\\%s", env, file);
 	return (path);
 }
 

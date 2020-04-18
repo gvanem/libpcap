@@ -92,7 +92,7 @@ bt_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 	dev_list = malloc(HCI_MAX_DEV * sizeof(*dev_req) + sizeof(*dev_list));
 	if (!dev_list)
 	{
-		pcap_snprintf(err_str, PCAP_ERRBUF_SIZE, "Can't allocate %zu bytes for Bluetooth device list",
+		snprintf(err_str, PCAP_ERRBUF_SIZE, "Can't allocate %zu bytes for Bluetooth device list",
 			HCI_MAX_DEV * sizeof(*dev_req) + sizeof(*dev_list));
 		ret = -1;
 		goto done;
@@ -112,8 +112,8 @@ bt_findalldevs(pcap_if_list_t *devlistp, char *err_str)
 	for (i = 0; i < dev_list->dev_num; i++, dev_req++) {
 		char dev_name[20], dev_descr[40];
 
-		pcap_snprintf(dev_name, sizeof(dev_name), BT_IFACE"%u", dev_req->dev_id);
-		pcap_snprintf(dev_descr, sizeof(dev_descr), "Bluetooth adapter number %u", i);
+		snprintf(dev_name, sizeof(dev_name), BT_IFACE"%u", dev_req->dev_id);
+		snprintf(dev_descr, sizeof(dev_descr), "Bluetooth adapter number %u", i);
 
 		/*
 		 * Bluetooth is a wireless technology.
@@ -194,7 +194,7 @@ bt_activate(pcap_t* handle)
 	/* get bt interface id */
 	if (sscanf(handle->opt.device, BT_IFACE"%d", &dev_id) != 1)
 	{
-		pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 			"Can't get Bluetooth device index from %s",
 			 handle->opt.device);
 		return PCAP_ERROR;
@@ -362,9 +362,21 @@ bt_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_char
 		}
 		cmsg = CMSG_NXTHDR(&msg, cmsg);
 	}
-	if ((in && (handle->direction == PCAP_D_OUT)) ||
-				((!in) && (handle->direction == PCAP_D_IN)))
-		return 0;
+	switch (handle->direction) {
+
+	case PCAP_D_IN:
+		if (!in)
+			return 0;
+		break;
+
+	case PCAP_D_OUT:
+		if (in)
+			return 0;
+		break;
+
+	default:
+		break;
+	}
 
 	bthdr->direction = htonl(in != 0);
 	pkth.caplen+=sizeof(pcap_bluetooth_h4_header);
@@ -380,7 +392,7 @@ bt_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_char
 static int
 bt_inject_linux(pcap_t *handle, const void *buf _U_, int size _U_)
 {
-	pcap_snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
+	snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
 	    "Packet injection is not supported on Bluetooth devices");
 	return (-1);
 }
@@ -418,6 +430,10 @@ bt_stats_linux(pcap_t *handle, struct pcap_stat *stats)
 static int
 bt_setdirection_linux(pcap_t *p, pcap_direction_t d)
 {
+	/*
+	 * It's guaranteed, at this point, that d is a valid
+	 * direction value.
+	 */
 	p->direction = d;
 	return 0;
 }

@@ -39,11 +39,9 @@
 
 #include <stdio.h>
 #include <string.h>
-#include <ctype.h>
 #include <signal.h>
 #include <pcap.h>		// for PCAP_ERRBUF_SIZE
 
-#include "sockutils.h"		// for SOCK_DEBUG_MESSAGE
 #include "portability.h"
 #include "rpcapd.h"
 #include "config_params.h"	// configuration file parameters
@@ -60,10 +58,19 @@
 
 static char *skipws(char *ptr);
 
+/*
+ * Locale-independent version checks for alphabetical and alphanumerical
+ * characters that also can handle being handed a char value that might
+ * be negative.
+ */
+#define FILECONF_ISALPHA(c) \
+	(((c) >= 'A' && (c) <= 'Z') || ((c) >= 'a' && (c) <= 'z'))
+#define FILECONF_ISALNUM(c) \
+	(FILECONF_ISALPHA(c) || ((c) >= '0' && (c) <= '9'))
+
 void fileconf_read(void)
 {
 	FILE *fp;
-	char msg[PCAP_ERRBUF_SIZE + 1];
 	unsigned int num_active_clients;
 
 	if ((fp = fopen(loadfile, "r")) != NULL)
@@ -137,8 +144,7 @@ void fileconf_read(void)
 			// Is the next character alphabetic?  If not,
 			// this isn't a valid parameter name.
 			//
-			if (!isascii((unsigned char)*ptr) ||
-			    !isalpha((unsigned char)*ptr))
+			if (FILECONF_ISALPHA(*ptr))
 			{
 				rpcapd_log(LOGPRIO_ERROR,
 				    "%s, line %u doesn't have a valid parameter name",
@@ -152,8 +158,7 @@ void fileconf_read(void)
 			// That's the name of the parameter being set.
 			//
 			param = ptr;
-			while (isascii((unsigned char)*ptr) &&
-			    (isalnum((unsigned char)*ptr) || *ptr == '-' || *ptr == '_'))
+			while (FILECONF_ISALNUM(*ptr) || *ptr == '-' || *ptr == '_')
 				ptr++;
 
 			//
@@ -236,13 +241,15 @@ void fileconf_read(void)
 				ptr += toklen;	// skip to the terminator
 				if (toklen == 0)
 				{
-					if (isascii((unsigned char)*ptr) &&
-					    (isspace((unsigned char)*ptr) || *ptr == '#' || *ptr == '\0'))
+					if (*ptr == ' ' || *ptr == '\t' ||
+					    *ptr == '\r' || *ptr == '\n' ||
+					    *ptr == '#' || *ptr == '\0')
 					{
 						//
 						// The first character it saw
 						// was a whitespace character
-						// or a comment character.
+						// or a comment character,
+						// or we ran out of characters.
 						// This means that there's
 						// no value.
 						//
@@ -478,8 +485,7 @@ done:
 			num_active_clients++;
 		}
 
-		pcap_snprintf(msg, PCAP_ERRBUF_SIZE, "New passive host list: %s\n\n", hostlist);
-		SOCK_DEBUG_MESSAGE(msg);
+		rpcapd_log(LOGPRIO_DEBUG, "New passive host list: %s", hostlist);
 		fclose(fp);
 	}
 }
@@ -501,8 +507,7 @@ int fileconf_save(const char *savefile)
 		fprintf(fp, "# Hosts which are allowed to connect to this server (passive mode)\n");
 		fprintf(fp, "# Format: PassiveClient = <name or address>\n\n");
 
-		strncpy(temphostlist, hostlist, MAX_HOST_LIST);
-		temphostlist[MAX_HOST_LIST] = 0;
+		pcap_strlcpy(temphostlist, hostlist, sizeof (temphostlist));
 
 		token = pcap_strtok_r(temphostlist, RPCAP_HOSTLIST_SEP, &lasts);
 		while(token != NULL)
@@ -551,7 +556,7 @@ int fileconf_save(const char *savefile)
 //
 static char *skipws(char *ptr)
 {
-	while (isascii((unsigned char)*ptr) && isspace((unsigned char)*ptr)) {
+	while (*ptr == ' ' || *ptr == '\t' || *ptr == '\r' || *ptr == '\n') {
 		if (*ptr == '\r' || *ptr == '\n')
 			return NULL;
 		*ptr++ = '\0';

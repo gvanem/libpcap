@@ -28,7 +28,7 @@ OBJ_DIR = djgpp.obj
 # Set "HAVE_PCAP_REMOTE=1" to enable remote packet-capture
 # (nearly impossible on DOS).
 #
-HAVE_PCAP_REMOTE ?= 0
+HAVE_PCAP_REMOTE ?= 1
 
 #
 # Defines 'BDEBUG' and 'YYDEBUG'.
@@ -52,7 +52,7 @@ ifeq ($(OS),Windows_NT)
   CC = $(DJ_PREFIX)gcc
 
   #
-  # A MinGW or a CygWin 'gcc'.
+  # A MinGW or a CygWin 'gcc' MUST be used to create 'msdos/bin2c.exe'.
   #
   HOST_CC = gcc
   IS_WINDOWS_HOSTED = 1
@@ -71,14 +71,13 @@ ifeq ($(IS_WINDOWS_HOSTED),1)
   # The following codes used in macro 'colour_msg' assumes you have
   # MSys/Cygwin's echo with colour support.
   #
-  BRIGHT_RED    = \e[1;31m
-  BRIGHT_GREEN  = \e[1;32m
-  BRIGHT_YELLOW = \e[1;33m
+  BRIGHT_GREEN = \e[1;32m
+  BRIGHT_WHITE = \e[1;33m
 
-  colour_msg    = @echo -e "$(1)\e[0m"
-  message_green = $(call colour_msg,$(BRIGHT_GREEN)$(1))
+  colour_msg = @echo -e '$(1)\e[0m'
+  green_msg  = $(call colour_msg,$(BRIGHT_GREEN)$(strip $(1)))
 else
-  message_green = @echo "$(1)"
+  green_msg = @echo "$(1)"
 endif
 
 ASM  = nasm -fbin -dDEBUG
@@ -86,8 +85,7 @@ YACC = bison -p pcap_
 FLEX = flex -P pcap_
 
 CFLAGS = -g -O2 -Wall -I./msdos -I. -I$(WATT32_ROOT)/inc \
-         -DHAVE_CONFIG_H -D_U_='__attribute__((unused))' \
-         -Wno-unused-variable
+         -DHAVE_CONFIG_H -Wno-unused-variable
 
 ifneq ($(PCAP_DEBUG),0)
   CFLAGS += -DBDEBUG -DYYDEBUG=1
@@ -121,8 +119,18 @@ SOURCES = bpf_filter.c  \
           msdos/pktdrvr.c
 
 ifeq ($(HAVE_PCAP_REMOTE),1)
-  CFLAGS  += -DHAVE_REMOTE
-  SOURCES += pcap-new.c pcap-rpcap.c sockutils.c
+  VPATH   += missing
+  CFLAGS  += -DLIBPCAP_REMOTE -DENABLE_REMOTE
+  SOURCES += pcap-new.c pcap-rpcap.c sockutils.c rpcap-protocol.c \
+             missing/strtok_r.c missing/asprintf.c
+
+  REMOTE_OBJ_FILES = $(addprefix $(OBJ_DIR)/, \
+                       pcap-new.o             \
+                       pcap-rpcap.o           \
+                       sockutils.o            \
+                       rpcap-protocol.o)
+
+  $(REMOTE_OBJ_FILES): CFLAGS += -DIN_REMOTE_C_FILES
 endif
 
 LIB_OBJ  = $(addprefix $(OBJ_DIR)/, $(notdir $(SOURCES:.c=.o)))
@@ -151,13 +159,11 @@ TEST_OBJ = $(addprefix $(OBJ_DIR)/, \
 
 .SECONDARY: $(TEST_OBJ)
 
-all: $(GENERATED) $(TARGETS)
-	$(call message_green,Welcome to libpcap/djgpp with samples.)
-
-$(LIB_OBJ): $(OBJ_DIR)
+all: $(GENERATED) $(OBJ_DIR) $(TARGETS)
+	$(call green_msg, Welcome to libpcap/djgpp with samples.)
 
 $(OBJ_DIR):
-	-mkdir $@
+	- mkdir $@
 
 $(PCAP_LIB): $(LIB_OBJ)
 	rm -f $@
@@ -175,8 +181,8 @@ $(OBJ_DIR)/%.o: %.s
 	$(call link_EXE, $@, $^ $(WATT32_ROOT)/lib/libwatt.a, $(@:.exe=.map))
 
 msdos/pkt_stub.inc: msdos/bin2c.exe msdos/pkt_rx1.S
-	$(ASM) -o $(TEMP_BIN) -lmsdos/pkt_rx1.lst msdos/pkt_rx1.S
-	./msdos/bin2c $(TEMP_BIN) > $@
+	$(ASM) -o $(TEMP_BIN) -l msdos/pkt_rx1.lst msdos/pkt_rx1.S
+	msdos/bin2c $(TEMP_BIN) > $@
 	rm -f $(TEMP_BIN)
 
 grammar.h: grammar.c
@@ -189,7 +195,7 @@ scanner.c: scanner.l
 	$(FLEX) --header-file=scanner.h --outfile=$@ $<
 	@echo
 
-msdos/config.h:
+msdos/config.h: $(THIS_FILE)
 	$(call Generate_file, $@)
 	$(file >> $@,$(CONFIG_H))
 
@@ -207,12 +213,33 @@ define CONFIG_H
   #ifndef msdos_config_h
   #define msdos_config_h
 
+  #include <stdlib.h>
+
   #define DEBUG          1
   #define HAVE_STRERROR  1
   #define HAVE_STRLCAT   1
   #define HAVE_STRLCPY   1
   #define HAVE_SNPRINTF  1
   #define HAVE_VSNPRINTF 1
+  #define _U_            __attribute__((unused))
+
+  #if defined(ENABLE_REMOTE)
+    #define SHUT_WR      1     /* Further sends are disallowed */
+    #define suseconds_t  long  /* For the 'tv_usec' value of 'struct timeval' */
+
+    #if defined(IN_REMOTE_C_FILES)
+      #include <tcp.h>
+
+      /* Redefine these since those functions are also in sockutils.c.
+       */
+      #undef  sock_recv
+      #undef  sock_close
+      #undef  sock_init
+      #define sock_recv   sockutils_recv
+      #define sock_close  socktils_close
+      #define sock_init   socktils_init
+    #endif
+  #endif
 
   #define PACKAGE_VERSION  "libpcap version $(shell cat ./VERSION)"
   #endif
@@ -223,9 +250,9 @@ endef
 #  $(1): file to write to.
 #
 define Generate_file
-  $(call message_green,Generating $(strip $(1)).)
+  $(call green_msg, Generating $(1).)
   $(file  > $(1), /*)
-  $(file >> $(1),  * Generated $(strip $(1)) for djgpp.)
+  $(file >> $(1),  * Generated "$(strip $(1))" for djgpp.)
   $(file >> $(1),  * DO NOT EDIT. Edit $(realpath $(THIS_FILE)) instead.)
   $(file >> $(1),  */)
 endef
@@ -238,11 +265,11 @@ ifeq ($(MAKE_MAPFILE),0)
 
 else ifeq ($(IS_WINDOWS_HOSTED),1)
   #
-  # A Windows-hosted 'gcc' will print .map-file info to 'stdout'.
+  # A Windows-hosted 'gcc' will print a .map-file to 'stdout'.
   # Hence this special handling.
   #
   define link_EXE
-    $(call message_green,Linking $(strip $(1)).)
+    $(call green_msg, Linking $(1).)
     $(CC) -Wl,--print-map -o $(1) $(2) > $(3)
     @echo
   endef
@@ -262,10 +289,10 @@ endif
 #
 # Manually generated dependencies
 #
-msdos/pktdrvr.c: msdos/pkt_stub.inc
-grammar.h: grammar.y
-scanner.l: pcap-int.h pcap-namedb.h gencode.h grammar.h
-grammar.y: pcap-int.h gencode.h pcap-namedb.h
+# msdos/pktdrvr.c: msdos/pkt_stub.inc
+# grammar.h: grammar.y
+# scanner.l: pcap-int.h pcap-namedb.h gencode.h grammar.h
+# grammar.y: pcap-int.h gencode.h pcap-namedb.h
 
 #
 # Generate dependencies.
@@ -274,7 +301,7 @@ DEP_REPLACE = sed -e 's@\(.*\)\.o: @\n$$(OBJ_DIR)\/\1.o: @g' \
                   -e 's@$(WATT32_ROOT)@$$(WATT32_ROOT)@g'
 
 depend: $(GENERATED)
-	$(call message_green,Generating dependencies for $(words $(SOURCES)) files.)
+	$(call green_msg, Generating dependencies for $(words $(SOURCES)) files.)
 	$(CC) -MM $(CFLAGS) $(SOURCES) | $(DEP_REPLACE) > msdos/depend.dj
 
 -include msdos/depend.dj

@@ -1,14 +1,6 @@
 /*
  * pcap-dag.c: Packet capture interface for Endace DAG cards.
  *
- * The functionality of this code attempts to mimic that of pcap-linux as much
- * as possible.  This code is compiled in several different ways depending on
- * whether DAG_ONLY and HAVE_DAG_API are defined.  If HAVE_DAG_API is not
- * defined it should not get compiled in, otherwise if DAG_ONLY is defined then
- * the 'dag_' function calls are renamed to 'pcap_' equivalents.  If DAG_ONLY
- * is not defined then nothing is altered - the dag_ functions will be
- * called as required from their pcap-linux/bpf equivalents.
- *
  * Authors: Richard Littin, Sean Irvine ({richard,sean}@reeltwo.com)
  * Modifications: Jesper Peterson
  *                Koryn Grant
@@ -27,7 +19,6 @@
 
 #include "pcap-int.h"
 
-#include <ctype.h>
 #include <netinet/in.h>
 #include <sys/mman.h>
 #include <sys/socket.h>
@@ -428,7 +419,8 @@ dag_read(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 		rlen = ntohs(header->rlen);
 		if (rlen < dag_record_size)
 		{
-			strncpy(p->errbuf, "dag_read: record too small", PCAP_ERRBUF_SIZE);
+			pcap_strlcpy(p->errbuf, "dag_read: record too small",
+			    PCAP_ERRBUF_SIZE);
 			return -1;
 		}
 		pd->dag_mem_bottom += rlen;
@@ -757,7 +749,7 @@ static int dag_activate(pcap_t* p)
 	struct timeval poll;
 
 	if (device == NULL) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "device is NULL");
+		snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "device is NULL");
 		return PCAP_ERROR;
 	}
 
@@ -787,7 +779,7 @@ static int dag_activate(pcap_t* p)
 
 	if (pd->dag_stream%2) {
 		ret = PCAP_ERROR;
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_parse_name: tx (even numbered) streams not supported for capture");
+		snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "dag_parse_name: tx (even numbered) streams not supported for capture");
 		goto fail;
 	}
 
@@ -943,7 +935,7 @@ static int dag_activate(pcap_t* p)
 				pd->dag_fcs_bits = n;
 			} else {
 				ret = PCAP_ERROR;
-				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
+				snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 					"pcap_activate %s: bad ERF_FCS_BITS value (%d) in environment", device, n);
 				goto failstop;
 			}
@@ -1125,7 +1117,7 @@ dag_stats(pcap_t *p, struct pcap_stat *ps) {
 		if ((dag_error = dag_config_get_uint32_attribute_ex(pd->dag_ref, pd->drop_attr, &stream_drop) == kDagErrNone)) {
 			pd->stat.ps_drop = stream_drop;
 		} else {
-			pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "reading stream drop attribute: %s",
+			snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "reading stream drop attribute: %s",
 				 dag_config_strerror(dag_error));
 			return -1;
 		}
@@ -1153,10 +1145,10 @@ dag_findalldevs(pcap_if_list_t *devlistp, char *errbuf)
 
 	/* Try all the DAGs 0-DAG_MAX_BOARDS */
 	for (c = 0; c < DAG_MAX_BOARDS; c++) {
-		pcap_snprintf(name, 12, "dag%d", c);
+		snprintf(name, 12, "dag%d", c);
 		if (-1 == dag_parse_name(name, dagname, DAGNAME_BUFSIZE, &dagstream))
 		{
-			(void) pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+			(void) snprintf(errbuf, PCAP_ERRBUF_SIZE,
 			    "dag: device name %s can't be parsed", name);
 			return (-1);
 		}
@@ -1184,7 +1176,7 @@ dag_findalldevs(pcap_if_list_t *devlistp, char *errbuf)
 				if (0 == dag_attach_stream64(dagfd, stream, 0, 0)) {
 					dag_detach_stream(dagfd, stream);
 
-					pcap_snprintf(name,  10, "dag%d:%d", c, stream);
+					snprintf(name,  10, "dag%d:%d", c, stream);
 					if (add_dev(devlistp, name, 0, description, errbuf) == NULL) {
 						/*
 						 * Failure.
@@ -1434,7 +1426,7 @@ pcap_platform_finddevs(pcap_if_list_t *devlistp _U_, char *errbuf)
 pcap_t *
 pcap_create_interface(const char *device, char *errbuf)
 {
-	pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+	snprintf(errbuf, PCAP_ERRBUF_SIZE,
 	    "This version of libpcap only supports DAG cards");
 	return NULL;
 }

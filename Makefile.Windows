@@ -1,49 +1,60 @@
 #
 # libpcap Makefile for MinGW, MSVC or clang-cl (Win32/Win64).
 #
-# By G. Vanem <gvanem@yahoo.no>  2003 - 2017.
+# By G. Vanem <gvanem@yahoo.no>  2003 - 2019.
 #
-
-.SUFFIXES: .dll .l .y .cpp .rc .res
-
 VPATH = Win32 missing testprogs testprogs/fuzz
 
-MAKE_FILE = Makefile.Windows
+THIS_FILE = Makefile.Windows
 
-define USAGE
-
+define Usage
   Usage: "$(MAKE) -f Makefile.Windows CC=[gcc | cl | clang-cl] <CPU=x86|x64>
          [all | clean | vclean | realclean | depend | install]"
 endef
 
-export USAGE
+export Usage
 
 ifeq ($(CC),cl)
-  MSVC_TYPE = 1
+  MSVC_TYPE  = 1
+  lib_select = $(1)
+  sys_libs   = $(1)
+
 else ifeq ($(CC),clang-cl)
-  MSVC_TYPE = 1
+  MSVC_TYPE  = 1
+  lib_select = $(1)
+  sys_libs   = $(1)
+
 else
-  MSVC_TYPE = 0
+  MSVC_TYPE  = 0
+  lib_select = $(2)
+  sys_libs   = $(addprefix -l, $(strip $(1:.lib=)))
 endif
 
 #
 # Options, change to suite:
 #
-# Set "HAVE_PCAP_REMOTE=1" to enable remote packet-capture
-# (impossible using MinGW?).
+# Set "HAVE_PCAP_REMOTE=1" to enable remote packet-capture.
+# Also enables building 'rpcapd/rpcapd.exe'.
 #
 HAVE_PCAP_REMOTE ?= 1
-
-#
-# Enable Network Packet Filter Intermediate Driver API
-# (old Netmon API?) in WinPcap. Needs <NpfIm.h>.
-#
-HAVE_NPFIM_API ?= 0
 
 #
 # Enable AirPcap WiFi sniffing.
 #
 HAVE_AIRPCAP ?= 1
+
+#
+# Needed for the 'HAVE_PCAP_REMOTE = 1' and 'rpcapd/rpcapd.exe' only.
+#
+HAVE_OPENSSL ?= 0
+
+#
+# Enable Network Packet Filter Intermediate Driver API
+# (old Netmon API?) in WinPcap. Needs <NpfIm.h>.
+#
+# Hardly possible anymore.
+#
+HAVE_NPFIM_API ?= 0
 
 #
 # Set to 1 to build with WanPacket.cpp. Since it doesn't compile with MinGW,
@@ -57,9 +68,10 @@ HAVE_WANPACKET ?= 1
 HAVE_PLUGINS ?= 1
 
 #
-# Build with CACE Tech's TurboCap API. MSVC only.
+# Build with CACE Tech's TurboCap API.
+# MSVC / clang-cl only.
 #
-HAVE_TC_API ?= 1
+HAVE_TC_API ?= 0
 
 #
 # Build with CACE Tech's DAG API. Untested since I don't have it.
@@ -72,7 +84,14 @@ HAVE_DAG_API ?= 0
 MAKE_MAN_PAGES ?= 1
 
 #
-# MSVC:  debug-model (-MDd)   or release (-MD).
+# MinGW: no effect.
+# MSVC:  0: Use the Universal CRT (-MD or -MDd).
+#        1: Use the static CRT    (-MT or -MTd).
+#
+USE_CRT_STATIC ?= 0
+
+#
+# MSVC:  debug-model (-MDd / -MTd)  or release (-MD / -MT).
 # MinGW: debug-model (-O0 -g) or release (-O2 -fomit-frame-pointer).
 #
 USE_CRT_DEBUG ?= 0
@@ -94,24 +113,67 @@ USE_WIN10PCAP ?= 0
 USE_DECNET ?= 0
 
 #
-# Include trace in Packet32.c.
+# Use the tracing Wsock_trace lib (and not ws2_32.lib).
+# Currently works best for MSVC/clang-cl.
+#   Ref: https://github.com/gvanem/wsock-trace/
 #
-PACKET32_DEBUG ?= 0
+USE_WSOCK_TRACE ?= 1
 
 #
-# Include 'PCAP_TRACE()' code in wpcap + plugins.
+# Include trace in Packet32.c.
+#
+USE_PACKET32_DEBUG ?= 0
+
+#
+# Use "Visual Leak Detector" for all programs:
+#   https://kinddragon.github.io/vld/
+#   https://github.com/KindDragon/vld/
+#
+USE_VLD  ?= 0
+VLD_ROOT ?= f:/ProgramFiler/VisualLeakDetector
+
+#
+# Include 'PCAP_TRACE()' code in wpcap + rpcapd + plugins.
 # Also defines 'BDEBUG' and 'YYDEBUG'.
 # See below.
 #
 PCAP_DEBUG ?= 2
 
 #
+# Options for the C/C++ preprocessing macros.
+#
+USE_GNU_INDENT   ?= 0
+USE_CLANG_FORMAT ?= 1
+
+#
+# Compile all wpcap.dll sources in one go.
+# For MSVC only.
+#
+USE_MP_COMPILE ?= 1
+
+ifneq ($(CC),cl)
+  USE_MP_COMPILE = 0
+endif
+
+ifeq ($(USE_NPCAP),1)
+  USE_MP_COMPILE = 0
+endif
+
+ifneq ($(MSVC_TYPE),1)
+  USE_VLD = 0
+endif
+
+#
 # Enable WinPcap-plugins:
 # Build 'WinPcap-Plugins/BlueTooth' -> WinPcap-Plugins/winpcap_btooth_plugin$(X64_SUFFIX).dll
 #       'WinPcap-Plugins/USB-pcap'  -> WinPcap-Plugins/winpcap_usb_plugin$(X64_SUFFIX).dll
+#       'WinPcap-Plugins/Firewall'  -> WinPcap-Plugins/winpcap_firewall_plugin$(X64_SUFFIX).dll (todo)
 #
-HAVE_BLUETOOTH = 1
-HAVE_USB_PCAP  = 1
+ifeq ($(HAVE_PLUGINS),1)
+  HAVE_BLUETOOTH  = 1
+  HAVE_FW_MONITOR = 1
+  HAVE_USB_PCAP   = 1
+endif
 
 #
 # Python is only needed in the below '%.i' rule.
@@ -161,8 +223,14 @@ DAG_API_ROOT ?= "c:/Program Files (x86)/Riverbed/DagApi"
 NETMON_ROOT ?= f:/ProgramFiler/Microsoft-Network-Monitor-3/API
 
 #
+# OpenSSL base path.
+#
+OPENSSL_ROOT ?= $(MINGW_ROOT)/src/inet/Crypto/OpenSSL
+
+#
 # USBPcap base path.
-# Ref: https://github.com/desowin/usbpcap
+# Ref:
+#  https://github.com/desowin/usbpcap
 #
 USBPCAP_ROOT ?= $(MINGW_ROOT)/src/USB/USBPcap
 
@@ -188,21 +256,28 @@ ifeq ($(CC),gcc)
 endif
 
 #
-# The combination 'USE_WIN10PCAP=1' (or 'USE_NPCAP=1') with 'HAVE_AIRPCAP=1' is
-# *not* supported at the moment. This is due to all the 'HAVE_AIRPCAP_API' tests
-# inside the $(WINPCAP_ROOT)/PacketNtx/Dll/Packet32.c file. To support AirPcap,
-# all the code inside 'HAVE_AIRPCAP_API' will have to be lifted out into
-# a safe place. A plugin perhaps?
+# The combination 'HAVE_AIRPCAP=1' with 'USE_NPCAP=1' (or 'USE_WIN10CAP=1'?) is
+# *not* supported. This is due to all the 'HAVE_AIRPCAP_API' tests inside the
+# $(WINPCAP_ROOT)/PacketNtx/Dll/Packet32.c file. To support AirPcap, all the
+# code inside 'HAVE_AIRPCAP_API' will have to be lifted out into a safe place.
+# A plugin perhaps?
 #
-ifeq ($(USE_WIN10PCAP),1)
-  ifeq ($(HAVE_AIRPCAP),1)
-  # $(error Need to set 'HAVE_AIRPCAP=0')
-  endif
+ifeq ($(HAVE_AIRPCAP),1)
+  ifeq ($(USE_WIN10PCAP),1)
+    #
+    # Should work with Win10Pcap (?).
+    #
+    # $(error Need to set 'HAVE_AIRPCAP=0')
 
-else ifeq ($(USE_NPCAP),1)
-  ifeq ($(HAVE_AIRPCAP),1)
-    $(warning Need to set 'HAVE_AIRPCAP=0')
-    HAVE_AIRPCAP := 0
+  else ifeq ($(USE_NPCAP),1)
+    $(error Need to set 'HAVE_AIRPCAP=0')
+  endif
+endif
+
+ifeq ($(USE_NPCAP),1)
+  ifeq ($(HAVE_WANPACKET),1)
+    $(warning 'HAVE_WANPACKET=1' is impossible with NPcap.)
+    HAVE_WANPACKET := 0
   endif
 endif
 
@@ -210,17 +285,33 @@ endif
 # The following codes used in macro 'colour_msg' assumes you have
 # MSys/Cygwin's echo with colour support.
 #
-BRIGHT_RED    = \e[1;31m
-BRIGHT_GREEN  = \e[1;32m
-BRIGHT_YELLOW = \e[1;33m
+BRIGHT_GREEN = \e[1;32m
+BRIGHT_WHITE = \e[1;37m
 
-colour_msg    = @echo -e "$(1)\e[0m"
-message_green = $(call colour_msg,$(BRIGHT_GREEN)$(1))
+colour_msg = @echo -e "$(1)\e[0m"
+green_msg  = $(call colour_msg,$(BRIGHT_GREEN)$(strip $(1)))
+green_msg0 = $(call colour_msg,$(BRIGHT_GREEN)$(1))
 
-VERSION     = $(shell cat ./VERSION)
-DATE_STAMP  = $(shell date +%d-%B-%Y)
+VERSION = $(shell cat ./VERSION)
+TODAY   = $(shell date +%d-%B-%Y)
+
 MINGW_ROOT  = $(realpath $(MINGW32))
-VC_ROOT     = $(realpath $(VCHOME))
+VC_ROOT     = $(realpath $(VCToolkitInstallDir))
+
+cpp_to_obj = $(addprefix $(OBJ_DIR)/, \
+               $(notdir $(1:.cpp=.$(O))))
+
+c_to_obj = $(addprefix $(OBJ_DIR)/, \
+             $(notdir $(1:.c=.$(O))))
+
+#
+# Used when "force including" the Win32/config.h file on every compile.
+#
+ifeq ($(CC),gcc)
+  FORCE_INC = --include Win32/config.h
+else
+  FORCE_INC = -FI./Win32/config.h
+endif
 
 #
 # If '$(CPU)=x64', build only 64-bit .dll, libraries and programs.
@@ -264,18 +355,17 @@ ifeq ($(CC),cl)
   # Select correct cl.exe and link.exe based on $(CPU) without
   # the 'vcvarsall.bat' non-sense.
   #
-  # Note: This assumes you have Visual-Studio 2017 where %VCHOME%
+  # Note: This assumes you have Visual-Studio 2017 where '%VCToolkitInstallDir%'
   #       defines the base directory for the tools.
   #
   # Note: 'rc.exe' doesn't care about bitness.
   #
-  CL_CC     = $(VC_ROOT)/bin/HostX86/$(CPU)/cl.exe
-  CL_LINK   = $(VC_ROOT)/bin/HostX86/$(CPU)/link.exe
-  CFLAGS    = -nologo -Zi -Zo -Ot -W2
-  LDFLAGS   = -nologo -map -debug -incremental:no -verbose
-  RCFLAGS   = -D_MSC_VER
-  O         = obj
-  OBJ_DIR   = MSVC_obj
+  CL_CC   = $(VC_ROOT)/bin/HostX86/$(CPU)/cl.exe
+  CFLAGS  = -nologo -Ot -W2
+  LDFLAGS = -nologo -map -incremental:no -verbose
+  RCFLAGS = -D_MSC_VER
+  O       = obj
+  OBJ_DIR = MSVC_obj
 
 else ifeq ($(CC),clang-cl)
   #
@@ -285,7 +375,7 @@ else ifeq ($(CC),clang-cl)
 
   CFLAGS = -nologo -Zi -Zo -Ot -fms-compatibility
 
-  CFLAGS += -GS- -Wall                             \
+  CFLAGS += -GS- -ferror-limit=5 -Wall             \
             -Wno-reserved-id-macro                 \
             -Wno-nonportable-system-include-path   \
             -Wno-sign-conversion                   \
@@ -312,27 +402,42 @@ else ifeq ($(CC),clang-cl)
             -Wno-\#pragma-messages                 \
             -Wno-covered-switch-default            \
             -Wno-missing-variable-declarations     \
+            -Wno-used-but-marked-unused            \
+            -Wno-switch-enum                       \
+            -Wno-extra-semi-stmt                   \
           # -Wno-missing-noreturn
 
   #
-  # Turn off these warnings:
-  # ./AirPcap/include\airpcap.h(208,18):  warning: zero size arrays are an extension [-Wzero-length-array]
-  #      AirpcapKey Keys[0];                                                               ///< Array of nKeys keys.
+  # Turn off warnings like:
+  #   ./AirPcap/include\airpcap.h(208,18):
+  #     warning: zero size arrays are an extension [-Wzero-length-array]
+  #        AirpcapKey Keys[0];      //< Array of nKeys keys.
   #
   ifeq ($(HAVE_AIRPCAP),1)
     CFLAGS += -Wno-zero-length-array
   endif
 
+  ifeq ($(USE_NPCAP),1)
+    CFLAGS += -Wno-static-in-inline              \
+              -Wno-ignored-attributes            \
+              -Wno-missing-field-initializers    \
+              -Wno-zero-as-null-pointer-constant \
+              -Wno-c++98-compat-pedantic         \
+              -Wno-old-style-cast                \
+              -Wno-undef
+  endif
+
   #
   # These warnings are kinda important. Leave them enabled.
   #
-  # CFLAGS += -Wno-incompatible-pointer-types -Wno-format-security -Wno-pointer-sign
+  # CFLAGS += -Wno-incompatible-pointer-types \
+  #           -Wno-format-security            \
+  #           -Wno-pointer-sign
 
   #
   # 'CPU=x64' using 'clang-cl' is untested.
   #
-  CL_LINK   = $(VC_ROOT)/bin/HostX86/$(CPU)/link.exe
-  LDFLAGS   = -nologo -map -debug -incremental:no -verbose
+  LDFLAGS   = -nologo -map -incremental:no -verbose
   RCFLAGS   = -D__clang__
   O         = obj
   OBJ_DIR   = clang_obj
@@ -344,8 +449,11 @@ else ifeq ($(CC),gcc)
   O         = o
   OBJ_DIR   = MinGW_obj
 
-  CFLAGS   += -Wno-unused-function -Wno-unused-value \
-              -Wno-strict-aliasing -Wno-unknown-pragmas
+  CFLAGS   += -Wno-unused-function \
+              -Wno-unused-value    \
+              -Wno-strict-aliasing \
+              -Wno-unknown-pragmas \
+              -Wno-incompatible-pointer-types
 
   ifeq ($(BITS),64)
     RCFLAGS += --target=pe-x86-64
@@ -354,20 +462,10 @@ else ifeq ($(CC),gcc)
   endif
 
 else
-  $(error $(USAGE))
+  $(error $(Usage))
 endif
 
 RCFLAGS += -I.
-
-ifeq ($(MSVC_TYPE),1)
-  CFLAGS += -D_CRT_NONSTDC_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS -D_CRT_OBSOLETE_NO_WARNINGS
-endif
-
-ifeq ($(CC),gcc)
-  sys_libs = $(addprefix -l, $(strip $(1:.lib=)))
-else
-  sys_libs = $(1)
-endif
 
 #
 # Names of libraries and DLLs we produce:
@@ -393,14 +491,57 @@ else
   WPCAP2_DLL      = wpcap2$(X64_SUFFIX).dll
 endif
 
+#
+# Use the correct linker and '-LIBPATH':
+#
+ifeq ($(MSVC_TYPE),1)
+  CL_LINK = $(VC_ROOT)/bin/HostX86/$(CPU)/link.exe
+
+  #
+  # The paths for the CRT library (msvcrt.lib):
+  #
+  CL_LIBS = -libpath:$(VC_ROOT)/lib/$(CPU)
+
+  #
+  # 'WindowsKits' root is in $(WK_ROOT) and
+  # 'WindowsKits' version is in $(WK_VER).
+  #
+  # Hence the User-Mode libraries for 'x86' is in:
+  #   $(WK_ROOT)/Lib/$(WK_VER)/um/x86/
+  #
+  CL_LIBS += -libpath:$(realpath $(WK_ROOT)/Lib/$(WK_VER)/um/$(CPU))
+
+  #
+  # Ditto mess for the UCRT libraries: for 'x86' the UCRT libs are in:
+  #   $(WK_ROOT)/Lib/$(WK_VER)/ucrt/x86/
+  #
+  CL_LIBS += -libpath:$(realpath $(WK_ROOT)/Lib/$(WK_VER)/ucrt/$(CPU))
+
+  ifeq ($(USE_VLD),1)
+    CFLAGS += -Zi                          \
+              -DUSE_VLD -DVLD_FORCE_ENABLE \
+              -I$(VLD_ROOT)/include
+
+    LDFLAGS += -debug
+    CL_LIBS += $(VLD_ROOT)/lib/Win$(BITS)/vld.lib
+  else
+    #
+    # This causes a much faster compile and link using MSVC-2019.
+    # But breaks the "Visual Leak Detector".
+    #
+    CFLAGS  += -Z7 -Zo
+    LDFLAGS += -debug:fastlink
+  endif
+endif
+
 ###########################################################################################
 
 ifeq ($(USE_WIN10PCAP),1)
   VPATH += $(WIN10PCAP_ROOT)/Packet_dll
 
 else ifeq ($(USE_NPCAP),1)
-  VPATH += $(NPCAP_ROOT)/Common \
-           $(NPCAP_ROOT)/PacketWin7/Dll
+  VPATH += $(NPCAP_ROOT)/PacketWin7/Dll \
+            $(NPCAP_ROOT)/PacketWin7/Helper/NPcapHelperTest
 
 else
   VPATH += $(WINPCAP_ROOT)/PacketNtx/Dll
@@ -419,18 +560,23 @@ INSTALL_MAN3_DIR = $(MINGW_ROOT)/share/man/man3
 FLEX = flex -P pcap_
 YACC = bison -p pcap_
 
-CFLAGS += -DHAVE_CONFIG_H -I./Win32 -I./missing
+CFLAGS += -DHAVE_CONFIG_H -DHAVE_VERSION_H \
+          -I. -I./Win32 -I./missing $(FORCE_INC)
 
 ifeq ($(USE_WIN10PCAP),1)
-  CFLAGS  += -I$(WIN10PCAP_ROOT) -I$(WIN10PCAP_ROOT)/Packet_dll -DUSE_WIN10PCAP
-  RCFLAGS += -DUSE_WIN10PCAP
+  CFLAGS  += -I$(WIN10PCAP_ROOT)            \
+             -I$(WIN10PCAP_ROOT)/Packet_dll \
+             -DUSE_WIN10PCAP
 
   ifeq ($(HAVE_WANPACKET),1)
     CFLAGS += -I$(WINPCAP_ROOT)/PacketNtx/Dll
   endif
 
+  RCFLAGS += -DUSE_WIN10PCAP
+
 else ifeq ($(USE_NPCAP),1)
-  CFLAGS += -I$(NPCAP_ROOT)/Common            \
+  CFLAGS += -I$(NPCAP_ROOT)                   \
+            -I$(NPCAP_ROOT)/Common            \
             -I$(NPCAP_ROOT)/PacketWin7/Dll    \
             -DHAVE_PACKET_IS_LOOPBACK_ADAPTER \
             -DUSE_NPCAP                       \
@@ -450,19 +596,11 @@ else
   RCFLAGS += -DUSE_WINPCAP
 endif
 
-CFLAGS += -I.
-
-ifeq ($(CC),cl)
-  CFLAGS += -D_U_=
-else
-  CFLAGS += -D_U_='__attribute__((unused))'
-endif
-
-#
-# Since some functions prototypes conflicts with those in the Win-SDK 8.0+,
-# we must pretend we're on Win-XP.
-#
 ifeq ($(CC),gcc)
+  #
+  # Since some functions prototypes conflicts with those in the Win-SDK 8.0+,
+  # we must pretend we're on Win-XP.
+  #
   ifeq ($(USE_WIN10PCAP),0)
     #
     # For '#include <strsafe.h>'
@@ -492,69 +630,92 @@ ifeq ($(MSVC_TYPE),1)
   LINK_CRAP   += $(WPCAP_DLL:.dll=.pdb) $(WPCAP2_DLL:.dll=.pdb) vc1*.pdb
 endif
 
-LIBPCAP_C_SRC = bpf_dump.c           \
-                bpf_filter.c         \
-                bpf_image.c          \
-                etherent.c           \
-                fmtutils.c           \
-                scanner.c            \
-                grammar.c            \
-                gencode.c            \
-                nametoaddr.c         \
-                optimize.c           \
-                pcap.c               \
-                pcap-common.c        \
-                pcap-npf.c           \
-                pcap-namedb.c        \
-                savefile.c           \
-                sf-pcap.c            \
-                sf-pcapng.c          \
-                missing/win_snprintf.c
+ifeq ($(USE_NPCAP),1)
+  TARGETS     += NpcapHelperTest.exe
+  BIN_TARGETS += NpcapHelperTest.pdb
+  LINK_CRAP   += NpcapHelperTest.pdb
+
+  $(OBJ_DIR)/NpcapHelperTest.$(O) \
+  NpcapHelperTest.i:              CFLAGS += -DCOMPILING_NPCAPHELPERTEST_C
+
+  ifeq ($(CC),clang-cl)
+    $(OBJ_DIR)/NpcapHelperTest.$(O) \
+    NpcapHelperTest.i:              CFLAGS += -Wno-format -Wno-bad-function-cast
+  endif
+endif
+
+
+WPCAP_SRC = bpf_dump.c    \
+            bpf_filter.c  \
+            bpf_image.c   \
+            charconv.c    \
+            etherent.c    \
+            fmtutils.c    \
+            scanner.c     \
+            grammar.c     \
+            gencode.c     \
+            nametoaddr.c  \
+            optimize.c    \
+            pcap.c        \
+            pcap-common.c \
+            pcap-npf.c    \
+            pcap-namedb.c \
+            savefile.c    \
+            sf-pcap.c     \
+            sf-pcapng.c   \
+            missing/win_asprintf.c
 
 #
 # Don't add this for MSVC/clang since 'strtok_r' is a macro in portability.h.
 #
 ifeq ($(CC),gcc)
-  LIBPCAP_C_SRC += missing/strtok_r.c
+  WPCAP_SRC += missing/strtok_r.c
 endif
 
+#
+# Old stuff:
+#
 ifeq (0,1)
-  LIBPCAP_C_SRC += $(addprefix Win32/src/, \
-                     getnetbynm.c          \
-                     getnetent.c           \
-                     getservent.c          \
-                     inet_aton.c           \
-                     inet_net.c            \
-                     inet_pton.c)
+  WPCAP_SRC += $(addprefix Win32/src/, \
+                 getnetbynm.c          \
+                 getnetent.c           \
+                 getservent.c          \
+                 inet_aton.c           \
+                 inet_net.c            \
+                 inet_pton.c)
 endif
 
 #
 # Which Packet32 sources to use?
 #
 ifeq ($(USE_WIN10PCAP),1)
-  WINPCAP_C_SRC = $(addprefix $(WIN10PCAP_ROOT)/Packet_dll/, \
-                    Ms.c                                     \
-                    NdisDriverUser.c                         \
-                    Packet32.c                               \
-                    SeMemory.c                               \
-                    SeStr.c)                                 \
-                   Win32/Win10pcap_hack.c
-
   FEATURES += "Win10Pcap by Daiyuu Nobori, "
 
+  PACKET32_C_SRC = $(addprefix $(WIN10PCAP_ROOT)/Packet_dll/, \
+                     Ms.c                                     \
+                     NdisDriverUser.c                         \
+                     Packet32.c                               \
+                     SeMemory.c                               \
+                     SeStr.c)                                 \
+                   Win32/Win10pcap_hack.c
+
 else ifeq ($(USE_NPCAP),1)
-  WINPCAP_CPP_SRC = $(addprefix $(NPCAP_ROOT)/PacketWin7/Dll/, \
-                      AdInfo.cpp                               \
-                      Packet32.cpp)
-
-  WINPCAP_C_SRC = Win32/WanPacket_imp.c
-
   FEATURES += "NPcap by Yang Luo, "
 
+  #
+  # All these must be compiled as UNICODE.
+  #
+  PACKET32_CPP_SRC = $(addprefix $(NPCAP_ROOT)/PacketWin7/Dll/, \
+                       AdInfo.cpp                               \
+                       Packet32.cpp                             \
+                       ProtInstall.cpp                          \
+                       netcfgapi.cpp)
+
+  # PACKET32_C_SRC = Win32/WanPacket_imp.c
 else
-  WINPCAP_C_SRC = $(addprefix $(WINPCAP_ROOT)/PacketNtx/Dll/, \
-                    Packet32.c                                \
-                    AdInfo.c)
+  PACKET32_C_SRC = $(addprefix $(WINPCAP_ROOT)/PacketNtx/Dll/, \
+                     Packet32.c                                \
+                     AdInfo.c)
 endif
 
 ifeq ($(CC),gcc)
@@ -564,18 +725,28 @@ ifeq ($(CC),gcc)
     CFLAGS += -O2 -ffast-math -fomit-frame-pointer
   endif
 else
-  ifeq ($(USE_CRT_DEBUG),1)
-    CFLAGS   += -MDd
-    FEATURES += "Debug build,"
+
+  ifeq ($(USE_CRT_STATIC),1)
+    CRT = MT
   else
-    CFLAGS   += -MD -DNDEBUG
-    FEATURES += "Release build,"
+    CRT = MD
   endif
+
+  ifeq ($(USE_CRT_DEBUG),1)
+    FEATURES += "Debug build,"
+    D = d
+  else
+    FEATURES += "Release build,"
+    CFLAGS   += -DNDEBUG
+    D =
+  endif
+
+  CFLAGS += -$(CRT)$(D)
 endif
 
-ifeq ($(PACKET32_DEBUG),1)
-  CFLAGS   += -D_DEBUG_TO_FILE
+ifeq ($(USE_PACKET32_DEBUG),1)
   FEATURES += "Packet32.c tracing,"
+  CFLAGS   += -D_DEBUG_TO_FILE
 endif
 
 #
@@ -591,47 +762,63 @@ endif
 #      in 'WinPcap-plugins/*.c'.
 #
 ifeq ($(PCAP_DEBUG),1)
-  CFLAGS += -DPLUGIN_DEBUG -DBDEBUG -DPCAP_DEBUG=1
   FEATURES += "PCAP_DEBUG=1,"
+  CFLAGS += -DBDEBUG         \
+            -DUSE_PCAP_TRACE \
+            -DPCAP_DEBUG=1
+
+  WPCAP_SRC  += pcap-trace.c
+  RPCAPD_SRC += pcap-trace.c
 
 else ifeq ($(PCAP_DEBUG),2)
-  CFLAGS        += -DPLUGIN_DEBUG -DBDEBUG -DYYDEBUG=1 -DUSE_PCAP_TRACE
-  FEATURES      += "YYDEBUG,"
-  LIBPCAP_C_SRC += pcap-trace.c
+  FEATURES += "YYDEBUG,"
+  CFLAGS   += -DBDEBUG         \
+              -DUSE_PCAP_TRACE \
+              -DYYDEBUG=1
+
+  WPCAP_SRC  += pcap-trace.c
+  RPCAPD_SRC += pcap-trace.c
 endif
 
 ifeq ($(HAVE_NPFIM_API),1)
+  FEATURES += "Microsoft Network Packet Filter,"
+
   ifeq ($(USE_NPCAP),1)
-    WINPCAP_CPP_SRC += $(NPCAP_ROOT)/PacketWin7/Dll/NpfImExt.cpp
+    PACKET32_CPP_SRC += $(NPCAP_ROOT)/PacketWin7/Dll/NpfImExt.cpp
   else
-    WINPCAP_C_SRC   += $(WINPCAP_ROOT)/PacketNtx/Dll/NpfImExt.c
+    PACKET32_C_SRC   += $(WINPCAP_ROOT)/PacketNtx/Dll/NpfImExt.c
   endif
 
-  CFLAGS   += -DHAVE_NPFIM_API -I$(NETMON_ROOT)
-  FEATURES += "Microsoft Network Packet Filter,"
+  CFLAGS += -DHAVE_NPFIM_API \
+            -I$(NETMON_ROOT)
 endif
 
 ifeq ($(HAVE_AIRPCAP),1)
-  CFLAGS   += -DHAVE_AIRPCAP -DHAVE_AIRPCAP_API -I$(AIRPCAP_ROOT)/include
   FEATURES += "AirPcap,"
+  CFLAGS   += -DHAVE_AIRPCAP     \
+              -DHAVE_AIRPCAP_API \
+              -I$(AIRPCAP_ROOT)/include
 endif
 
 ifeq ($(HAVE_DAG_API),1)
-  CFLAGS   += -DHAVE_DAG_API -I$(DAG_API_ROOT)/include
   FEATURES += "Dag API,"
+  CFLAGS   += -DHAVE_DAG_API \
+              -I$(DAG_API_ROOT)/include
 endif
 
 ifeq ($(HAVE_PLUGINS),1)
-  CFLAGS        += -DPCAP_SUPPORT_PLUGINS
-  FEATURES      += "Plug-in support,"
-  VPATH         += WinPcap-Plugins WinPcap-Plugins/example
-  CFLAGS        += -I./WinPcap-Plugins
-  PLUGIN_SRC    += WinPcap-Plugins/example/example_plugin.c
-  LIBPCAP_C_SRC += WinPcap-Plugins/pcap-plugin.c
+  FEATURES    += "Plug-in support,"
 
-  TARGETS       += WinPcap-Plugins/winpcap_example_plugin$(X64_SUFFIX).dll
-  BIN_TARGETS   += WinPcap-Plugins/winpcap_example_plugin$(X64_SUFFIX).dll
-  LINK_CRAP     += WinPcap-Plugins/winpcap_example_plugin$(X64_SUFFIX).map
+  VPATH       += WinPcap-Plugins WinPcap-Plugins/example
+  CFLAGS      += -DPCAP_SUPPORT_PLUGINS \
+                 -I./WinPcap-Plugins
+
+  PLUGIN_SRC  += WinPcap-Plugins/example/example_plugin.c
+  WPCAP_SRC   += WinPcap-Plugins/pcap-plugin.c
+
+  TARGETS     += WinPcap-Plugins/winpcap_example_plugin$(X64_SUFFIX).dll
+  BIN_TARGETS += WinPcap-Plugins/winpcap_example_plugin$(X64_SUFFIX).dll
+  LINK_CRAP   += WinPcap-Plugins/winpcap_example_plugin$(X64_SUFFIX).map
 
   ifeq ($(MSVC_TYPE),1)
     BIN_TARGETS += WinPcap-Plugins/winpcap_example_plugin$(X64_SUFFIX).pdb
@@ -644,8 +831,8 @@ ifeq ($(HAVE_PLUGINS),1)
   #   winpcap_btooth_plugin$(X64_SUFFIX).dll
   #
   ifeq ($(HAVE_BLUETOOTH),1)
-    CFLAGS      += -DHAVE_BLUETOOTH
     FEATURES    += "BlueTooth plug-in,"
+    CFLAGS      += -DHAVE_BLUETOOTH
     VPATH       += WinPcap-Plugins/Bluetooth
     PLUGIN_SRC  += WinPcap-Plugins/BlueTooth/win_btooth.c
     TARGETS     += WinPcap-Plugins/winpcap_btooth_plugin$(X64_SUFFIX).dll
@@ -687,27 +874,70 @@ else
                WinPcap-Plugins/winpcap_*.pdb
 endif
 
-ifeq ($(HAVE_TC_API),1)
-  LIBPCAP_C_SRC += pcap-tc.c
-  CFLAGS        += -DHAVE_TC_API \
-                   -I$(TC_API_ROOT)/devpack/include
-
-  EX_LIBS   = $(TC_API_ROOT)/devpack/lib/$(CPU)/TcApi.lib
-  FEATURES += "TurboCap,"
-endif
-
 ifeq ($(HAVE_PCAP_REMOTE),1)
-  CFLAGS += -DLIBPCAP_REMOTE -DENABLE_REMOTE
+  FEATURES += "Remote capture,"
+  VPATH    += rpcapd
+  CFLAGS   += -DLIBPCAP_REMOTE \
+              -DENABLE_REMOTE
+  RCFLAGS  += -I./rpcapd
 
-  WINPCAP_C_SRC += pcap-new.c pcap-rpcap.c sockutils.c rpcap-protocol.c
-  LIBPCAP_C_SRC += pcap-new.c pcap-rpcap.c sockutils.c rpcap-protocol.c
-  TARGETS       += rpcapd/rpcapd$(X64_SUFFIX).exe
-  BIN_TARGETS   += rpcapd/rpcapd$(X64_SUFFIX).exe
-  FEATURES      += "Remote capture,"
+  PACKET32_C_SRC += pcap-new.c pcap-rpcap.c sockutils.c rpcap-protocol.c
+  WPCAP_SRC      += pcap-new.c pcap-rpcap.c sockutils.c rpcap-protocol.c
+
+  TARGETS     += rpcapd/rpcapd$(X64_SUFFIX).exe
+  BIN_TARGETS += rpcapd/rpcapd$(X64_SUFFIX).exe
+  LINK_CRAP   += rpcapd/rpcapd$(X64_SUFFIX).map
 
   ifeq ($(MSVC_TYPE),1)
     BIN_TARGETS += rpcapd/rpcapd$(X64_SUFFIX).pdb
+    LINK_CRAP   += rpcapd/rpcapd$(X64_SUFFIX).pdb
   endif
+
+  ifeq ($(HAVE_OPENSSL),1)
+    CFLAGS += -DHAVE_OPENSSL \
+              -I$(OPENSSL_ROOT)/include
+
+    WPCAP_SRC      += sslutils.c
+    PACKET32_C_SRC += sslutils.c
+
+    EX_LIBS += $(call lib_select, $(OPENSSL_ROOT)/lib32/libcrypto_imp.lib \
+                                  $(OPENSSL_ROOT)/lib32/libssl_imp.lib,   \
+                                  $(OPENSSL_ROOT)/lib32/libcrypto.dll.a   \
+                                  $(OPENSSL_ROOT)/lib32/libssl.dll.a)
+  endif
+
+  RPCAPD_SRC += $(addprefix rpcapd/, \
+                  rpcapd.c           \
+                  daemon.c           \
+                  fileconf.c         \
+                  log.c              \
+                  win32-svc.c)
+
+  RPCAPD_SRC += sslutils.c \
+                missing/getopt.c
+
+  #
+  # These .c-files are in $(WPCAP_STAT_LIB) if it was built with
+  # 'ENABLE_REMOTE' I.e. 'HAVE_PCAP_REMOTE = 1.
+  #
+  # But if we use the $(WPCAP_IMP_LIB) library, the functions in those files
+  # are not exported. Hence we must add the .$(O)-files when linking 'rpcapd.exe'
+  #
+  # An alternative would be to use a generated .def-files and add 'EXPORTS'
+  # for these functions too (as I do for functions in 'wpcap2.dll').
+  #
+  RPCAPD_SRC += charconv.c       \
+                fmtutils.c       \
+                rpcap-protocol.c \
+                sockutils.c
+
+  RPCAPD_OBJ = $(call c_to_obj, $(RPCAPD_SRC))
+  RPCAPD_I   = $(notdir $(RPCAPD_SRC:.c=.i))
+
+  #
+  # Extra CFLAGS for building 'rpcapd/rpcapd.exe'.
+  #
+  $(RPCAPD_OBJ) $(RPCAPD_I): CFLAGS += -DCOMPILING_RPCAPD_CODE -DPCAP_DLL
 
   #
   # We should possibly build the rpcap client DLL+program too?
@@ -717,52 +947,92 @@ ifeq ($(HAVE_PCAP_REMOTE),1)
   #
 endif
 
+ifeq ($(HAVE_TC_API),1)
+  FEATURES  += "TurboCap,"
+  WPCAP_SRC += pcap-tc.c
+  CFLAGS    += -DHAVE_TC_API \
+              -I$(TC_API_ROOT)/devpack/include
+endif
+
 ifeq ($(HAVE_WANPACKET),1)
-  CFLAGS        += -DHAVE_WANPACKET_API
-  WINPCAP_C_SRC += Win32/WanPacket_imp.c
-  FEATURES      += "WAN support,"
+  FEATURES       += "WAN support,"
+  CFLAGS         += -DHAVE_WANPACKET_API
+  PACKET32_C_SRC += Win32/WanPacket_imp.c
 endif
 
 ifeq ($(USE_DECNET),1)
-  VPATH         += $(DECNET_ROOT)/netdnet
-  CFLAGS        += -DDECNETLIB -I$(DECNET_ROOT)
-  LIBPCAP_C_SRC += $(DECNET_ROOT)/netdnet/getnodebyname.c
-  FEATURES      += "Decnet names,"
+  FEATURES  += "Decnet names,"
+  VPATH     += $(DECNET_ROOT)/netdnet
+  CFLAGS    += -DDECNETLIB -I$(DECNET_ROOT)
+  WPCAP_SRC += $(DECNET_ROOT)/netdnet/getnodebyname.c
 endif
 
 ifeq ($(MAKE_MAN_PAGES),1)
-  MAN3_PAGES  = $(shell ls *.3pcap.in) \
-                $(shell ls *.3pcap)
+  MAN3_PAGES  = $(wildcard *.3pcap.in) \
+                $(wildcard *.3pcap)
   MAN3_PAGES := $(MAN3_PAGES:.3pcap.in=.3pcap)
-  MAN3_PAGES := $(addprefix docs/, $(MAN3_PAGES:.3pcap=.3) pcap-savefile.3)
-  MAN3_PAGES += $(addprefix docs/, pcap-filter.3 pcap-linktype.3 pcap-tstamp.3)
+  MAN3_PAGES := $(addprefix doc/, $(MAN3_PAGES:.3pcap=.3) pcap-savefile.3)
+  MAN3_PAGES += $(addprefix doc/, pcap-filter.3 pcap-linktype.3 pcap-tstamp.3)
 
-  ifeq ($(HAVE_PCAP_REMOTE),1)
-    MAN3_PAGES += docs/rpcapd.3
-  endif
+  #
+  # Generated from 'rpcapd/rpcapd-config.manfile.in':
+  #
+  MAN3_PAGES += doc/rpcapd-config.3 \
+                doc/rpcapd.3
 
   TARGETS += $(MAN3_PAGES)
 endif
 
-ifeq ($(MSVC_TYPE),1)
-  #
-  # We need these external libs:
-  #
-  EX_LIBS += user32.lib version.lib advapi32.lib iphlpapi.lib ole32.lib ws2_32.lib
+#
+# At minimum, we need these external Windows libs:
+#
+EX_LIBS += $(call lib_select, \
+              version.lib advapi32.lib iphlpapi.lib, \
+             -lversion  -ladvapi32    -liphlpapi)
 
+#
+# Not needed for MinGW
+#
+EX_LIBS += $(call lib_select, user32.lib,)
+
+ifeq ($(CC),gcc)
+  EX_LIBS += -lws2_32
+
+else ifeq ($(USE_WSOCK_TRACE),1)
+  #
+  # These MUST be in %LIB%-path.
+  #
+  ifeq ($(BITS),64)
+    EX_LIBS += wsock_trace_x64.lib
+  else
+    EX_LIBS += wsock_trace.lib
+  endif
+else
+  EX_LIBS += ws2_32.lib
+endif
+
+ifeq ($(USE_NPCAP),1)
+  EX_LIBS += $(call lib_select, shell32.lib shlwapi.lib setupapi.lib, -lshlwapi -lsetupapi)
+
+else ifeq ($(USE_WIN10PCAP),1)
+  EX_LIBS += $(call lib_select, winmm.lib, -lwinmm)
+endif
+
+#
+# And now the 'Packet.lib / libpacket.a' messy stuff.
+#
+ifeq ($(MSVC_TYPE),1)
   ifeq ($(USE_WIN10PCAP),1)
     #
     # This is a static-library for Win10Pcap's Packet code.
     #
     PACKET_LIB = $(WIN10PCAP_ROOT)/Packet_dll/Packet$(X64_SUFFIX).lib
-    EX_LIBS   += winmm.lib
 
   else ifeq ($(USE_NPCAP),1)
     #
     # Since NPcap has no Packet.lib to link to, we use the extra .$(O)-files.
     #
     PACKET_LIB =
-    EX_LIBS   += shell32.lib shlwapi.lib setupapi.lib
 
   else
     #
@@ -772,15 +1042,6 @@ ifeq ($(MSVC_TYPE),1)
   endif
 
 else ifeq ($(CC),gcc)
-  #
-  # We need these external libs:
-  #
-  EX_LIBS += -lversion -liphlpapi -lws2_32
-
-  ifeq ($(USE_WIN10PCAP),1)
-    EX_LIBS += -lwinmm
-  endif
-
   #
   # This is an *import* library for CACE Tech's (Riverbed's) Packet.dll.
   #
@@ -798,14 +1059,16 @@ endif
 #
 GENERATED = Win32/config.h grammar.c grammar.h scanner.c scanner.h
 
-all: intro $(GENERATED) $(OBJ_DIR) docs $(TARGETS) programs epilogue
+all: intro $(GENERATED) $(OBJ_DIR) $(TARGETS) programs epilogue
 
 intro:
-	$(call colour_msg,$(BRIGHT_GREEN)Building $(VERSION) (CC=$(CC)) with "$(FEATURES)")
+	$(call green_msg, Building $(VERSION) (CC=$(CC)) with "$(FEATURES)")
 
 epilogue:
-	$(call colour_msg,$(BRIGHT_GREEN)Welcome to libpcap $(BRIGHT_YELLOW)(CC=$(CC), $(BITS)-bits).)
-	$(call colour_msg,$(BRIGHT_GREEN)Do a $(BRIGHT_YELLOW)make CC=$(CC) -f $(MAKE_FILE) install$(BRIGHT_GREEN) at own risk.)
+	$(call green_msg, Welcome to libpcap $(BRIGHT_WHITE)(CC=$(CC), $(BITS)-bits).)
+ifeq (,$(findstring install,$(MAKECMDGOALS)))
+	$(call green_msg, Do a $(BRIGHT_WHITE)make CC=$(CC) -f $(THIS_FILE) install$(BRIGHT_GREEN) at own risk.)
+endif
 
 #
 # These import libraries are generated by the 'link_DLL' rules for these .DLLs.
@@ -814,29 +1077,31 @@ $(WPCAP_IMP_LIB):  $(WPCAP_DLL)
 $(WPCAP2_IMP_LIB): $(WPCAP2_DLL)
 
 #
-# Because inet_ntop() needs '_WIN32_WINNT >= 0x0600'.
+# Because 'inet_ntop()' needs '_WIN32_WINNT >= 0x0600'.
 #
 $(OBJ_DIR)/findalldevstest.$(O) findalldevstest.i: CFLAGS += -U_WIN32_WINNT -D_WIN32_WINNT=0x0600
 
-TEST_SRC = $(addprefix testprogs/, \
-             can_set_rfmon_test.c  \
-             capturetest.c         \
-             filtertest.c          \
-             findalldevstest.c     \
-             opentest.c            \
+TEST_SRC = $(addprefix testprogs/,  \
+             can_set_rfmon_test.c   \
+             capturetest.c          \
+             filtertest.c           \
+             findalldevstest.c      \
+             findalldevstest-perf.c \
+             opentest.c             \
              threadsignaltest.c)
 
 ifeq ($(USER),gv)
   TEST_SRC += testprogs/getadapters.c
 endif
 
-TEST_OBJECTS  = $(addprefix $(OBJ_DIR)/, $(notdir $(TEST_SRC:.c=.$(O))))
+TEST_OBJ      = $(call c_to_obj, $(TEST_SRC))
+TEST_I        = $(notdir $(TEST_OBJ:.c=.i))
 TEST_PROGRAMS = $(notdir $(TEST_SRC:.c=.exe))
 
-FUZZ_SRC = $(addprefix testprogs/fuzz, \
-             fuzz_both.c               \
-             fuzz_filter.c             \
-             fuzz_pcap.c               \
+FUZZ_SRC = $(addprefix testprogs/fuzz/, \
+             fuzz_both.c                \
+             fuzz_filter.c              \
+             fuzz_pcap.c                \
              onefile.c)
 
 FUZZ_PROGRAMS = fuzz_both.exe fuzz_filter.exe fuzz_pcap.exe
@@ -844,60 +1109,72 @@ FUZZ_PROGRAMS = fuzz_both.exe fuzz_filter.exe fuzz_pcap.exe
 $(OBJ_DIR)/Packet32.$(O) \
 $(OBJ_DIR)/AdInfo.$(O):  CFLAGS += -DCOMPILING_PACKET32_C
 
+ifeq ($(HAVE_PLUGINS),1)
+  PLUGIN_OBJ = $(call c_to_obj, $(PLUGIN_SRC))
+  PLUGIN_I   = $(notdir $(PLUGIN_SRC:.c=.i))
+
+  $(PLUGIN_OBJ) $(PLUGIN_I): CFLAGS += -DCOMPILING_PCAP_PLUGIN
+endif
+
 ifeq ($(CC),clang-cl)
   #
-  # Some of the $(WINPCAP_C_SRC) sources generates tons of warnings.
+  # Some of the $(PACKET32_C_SRC) sources generates tons of warnings.
   #
-  $(OBJ_DIR)/Packet32.$(O) \
-  $(OBJ_DIR)/AdInfo.$(O):  CFLAGS += -Wno-bad-function-cast          \
-                                     -Wno-incompatible-pointer-types \
-                                     -Wno-sign-compare               \
-                                     -Wno-documentation-unknown-command
+  $(OBJ_DIR)/Packet32.$(O)    \
+  $(OBJ_DIR)/AdInfo.$(O)      \
+  $(OBJ_DIR)/ProtInstall.$(O) \
+  Packet32.i                  \
+  AdInfo.i                    \
+  ProtInstall.i: CFLAGS += -Wno-bad-function-cast             \
+                           -Wno-incompatible-pointer-types    \
+                           -Wno-sign-compare                  \
+                           -Wno-documentation-unknown-command \
+                           -Wno-zero-as-null-pointer-constant \
+                           -Wno-deprecated-declarations       \
+                           -Wno-c++98-compat-pedantic         \
+                           -Wno-writable-strings
+
+  ifeq ($(USE_NPCAP),1)
+    #
+    # Contrary to it's name; '$(NPCAP_ROOT)/PacketWin7/Dll/AdInfo.cpp', this
+    # file MUST be compiled as a .c-file. But only when 'HAVE_WANPACKET_API'
+    # is used. But it needs external C++ symbols. Hence 'HAVE_WANPACKET_API'
+    # is impossible with NPcap. See above.
+    #
+    # $(OBJ_DIR)/AdInfo.$(O): CFLAGS += -TC
+
+    #
+    # '$(NPCAP_ROOT)/PacketWin7/Dll/Packet32.cpp' breaks some C++ rules.
+    #
+    $(OBJ_DIR)/Packet32.$(O): CFLAGS += -Wno-exit-time-destructors \
+                                        -Wno-global-constructors
+  endif
 
   #
   # Some testprogs/*.c files uses deprecated libpcap functions. Ignore that.
   #
-  $(TEST_OBJECTS): CFLAGS += -Wno-deprecated-declarations
+  $(TEST_OBJ) $(TEST_I): CFLAGS += -Wno-deprecated-declarations
 endif
 
 #
-# Let $(TEST_PROGRAMS) and $(FUZZ_PROGRAMS) use $(WPCAP_DLL) except when
-# 'USE_WIN10PCAP=1' (see below).
-#
-$(TEST_OBJECTS) $(notdir $(TEST_OBJECTS:.$(O)=.i)): CFLAGS += -DPCAP_DLL
-
-#
-# Let these test programs link to the static library. Except if using
-# Win10Pcap which causes this mysterious link error:
+# If using Win10Pcap I have to use the Wpcap import-library due to this mysterious link error:
 #   unresolved external symbol __pRawDllMain
+#
+# Otherwise (USE_WIN10PCAP=0), let these test programs link to the static library.
 #
 ifeq ($(USE_WIN10PCAP),1)
   WPCAP_LIB = $(WPCAP_IMP_LIB)
 else
   WPCAP_LIB = $(WPCAP_STAT_LIB)
-
-  $(OBJ_DIR)/filtertest.$(O)      \
-  $(OBJ_DIR)/findalldevstest.$(O) \
-  $(OBJ_DIR)/opentest.$(O)        \
-  $(OBJ_DIR)/threadsignaltest.$(O): CFLAGS += -UPCAP_DLL
-
-  filtertest.i        \
-  findalldevstest.i   \
-  opentest.i          \
-  threadsignaltest.i: CFLAGS += -UPCAP_DLL
 endif
 
-
-can_set_rfmon_test.exe: $(OBJ_DIR)/can_set_rfmon_test.$(O) $(WPCAP_IMP_LIB)
-	$(call link_EXE, $@, $^)
-
-capturetest.exe: $(OBJ_DIR)/capturetest.$(O) $(OBJ_DIR)/getopt.$(O) $(WPCAP_IMP_LIB)
-	$(call link_EXE, $@, $^)
+filtertest.exe: $(OBJ_DIR)/filtertest.$(O) $(OBJ_DIR)/getopt.$(O) $(WPCAP_LIB)
+	$(call link_EXE, $@, $^ $(PACKET_LIB) $(EX_LIBS))
 
 findalldevstest.exe: $(OBJ_DIR)/findalldevstest.$(O) $(WPCAP_LIB)
 	$(call link_EXE, $@, $^ $(PACKET_LIB) $(EX_LIBS))
 
-filtertest.exe: $(OBJ_DIR)/filtertest.$(O) $(OBJ_DIR)/getopt.$(O) $(WPCAP_LIB)
+findalldevstest-perf.exe: $(OBJ_DIR)/findalldevstest-perf.$(O) $(WPCAP_LIB)
 	$(call link_EXE, $@, $^ $(PACKET_LIB) $(EX_LIBS))
 
 getadapters.exe: $(OBJ_DIR)/getadapters.$(O) $(OBJ_DIR)/pcap-trace.$(O)
@@ -911,6 +1188,22 @@ threadsignaltest.exe: $(OBJ_DIR)/threadsignaltest.$(O) $(OBJ_DIR)/getopt.$(O) $(
 
 fuzz_%.exe: $(OBJ_DIR)/fuzz_%.$(O) $(OBJ_DIR)/onefile.$(O) $(WPCAP_LIB)
 	$(call link_EXE, $@, $^ $(PACKET_LIB) $(EX_LIBS))
+
+#
+# The rest can use the Wpcap import library with all combinations of
+# 'USE_WIN10PCAP' or 'USE_NPCAP'.
+#
+capturetest.exe: $(OBJ_DIR)/capturetest.$(O) $(OBJ_DIR)/getopt.$(O) $(WPCAP_IMP_LIB)
+	$(call link_EXE, $@, $^)
+
+can_set_rfmon_test.exe: $(OBJ_DIR)/can_set_rfmon_test.$(O) $(WPCAP_IMP_LIB)
+	$(call link_EXE, $@, $^)
+
+rpcapd/rpcapd$(X64_SUFFIX).exe: $(RPCAPD_OBJ) $(OBJ_DIR)/rpcapd.res $(WPCAP_IMP_LIB)
+	$(call link_EXE, $@, $^ $(EX_LIBS))
+
+NpcapHelperTest.exe: $(OBJ_DIR)/NpcapHelperTest.$(O) $(OBJ_DIR)/pcap-trace.$(O) # $(OBJ_DIR)/NpcapHelperTest.res
+	$(call link_EXE, $@, $^ advapi32.lib shell32.lib)
 
 #
 # Rules to link the 'WinPcap-Plugins/winpcap_*.dll' plugins:
@@ -934,13 +1227,6 @@ WinPcap-Plugins/winpcap_usb_plugin$(X64_SUFFIX).dll:     $(OBJ_DIR)/win_usbpcap.
                                                          $(OBJ_DIR)/win_usbpcap.res
 	$(call link_plugin_DLL, $@, $^ $(call sys_libs, hid.lib setupapi.lib comdlg32.lib advapi32.lib cfgmgr32.lib shlwapi.lib))
 
-ifeq ($(HAVE_PCAP_REMOTE),1)
-
-rpcapd/rpcapd$(X64_SUFFIX).exe::
-	$(MAKE) -C rpcapd -f Makefile.Windows CC=$(CC) CPU=$(CPU)
-	@echo
-
-endif
 
 ######################################################################################
 
@@ -954,16 +1240,23 @@ define CONFIG_H
   #define HAVE_SOCKADDR_STORAGE
   #define HAVE_IPHELPER_API
   #define HAVE_PACKET32
-  #define HAVE_SNPRINTF
-  #define HAVE_VSNPRINTF
+  #define HAVE__WCSERROR_S
+
+  #define _CRT_NONSTDC_NO_WARNINGS
+  #define _CRT_SECURE_NO_WARNINGS
+  #define _CRT_OBSOLETE_NO_WARNINGS
 
   #if defined(USE_NPCAP)
-    #if defined(_MSC_VER) && !defined(COMPILING_PCAP_PLUGIN)
+    #if !defined(COMPILING_PCAP_PLUGIN) && (defined(_MSC_VER) || defined(__clang__))
       /*
        * Must force-include this as "WindowsKit/xx/shared/strsafe.h" since
        * "./NPcap/PacketWin7/Dll" MUST be in the include list!!
        */
       #include "$(realpath $(WK_ROOT))/include/$(WK_VER)/shared/strsafe.h"
+
+      #ifdef __cplusplus
+      #include <string>
+      #endif
 
       #ifdef UNICODE
         #define StringCchPrintf StringCchPrintfW
@@ -977,7 +1270,7 @@ define CONFIG_H
 
     #define WIN32COM_CPP
 
-  #else      /* USE_NPCAP==0 && USE_WIN10PCAP==0 */
+  #else     /* 'USE_NPCAP = 0' && 'USE_WIN10PCAP = 0' */
 
     /*
      * Npcap's "packetWin7/Dll/Packet32.c" needs <shellapi.h> which
@@ -985,6 +1278,24 @@ define CONFIG_H
      */
     #undef  WIN32_LEAN_AND_MEAN
     #define WIN32_LEAN_AND_MEAN
+  #endif
+
+  /* If this config.h was included from 'rpcap/' .c / .rc files.
+   */
+  #if defined(COMPILING_RPCAPD_CODE)
+    #include <string.h>
+
+    #undef  _WIN32_WINNT
+    #define _WIN32_WINNT            _WIN32_WINNT_VISTA  /* Needed for 'inet_ntop()' */
+    #define MINGW_HAS_SECURE_API    1
+
+    #define PACKAGE_VERSION        "1.0"
+    #define PACKAGE_VERSION_DLL     1,0,0,0
+
+  #else
+    #define PACKAGE_NAME            "pcap"
+    #define PACKAGE_VERSION         "libpcap version $(VERSION)"
+    #define PCAP_PLUGIN_VERSION      1,0,0,0
   #endif
 
   #if !defined(RC_INVOKED)
@@ -995,6 +1306,10 @@ define CONFIG_H
      *   f:\ProgramFiler-x86\MS-SDK-8.1\Include\um\sysinfoapi.h(110): note: see declaration of 'GetVersion'
      */
     #define BUILD_WINDOWS 1
+
+    #if defined(USE_VLD)
+    #include <vld.h>
+    #endif
   #endif
 
   /*
@@ -1004,7 +1319,7 @@ define CONFIG_H
    */
   #define _WINSOCK_DEPRECATED_NO_WARNINGS 1
 
-  #define ENABLE_WLAN_FILTERING_PATCH 1
+//#define ENABLE_WLAN_FILTERING_PATCH 1
 
   #if defined(__MINGW32__)
     #define STRSAFE_NO_DEPRECATE 1
@@ -1012,25 +1327,15 @@ define CONFIG_H
     #define HAVE_STRTOK_R        1
   #endif
 
-  #if defined(__GNUC__) || defined(__clang__)
-  // #define HAVE___ATTRIBUTE__    1
-  #endif
-
-  #if defined(_MSC_VER) || defined(MINGW_HAS_SECURE_API)
-    #define HAVE_STRERROR_S
-  #endif
-
   #if defined(_MSC_VER) || defined(__clang__)
     #define YY_NO_UNISTD_H
     #define YY_USE_CONST
-
- // #define strcasecmp(s1,s2) _stricmp(s1,s2)
 
     /*
      * Since MSVC 2013 only runs on WinVista (and higher), we can
      * safely ass-u-me this.
      */
-    #if (_MSC_VER >= 1800) && !defined(_WIN32_WINNT) && !defined(WINVER) && !defined(COMPILING_WIN10PCAP)
+    #if (_MSC_VER >= 1800) && !defined(_WIN32_WINNT) && !defined(WINVER) // && !defined(COMPILING_WIN10PCAP)
       #undef  _WIN32_WINNT
       #define _WIN32_WINNT    0x0600
       #undef  WINVER
@@ -1057,7 +1362,7 @@ define CONFIG_H
    * Since '$(WINPCAP_ROOT)/PacketNtx/Dll/Packet32.c' and '$(WINPCAP_ROOT)/PacketNtx/Dll/AdInfo.c'
    * has a '#define UNICODE', it must include <windows.h> after that line.
    */
-  #if !defined(COMPILING_PACKET32_C)
+  #if !defined(COMPILING_PACKET32_C) || 1
     #include <winsock2.h>
     #include <windows.h>
   #endif
@@ -1086,13 +1391,13 @@ define CONFIG_H
   #include <string.h>
   #include <time.h>
 
-  #if defined(_MSC_VER) && defined(_DEBUG)
+  #if defined(_DEBUG) && (defined(_MSC_VER) || defined(__clang__))
     #undef  _malloca            /* Avoid MSVC-9 <malloc.h>/<crtdbg.h> name-clash */
     #define _CRTDBG_MAP_ALLOC
     #include <crtdbg.h>
-
-    extern void crtdbug_init (void);
   #endif
+
+  extern void crtdbug_init (void);
 
   #if defined(__WATCOMC__)
     #define _TRUNCATE 0
@@ -1103,52 +1408,55 @@ define CONFIG_H
   #define YYFREE          free
   #define YYTEXT_POINTER  1
 
-  #define PACKAGE_NAME          "pcap"
-  #define PACKAGE_VERSION       "libpcap version $(VERSION)"
-  #define PCAP_PLUGIN_VERSION   1,0,0,0
-
   extern int ffs (int mask);
 
   #if defined(RC_INVOKED)
-    #if defined(__clang__)
-      #define RC_HOST "clang"
+    #if !defined(COMPILING_RPCAPD_CODE)
+      #if defined(__clang__)
+        #define RC_HOST "clang"
 
-    #elif defined(_MSC_VER)
-      #define RC_HOST "MSVC"
+      #elif defined(_MSC_VER)
+        #define RC_HOST "MSVC"
 
-    #elif defined(__MINGW32__)
-      #define RC_HOST "MinGW"
+      #elif defined(__MINGW32__)
+        #define RC_HOST "MinGW"
 
-    #else
-      #error "Who are you?"
-    #endif
+      #else
+        #error "Who are you?"
+      #endif
 
-    #if defined(USE_NPCAP)
-      #include "$(NPCAP_ROOT)/version.h"
+      #if defined(USE_NPCAP)
+        #include "$(NPCAP_ROOT)/version.h"
 
-      #define WINPCAP_DESCRIPTION       "NPcap Network Capture Library"
-      #define WINPCAP_URL               "https://github.com/nmap/npcap/"
+        #define WINPCAP_DESCRIPTION       "NPcap Network Capture Library"
+        #define WINPCAP_URL               "https://github.com/nmap/npcap/"
 
-    #elif defined(USE_WIN10PCAP)
-      #define WINPCAP_MAJOR  10
-      #define WINPCAP_MINOR  2
-      #define WINPCAP_REV    0
-      #define WINPCAP_BUILD  5002
+      #elif defined(USE_WIN10PCAP)
+        #define WINPCAP_MAJOR  10
+        #define WINPCAP_MINOR  2
+        #define WINPCAP_REV    0
+        #define WINPCAP_BUILD  5002
 
-      #define WINPCAP_COPYRIGHT_STRING  "Copyright (C) 2015 Daiyuu Nobori, University of Tsukuba, Japan"
-      #define WINPCAP_COMPANY_NAME      "Daiyuu Nobori"
-      #define WINPCAP_DESCRIPTION       "Win10Pcap Network Capture Library"
-      #define WINPCAP_URL               "https://github.com/SoftEtherVPN/Win10Pcap/"
+        #define WINPCAP_COPYRIGHT_STRING  "Copyright (C) 2015 Daiyuu Nobori, University of Tsukuba, Japan"
+        #define WINPCAP_COMPANY_NAME      "Daiyuu Nobori"
+        #define WINPCAP_DESCRIPTION       "Win10Pcap Network Capture Library"
+        #define WINPCAP_URL               "https://github.com/SoftEtherVPN/Win10Pcap/"
 
-    #else
-      #include "$(WINPCAP_ROOT)/version.h"
+      #else
+        #include "$(WINPCAP_ROOT)/version.h"
 
-      #define WINPCAP_DESCRIPTION       "WinPcap Network Capture Library"
-      #define WINPCAP_URL               "http://www.winpcap.org/"
-    #endif
-  #endif    /* RC_INVOKED */
+        #define WINPCAP_DESCRIPTION       "WinPcap Network Capture Library"
+        #define WINPCAP_URL               "http://www.winpcap.org/"
+      #endif
+    #endif   /* COMPILING_RPCAPD_CODE */
 
-  #endif /* _libpcap_CONFIG_H */
+  #else
+    /*
+     * Include this only here.
+     */
+    #include "pcap-trace.h"
+  #endif     /* RC_INVOKED */
+  #endif     /* _libpcap_CONFIG_H */
 endef
 
 define WPCAP_RC
@@ -1183,7 +1491,7 @@ define WPCAP_RC
         VALUE "LegalCopyright",   "Copyright (c) The TCPdump Group"
         VALUE "LegalTrademarks",  ""
         VALUE "OriginalFilename", RC_DLL_NAME
-        VALUE "PrivateBuild",     "G. Vanem's private build of $(DATE_STAMP)"
+        VALUE "PrivateBuild",     "G. Vanem's private build of $(TODAY)"
         VALUE "ProductName",      RC_DLL_NAME " (" RC_HOST ", $(BITS)-bit)"
         VALUE "ProductVersion",   PACKAGE_VERSION  // _STR_VER
         VALUE "FileVersion",      _STR_VER
@@ -1199,58 +1507,46 @@ define WPCAP_RC
 endef
 
 #
-# Force including the Win32/config.h file on every compile.
-#
-ifeq ($(CC),gcc)
-  FORCE_INC = --include Win32/config.h
-else
-  FORCE_INC = -FI./Win32/config.h
-endif
-
-#
 # Objects for wpcap.lib, libwpcap.a and wpcap.dll.
 #
-WPCAP_OBJ = $(addprefix $(OBJ_DIR)/, \
-              $(notdir $(LIBPCAP_C_SRC:.c=.$(O))))
+WPCAP_OBJ = $(call c_to_obj, $(WPCAP_SRC))
+
+PACKET32_C_OBJ = $(call c_to_obj,   $(PACKET32_C_SRC))
+PACKET32_I     = $(notdir $(PACKET32_C_OBJ:.$(O)=.i))
+WPCAP_I        = $(notdir $(WPCAP_OBJ:.$(O)=.i))
+
+ifeq ($(USE_NPCAP),1)
+  PACKET32_CPP_OBJ = $(call cpp_to_obj, $(PACKET32_CPP_SRC))
+  PACKET32_CPP_I   = $(notdir $(PACKET32_CPP_OBJ:.$(O)=.i))
+endif
 
 ifeq ($(USE_NPCAP),1)
   #
   # We MUST add these to the link of wpcap.dll since NPcap
   # has no Packet.lib to link to.
   #
-  WPCAP_OBJ += $(OBJ_DIR)/ProtInstall.$(O) \
-               $(OBJ_DIR)/netcfgapi.$(O)   \
-               $(OBJ_DIR)/AdInfo.$(O)      \
-               $(OBJ_DIR)/Packet32.$(O)    \
+  WPCAP_OBJ += $(PACKET32_CPP_OBJ) \
                $(OBJ_DIR)/WanPacket_imp.$(O)
 endif
 
-WINPCAP_OBJ = $(addprefix $(OBJ_DIR)/, \
-               $(notdir $(WINPCAP_C_SRC:.c=.$(O))))
-
-WINPCAP_I = $(notdir $(WINPCAP_OBJ:.$(O)=.i))
-WPCAP_I   = $(notdir $(WPCAP_OBJ:.$(O)=.i))
-
 #
-# Combined objects for wpcap2.lib, libwpcap2.a and wpcap2.dll.
+# Combined objects and .i-files for wpcap2.lib, libwpcap2.a and wpcap2.dll.
 #
-WPCAP2_OBJ = $(WPCAP_OBJ) $(WINPCAP_OBJ)
-WPCAP2_I   = $(WPCAP_I)   $(WINPCAP_I)
+WPCAP2_OBJ = $(WPCAP_OBJ) $(PACKET32_C_OBJ) $(PACKET32_CPP_OBJ)
+WPCAP2_I   = $(WPCAP_I)   $(PACKET32_I)     $(PACKET32_CPP_I)
 
 ifeq ($(CC),gcc)
-
 $(WPCAP_DLL): $(WPCAP_OBJ) $(OBJ_DIR)/wpcap.res
 	$(call link_DLL, $@, $(WPCAP_IMP_LIB), $^ $(PACKET_LIB) $(EX_LIBS))
 
-#
-# Since functions in Packet32.c are not marked as
-# DLL-export, we force exports by a generated .def-file.
-#
+  #
+  # Since functions in Packet32.c are NOT marked as
+  # DLL-export, we force exports by a generated .def-file.
+  #
 $(WPCAP2_DLL): $(WPCAP2_OBJ) $(OBJ_DIR)/wpcap2.res $(OBJ_DIR)/wpcap2.def
 	$(call link_DLL, $@, $(WPCAP2_IMP_LIB), $^ $(EX_LIBS))
 
-else ifeq ($(MSVC_TYPE),1)
-
+else
 $(WPCAP_DLL): $(WPCAP_OBJ) $(OBJ_DIR)/wpcap.res
 	$(call link_DLL, $@, $(WPCAP_IMP_LIB), \
 	                 $^ $(PACKET_LIB) $(EX_LIBS))
@@ -1264,12 +1560,15 @@ endif
 # Since the 'dflag' variable (which is not exported in the wpcap.dll)
 # is used in testprogs/filtertest.c, we are forced to use the static library
 # wpcap2.lib for this test program.
-# But only if '$(PCAP_DEBUG) >= 1'.
+# But only if '$(PCAP_DEBUG) >= 1' and when 'USE_WIN10PPAP = 1' (see above).
 #
 # The 'dflag' exist only in a COMDEF data-section; "Uninitialized common data".
 #
-ifneq ($(PCAP_DEBUG),0)
-$(OBJ_DIR)/filtertest.$(O): CFLAGS += -UPCAP_DLL
+ifeq ($(PCAP_DEBUG),0)
+$(TEST_OBJ) $(TEST_I): CFLAGS += -DPCAP_DLL
+
+else ifeq ($(USE_WIN10PCAP),1)
+$(TEST_OBJ) $(TEST_I): CFLAGS += -DPCAP_DLL
 endif
 
 #
@@ -1277,20 +1576,13 @@ endif
 # the '#define pcap_EXPORTS' must be set. Ref. "Win32/config.h" below.
 #
 $(WPCAP_OBJ) $(WPCAP2_OBJ) \
-$(WPCAP_I)   $(WPCAP2_I):  CFLAGS += $(FORCE_INC) -Dpcap_EXPORTS -DBUILDING_PCAP
+$(WPCAP_I)   $(WPCAP2_I):  CFLAGS += -Dpcap_EXPORTS -DBUILDING_PCAP
 
-#
-# Compile all wpcap.dll sources in one go.
-#
-ifeq ($(CC),clXX)
-$(WPCAP_OBJ): $(LIBPCAP_C_SRC)
-	$(call C_compile, -MP $(LIBPCAP_C_SRC), $(OBJ_DIR)\\)
-endif
 
 #
 # This plugin needs some Vista+ functions:
 #
-$(OBJ_DIR)/win_btooth.$(O): CFLAGS += -U_WIN32_WINNT -D_WIN32_WINNT=0x0600
+$(OBJ_DIR)/win_btooth.$(O) win_btooth.i: CFLAGS += -U_WIN32_WINNT -D_WIN32_WINNT=0x0600
 
 LINK_CRAP += $(TEST_PROGRAMS:.exe=.map) $(FUZZ_PROGRAMS:.exe=.map)
 
@@ -1299,9 +1591,13 @@ ifeq ($(MSVC_TYPE),1)
                $(FUZZ_PROGRAMS:.exe=.pdb)
 endif
 
-ALL_SOURCES = $(WINPCAP_C_SRC) $(WINPCAP_CPP_SRC) \
-              $(LIBPCAP_C_SRC) $(TEST_SRC) $(FUZZ_SRC) \
-              $(PLUGIN_SRC)
+ALL_SOURCES = $(PACKET32_C_SRC)   \
+              $(PACKET32_CPP_SRC) \
+              $(WPCAP_SRC)        \
+              $(TEST_SRC)         \
+              $(PLUGIN_SRC)       \
+              $(RPCAPD_SRC)       \
+              $(FUZZ_SRC)
 
 ##################################################################################
 
@@ -1313,14 +1609,14 @@ ifeq ($(MAKE_MAN_PAGES),1)
 endif
 
 help:
-	$(call colour_msg,$(BRIGHT_GREEN)$$USAGE)
-	$(call colour_msg,  the $(BRIGHT_RED)all\e[0m target will have these features:)
-	$(call colour_msg,$(BRIGHT_YELLOW)     $(FEATURES))
+	$(call green_msg, $$Usage)
+	$(call green_msg0,  The $(BRIGHT_WHITE)all$(BRIGHT_GREEN) target will have these features:)
+	$(call green_msg0,    $(FEATURES))
 
 programs: $(TEST_PROGRAMS)
 fuzzers:  $(FUZZ_PROGRAMS)
 
-$(OBJ_DIR) docs::
+$(OBJ_DIR):
 	-mkdir $@
 
 #
@@ -1362,32 +1658,37 @@ grammar.c: grammar.y
 	$(YACC) --yacc --output=$@ --defines=grammar.h $<
 	@echo
 
-Win32/config.h: $(MAKE_FILE) ./VERSION
+Win32/config.h: $(THIS_FILE) ./VERSION
 	$(call Generate_file, $@)
 	$(file >> $@,$(CONFIG_H))
 	@echo
 
-ifeq ($(USE_WIN10PCAP),1)
-  ifeq ($(CC),cl)
-    W10_CFLAGS = -wd4091
-  endif
+ifeq ($(USE_WIN10CAP),1)
+  WIN10PCAP_OBJ = $(addprefix $(OBJ_DIR)/, \
+                    Ms.$(O)                \
+                    NdisDriverUser.$(O)    \
+                    Packet32.$(O)          \
+                    SeMemory.$(O)          \
+                    SeStr.$(O))
 
-  W10_CFLAGS += -DCOMPILING_WIN10PCAP
+  WIN10PCAP_I = $(notdir $(WIN10PCAP_OBJ:.$(O)=.i))
 
-$(OBJ_DIR)/%.$(O): $(WIN10PCAP_ROOT)/Packet_dll/%.c
-	$(call C_compile, $< $(W10_CFLAGS), $@)
+  $(WIN10PCAP_OBJ) $(WIN10PCAP_I): CFLAGS += -DCOMPILING_WIN10PCAP
 endif
 
 #
 # These MUST be compiled for Unicode.
 #
 ifeq ($(USE_NPCAP),1)
-  UNICODE_OBJ = $(OBJ_DIR)/ProtInstall.$(O) \
-                $(OBJ_DIR)/netcfgapi.$(O)   \
-                $(OBJ_DIR)/AdInfo.$(O)      \
-                $(OBJ_DIR)/Packet32.$(O)
+  $(PACKET32_CPP_OBJ) $(PACKET32_CPP_I): CFLAGS += -D_UNICODE -DUNICODE
+endif
 
-  $(UNICODE_OBJ): CFLAGS += -D_UNICODE -DUNICODE
+#
+# A lot faster this way. But will compile too many files unneeded.
+#
+ifeq ($(USE_MP_COMPILE),1)
+$(WPCAP_OBJ): $(WPCAP_SRC)
+	$(call C_compile, -MP $(WPCAP_SRC), $(OBJ_DIR)\\)
 endif
 
 $(OBJ_DIR)/%.$(O): %.c
@@ -1399,17 +1700,14 @@ $(OBJ_DIR)/%.$(O): %.cpp
 #
 # Rule to create a nicer preprocessed .i file from a .c file.
 # Uses the Python script 'cpp_filter.py' (generated below) and
-# GNU-indent on PATH.
+# optionally 'GNU-indent' or 'clang-format'.
 #
-%.i: $(WIN10PCAP_ROOT)/Packet_dll/%.c FORCE cpp_filter.py Win32/config.h
-	$(call C_preprocess, $(W10_CFLAGS) $<) | $(PYTHON) cpp_filter.py | indent -st > $@
-
 %.i: %.c FORCE cpp_filter.py Win32/config.h
-	$(call C_preprocess, $<) | $(PYTHON) cpp_filter.py | indent -st > $@
+	$(call C_preprocess, $<) > $@
 	@echo
 
 %.i: %.cpp FORCE cpp_filter.py Win32/config.h
-	$(call C_preprocess, $(FORCE_INC) $<) | $(PYTHON) cpp_filter.py > $@
+	$(call CPP_preprocess, $<) > $@
 	@echo
 
 FORCE:
@@ -1435,30 +1733,27 @@ $(OBJ_DIR)/%.res: %.rc
 $(OBJ_DIR)/airpcap.res: $(AIRPCAP_ROOT)/src/version.rc
 	$(call make_res, -I $(AIRPCAP_ROOT)/src $<, $@)
 
-# $(OBJ_DIR)/wpcap.res: $(OBJ_DIR)/wpcap.rc
-# 	$(call make_res, $<, $@)
-#
-# $(OBJ_DIR)/wpcap2.res: $(OBJ_DIR)/wpcap2.rc
-# 	$(call make_res, $<, $@)
+$(OBJ_DIR)/rpcapd.res: rpcapd/rpcapd.rc
+	$(call make_res, -I./Win32 -DCOMPILING_RPCAPD_CODE $<, $@)
 
-$(OBJ_DIR)/wpcap.rc: $(MAKE_FILE)
+$(OBJ_DIR)/wpcap.rc: $(THIS_FILE)
 	$(call Generate_file, $@)
 	$(file >> $@, #define RC_DLL_NAME "$(WPCAP_DLL)")
 	$(file >> $@,$(WPCAP_RC))
 	@echo
 
-$(OBJ_DIR)/wpcap2.rc: $(MAKE_FILE)
+$(OBJ_DIR)/wpcap2.rc: $(THIS_FILE)
 	$(call Generate_file, $@)
 	$(file >> $@, #define RC_DLL_NAME "$(WPCAP2_DLL)")
 	$(file >> $@,$(WPCAP_RC))
 	@echo
 
-$(OBJ_DIR)/wpcap2.def: $(MAKE_FILE)
-	$(call message_green,Generating $@ ...)
+$(OBJ_DIR)/wpcap2.def: $(THIS_FILE)
+	$(call green_msg, Generating $@ ...)
 	$(file  > $@, ;)
 	$(file >> $@, ; Generated $@ for MinGW, MSVC and clang-cl.)
-	$(file >> $@, ; DO NOT EDIT. Edit $(realpath $(MAKE_FILE)))
-	$(file >> $@, ; and/or $(realpath $(MAKE_FILE)) instead.)
+	$(file >> $@, ; DO NOT EDIT. Edit $(realpath $(THIS_FILE)))
+	$(file >> $@, ; and/or $(realpath $(THIS_FILE)) instead.)
 	$(file >> $@, ;)
 	$(file >> $@,$(WPCAP2_DEF))
 ifeq ($(USE_NPCAP),1)
@@ -1487,7 +1782,7 @@ C_compile_cl       = $(CL_CC) -c $(CFLAGS) -Fo./$(strip $(2)) $(1)
 C_compile_clang-cl = $(CC)    -c $(CFLAGS) -Fo./$(strip $(2)) $(1)
 C_compile_gcc      = $(CC)    -c $(CFLAGS) -o $(2) $(1)
 
-####### C++ COMPILE MACROS  ###########################################
+###### C++ COMPILE MACROS  ###########################################
 #
 # arg1, $(1): The .cpp-file.
 # arg2, $(2): The object file.
@@ -1497,19 +1792,28 @@ define CPP_compile
   @echo
 endef
 
-CPP_compile_cl       = $(call C_compile_cl,    -EHsc $(1), $(2))
-CPP_compile_clang-cl = $(call C_compile_clang, -EHsc $(1), $(2))
-CPP_compile_gcc      = $(call C_compile_gcc,   -x c++ $(1), $(2))
+CPP_compile_cl       = $(call C_compile_cl,       -EHsc $(1), $(2))
+CPP_compile_clang-cl = $(call C_compile_clang-cl, -EHsc $(1), $(2))
+CPP_compile_gcc      = $(call C_compile_gcc,      -x c++ $(1), $(2))
 
+###### C/C++ preprocessing macros  #####################################
 #
-# C/C++ preprocessing macro.
-#   Ref the '%.i: %.c' rule above.
-#   arg1, $(1): The .c-file.
+# Ref the '%.i: %.c' rule above.
+# arg1, $(1): The .c/.cpp-file.
 #
 C_preprocess_cl       = $(CL_CC) -E $(CFLAGS)
 C_preprocess_gcc      = $(CC) -E $(CFLAGS)
 C_preprocess_clang-cl = $(CC) -E $(CFLAGS)
-C_preprocess          = $(C_preprocess_$(CC)) $(1)
+C_preprocess          = $(C_preprocess_$(CC)) $(1) | $(PYTHON) cpp_filter.py
+CPP_preprocess        = $(C_preprocess_$(CC)) $(1) | $(PYTHON) cpp_filter.py
+
+ifeq ($(USE_GNU_INDENT),1)
+  C_preprocess += | indent -st
+
+else ifeq ($(USE_CLANG_FORMAT),1)
+  C_preprocess   += | clang-format -style=Mozilla -assume-filename=c
+  CPP_preprocess += | clang-format -style=Mozilla -assume-filename=cpp
+endif
 
 ####### LINK MACRO (DLL + imp-lib) ####################################
 #
@@ -1518,31 +1822,11 @@ C_preprocess          = $(C_preprocess_$(CC)) $(1)
 # arg3, $(3): The rest of the link arguments.
 #
 define link_DLL
-  $(call message_green,Linking $(1))
+  $(call green_msg, Linking $(1))
   $(call link_DLL_$(CC), $(1), $(2), $(3))
   touch $(2)
   @echo
 endef
-
-#
-# The paths for the CRT library (msvcrt.lib):
-#
-CL_LIBS = -libpath:$(VC_ROOT)/lib/$(CPU)
-
-#
-# 'WindowsKits' root is in $(WK_ROOT) and
-# 'WindowsKits' version is in $(WK_VER).
-#
-# Hence the User-Mode libraries for 'x86' is in:
-#   $(WK_ROOT)/Lib/$(WK_VER)/um/x86/
-#
-CL_LIBS += -libpath:$(realpath $(WK_ROOT)/Lib/$(WK_VER)/um/$(CPU))
-
-#
-# Ditto mess for the UCRT libraries: for 'x86' the UCRT libs are in:
-#   $(WK_ROOT)/Lib/$(WK_VER)/ucrt/x86/
-#
-CL_LIBS += -libpath:$(realpath $(WK_ROOT)/Lib/$(WK_VER)/ucrt/$(CPU))
 
 define link_DLL_cl
   $(CL_LINK) $(LDFLAGS) -dll -out:$(strip $(1)) -implib:$(strip $(2)) \
@@ -1565,7 +1849,7 @@ endef
 # arg2, $(2): The rest of the link arguments.
 #
 define link_plugin_DLL
-  $(call message_green,Linking $(strip $(1)))
+  $(call green_msg, Linking $(strip $(1)))
   $(call link_plugin_DLL_$(CC), $(1), $(2))
   @echo
 endef
@@ -1585,7 +1869,7 @@ link_plugin_DLL_gcc      = $(CC) $(LDFLAGS) -shared -o $(1) $(2) > $(1:.dll=.map
 # arg2, $(2): The rest of the link arguments.
 #
 define link_EXE
-  $(call message_green,Linking $(strip $(1)))
+  $(call green_msg, Linking $(strip $(1)))
   $(call link_EXE_$(CC), $(1), $(2))
   @echo
 endef
@@ -1615,40 +1899,42 @@ endef
 
 #
 # Create a file with header.
-#  $(1): file to write to.
+#   $(1): file to write to.
 #
 define Generate_file
-  $(call message_green,Generating $(1) ...)
+  $(call green_msg, Generating $(1) ...)
   $(file  > $(1), /*)
-  $(file >> $(1),  * Generated $(strip $(1)) for MinGW, MSVC and clang-cl.)
+  $(file >> $(1),  * Generated $(strip $(1)) for MinGW, MSVC and clang-cl at $(TODAY).)
   $(file >> $(1),  * DO NOT EDIT!)
-  $(file >> $(1),  * Edit $(realpath $(MAKE_FILE)) instead.)
+  $(file >> $(1),  * Edit $(realpath $(THIS_FILE)) instead.)
   $(file >> $(1),  */)
 endef
 
 #
+# Replace all this cruft in man-files.
 # @MAN_MISC_INFO@ is unimportant on Win32.
 #
-MAN_FILE_FORMATS   = 3
-MAN_MISC_INFO      = 3
-MAN_ADMIN_COMMANDS = 1m
+MAN_SED_REPLACE = -e 's/@MAN_FILE_FORMATS@/ 3/g' \
+	              -e 's/@MAN_MISC_INFO@/ 3/g'    \
+	              -e 's/@MAN_ADMIN_COMMANDS@/ 1m/g'
 
-docs/%.3: %.3pcap.in
-	sed -e 's/@MAN_FILE_FORMATS@/$(MAN_FILE_FORMATS)/g' \
-	    -e 's/@MAN_MISC_INFO@/$(MAN_MISC_INFO)/g' < $< > $@
+doc/%.3: %.3pcap.in
+	sed $(MAN_SED_REPLACE) < $< > $@
 
-docs/%.3: %.3pcap
+doc/%.3: %.3pcap
 	cp $^ $@
 
-docs/%.3: %.manmisc.in
-	sed -e 's/@MAN_MISC_INFO@/$(MAN_MISC_INFO)/g' < $< > $@
+doc/rpcapd-config.3: rpcapd/rpcapd-config.manfile.in
+	sed $(MAN_SED_REPLACE) < $< > $@
 
-docs/rpcapd.3: rpcapd/rpcapd.manadmin.in
-	sed -e 's/@MAN_ADMIN_COMMANDS@/$(MAN_ADMIN_COMMANDS)/g' < $< > $@
+doc/%.3: %.manmisc.in
+	sed $(MAN_SED_REPLACE) < $< > $@
 
-docs/pcap-savefile.3: pcap-savefile.manfile.in
-	sed -e 's/@MAN_FILE_FORMATS@/$(MAN_FILE_FORMATS)/g' \
-	    -e 's/@MAN_MISC_INFO@/$(MAN_MISC_INFO)/g' < $< > $@
+doc/rpcapd.3: rpcapd/rpcapd.manadmin.in
+	sed $(MAN_SED_REPLACE) < $< > $@
+
+doc/pcap-savefile.3: pcap-savefile.manfile.in
+	sed $(MAN_SED_REPLACE) < $< > $@
 
 #
 # WinPcap/NPcap/Win10Pcap versioning hell :-(
@@ -1685,7 +1971,7 @@ docs/pcap-savefile.3: pcap-savefile.manfile.in
 # If 'USE_NPCAP=1', then some extra functions are also exported.
 # See below where this macro is used.
 #
-# For completeness, the 'pcap_*' functions in missing/win_snprintf.c
+# For completeness, the 'pcap_*' functions in 'missing/win_*printf.c'
 # are also exported.
 #
 define WPCAP2_DEF
@@ -1724,8 +2010,9 @@ define WPCAP2_DEF
     PacketIsDumpEnded
     PacketSetLoopbackBehavior
     PacketGetAirPcapHandle
-  ; pcap_vsnprintf
-  ; pcap_snprintf
+
+  ; pcap_asprintf
+  ; pcap_vasprintf
 endef
 
 
@@ -1790,42 +2077,63 @@ define CPP_FILTER_PY
 
 endef
 
-cpp_filter.py: $(MAKE_FILE)
+cpp_filter.py: $(THIS_FILE)
 	@echo 'Generating $@...'
 	$(file >  $@,#!/usr/env/python)
 	$(file >> $@,#)
 	$(file >> $@,# DO NOT EDIT! This file was generated automatically)
-	$(file >> $@,# from $(realpath $(MAKE_FILE)). Edit that file instead.)
+	$(file >> $@,# from $(realpath $(THIS_FILE)). Edit that file instead.)
 	$(file >> $@,#)
 	$(file >> $@,from __future__ import print_function)
 	$(file >> $@,if 1:)
 	$(file >> $@,$(CPP_FILTER_PY))
 
+#### RPCAP Daemon rules ##########################################################
+
+rpcapd_clean_0 \
+rpcapd_vclean_0:
+	$(call colour_msg,$(BRIGHT_GREEN)Nothing to do for $@ since 'HAVE_PCAP_REMOTE=0'.)
+
+rpcapd_clean_1:
+	rm -f rpcapd/rpcapd$(X64_SUFFIX).map
+
+rpcapd_vclean_1:
+	rm -f rpcapd/rpcapd$(X64_SUFFIX).exe rpcapd/rpcapd$(X64_SUFFIX).pdb
+
 ##################################################################################
 
 clean:
-	rm -f $(GENERATED) $(OBJ_DIR)/*
+	rm -f $(GENERATED) $(OBJ_DIR)/*.{$(O),rc,res,def}
 
-vclean realclean: clean
-	- rm -f $(TARGETS) $(TEST_PROGRAMS) $(FUZZ_PROGRAMS) $(LINK_CRAP) $(MAN3_PAGES) .depend.Windows link.tmp cpp_filter.py
+vclean realclean: clean rpcapd_vclean_$(HAVE_PCAP_REMOTE)
+	- rm -f $(TARGETS) $(TEST_PROGRAMS) $(FUZZ_PROGRAMS) $(LINK_CRAP) $(MAN3_PAGES) \
+	        .depend.Windows link.tmp cpp_filter.py
 	- rmdir $(OBJ_DIR)
-ifeq ($(HAVE_PCAP_REMOTE),1)
-	$(MAKE) -C rpcapd -f Makefile.Windows CC=$(CC) $@
-	@echo
-endif
 
-REPLACE = sed -e 's/\(.*\)\.o: /\n$$(OBJ_DIR)\/\1.$$(O): /'
+#### Dependency generation #######################################################
+
+DEP_REPLACE = sed -e 's@\(.*\)\.o: @\n$$(OBJ_DIR)\/\1.$$(O): @' \
+                  -e 's@$(USBPCAP_ROOT)@$$(USBPCAP_ROOT)@'      \
+                  -e 's@$(OPENSSL_ROOT)@$$(OPENSSL_ROOT)@'
+
+DEP_CFLAGS = -MM $(filter -I% -D%, $(CFLAGS)) -DGCC_MAKE_DEPEND
 
 #
 # Fixed dependencies:
 #
 pcap-npf.c:               Win32/win32-misc.c
-pcap-int.h:               pcap-trace.h
-$(WPCAP_OBJ):             pcap-int.h pcap-trace.h
+Win32/config.h:           pcap-trace.h
 $(OBJ_DIR)/pcap-npf.$(O): pcap-npf.c Win32/win32-misc.c
 
+$(WPCAP_OBJ)  \
+$(RPCAPD_OBJ) \
+$(PLUGIN_OBJ) \
+$(OBJ_DIR)/pcap-plugin.$(O): WinPcap-plugins/pcap-plugin.h pcap-int.h # Win32/config.h
+$(PLUGIN_OBJ):               WinPcap-plugins/pcap-plugin-interface.h
+
 depend: $(GENERATED)
-	gcc -MM $(filter -I% -D%, $(CFLAGS)) -DGCC_MAKE_DEPEND $(ALL_SOURCES) | \
-	        $(REPLACE) > .depend.Windows
+	$(call green_msg, Generating .depend.Windows...)
+	@echo -en '#\n# Generated dependencies for MinGW, MSVC and clang-cl.\n# Generated at $(TODAY).\n#\n' > .depend.Windows
+	gcc $(DEP_CFLAGS) $(ALL_SOURCES) | $(DEP_REPLACE) >> .depend.Windows
 
 -include .depend.Windows

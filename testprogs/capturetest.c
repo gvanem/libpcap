@@ -42,6 +42,12 @@ The Regents of the University of California.  All rights reserved.\n";
   #include <unistd.h>
 #endif
 #include <errno.h>
+
+#if !defined(_WIN32) && !defined(MSDOS)
+  #include <signal.h>
+  #define USE_breaksigint
+#endif
+
 #include <sys/types.h>
 
 #include <pcap.h>
@@ -63,6 +69,32 @@ static char *copy_argv(char **);
 
 static pcap_t *pd;
 
+#ifdef USE_breaksigint
+  static int breaksigint = 0;
+
+  static void
+  sigint_handler(int signum _U_)
+  {
+  	if (breaksigint)
+  		pcap_breakloop(pd);
+  }
+
+  /*
+   * We do have UN*X-style signals (we assume that "not Windows" means "UN*X").
+   */
+  #define B_OPTION	"b"
+  #define R_OPTION	"r"
+  #define S_OPTION	"s"
+
+#else
+  #define B_OPTION	""
+  #define R_OPTION	""
+  #define S_OPTION	""
+#endif
+
+#define COMMAND_OPTIONS B_OPTION "c:i:mn" R_OPTION S_OPTION "t:"
+#define USAGE_OPTIONS   "-" B_OPTION "mn" R_OPTION S_OPTION
+
 int
 main(int argc, char **argv)
 {
@@ -73,6 +105,11 @@ main(int argc, char **argv)
 	int timeout = 1000;
 	int immediate = 0;
 	int nonblock = 0;
+	int quit = 0;
+#ifdef USE_breaksigint
+	int sigrestart = 0;
+	int catchsigint = 0;
+#endif
 	pcap_if_t *devlist;
 	bpf_u_int32 localnet, netmask;
 	struct bpf_program fcode;
@@ -87,9 +124,19 @@ main(int argc, char **argv)
 	else
 		program_name = argv[0];
 
+#ifdef _WIN32
+	if (pcap_wsockinit() != 0)
+		return 1;
+#endif
+
 	opterr = 0;
 	while ((op = getopt(argc, argv, "c:i:mnt:")) != -1) {
 		switch (op) {
+#ifdef USE_breaksigint
+		case 'b':
+			breaksigint = 1;
+			break;
+#endif
 		case 'c':
 			max_count = strtoul(optarg, &p, 10);
 			if (p == optarg || *p != '\0')
@@ -107,6 +154,16 @@ main(int argc, char **argv)
 		case 'n':
 			nonblock = 1;
 			break;
+
+#ifdef USE_breaksigint
+		case 'r':
+			sigrestart = 1;
+			break;
+
+		case 's':
+			catchsigint = 1;
+			break;
+#endif
 
 		case 't':
 			longarg = strtol(optarg, &p, 10);
@@ -142,6 +199,28 @@ main(int argc, char **argv)
 		pcap_freealldevs(devlist);
 	}
 	*ebuf = '\0';
+
+#if defined(USE_breaksigint)
+	/*
+	 * If we were told to catch SIGINT, do so.
+	 */
+	if (catchsigint) {
+		struct sigaction action;
+
+		action.sa_handler = sigint_handler;
+		sigemptyset(&action.sa_mask);
+
+		/*
+		 * Should SIGINT interrrupt, or restart, system calls?
+		 */
+		action.sa_flags = sigrestart ? SA_RESTART : 0;
+
+		if (sigaction(SIGINT, &action, NULL) == -1)
+			error("Can't catch SIGINT: %s\n",
+			    strerror(errno));
+	}
+#endif
+
 	pd = pcap_create(device, ebuf);
 	if (pd == NULL)
 		error("%s", ebuf);
@@ -201,11 +280,18 @@ main(int argc, char **argv)
 			    status, packet_count);
 		}
 		total_count += packet_count;
-		if (total_count >= max_count) {
+		if (total_count >= max_count)
+		   quit = 1;
+		if (quit) {
 			pcap_breakloop(pd);
 			printf("Telling pcap to break the loop..");
 			fflush(stdout);
 		}
+		struct pcap_stat ps;
+		pcap_stats(pd, &ps);
+		printf("%d ps_recv, %d ps_drop, %d ps_ifdrop\n",
+		    ps.ps_recv, ps.ps_drop, ps.ps_ifdrop);
+
 	}
 
 	if (status == -2) {
@@ -214,14 +300,14 @@ main(int argc, char **argv)
 		 * manage to finish a line we were printing.
 		 * Print an extra newline, just in case.
 		 */
-		putchar('\n');
+		printf("\nBroken out of loop from SIGINT handler\n");
 	}
 	(void)fflush(stdout);
 	if (status == -1) {
 		/*
 		 * Error.  Report it.
 		 */
-		(void)fprintf(stderr, "%s: pcap_loop: %s\n",
+		(void)fprintf(stderr, "%s: pcap_dispatch: %s\n",
 		    program_name, pcap_geterr(pd));
 	}
 	pcap_close(pd);
@@ -241,7 +327,7 @@ countme(u_char *user, const struct pcap_pkthdr *h _U_, const u_char *sp _U_)
 static void
 usage(void)
 {
-	(void)fprintf(stderr, "Usage: %s [ -mn ] [ -i interface ] [ -t timeout] [ -c max_count] [expression]\n",
+	(void)fprintf(stderr, "Usage: %s [ " USAGE_OPTIONS " ]  [ -c max_count] [ -i interface ] [ -t timeout] [expression]\n",
 	    program_name);
 	exit(1);
 }

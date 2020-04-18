@@ -1,4 +1,4 @@
-/*
+/**
  * This stuff must be included from pcap-npf.c only.
  * And not compiled on it's own.
  *
@@ -36,7 +36,8 @@ ADAPTER *pcap_get_adapter (pcap_t *p)
 
   pw = p->priv;
 
- /* \todo: if this is a plugin, make sure 'pw->adapter' is NULL
+ /**
+  * \todo: if this is a plugin, make sure 'pw->adapter' is NULL
   *        since it makes sense only to NPF/NPcap/Win10Pcap adapters.
   *        But how to do that best?
   */
@@ -47,43 +48,115 @@ ADAPTER *pcap_get_adapter (pcap_t *p)
 #endif
 }
 
-#if defined(_MSC_VER) && defined(_DEBUG)
-static _CrtMemState last_state;
+#if defined(_MSC_VER)
 
-static void crtdbug_exit (void)
+static void _plugin_cleanup (void)
 {
 #ifdef PCAP_SUPPORT_PLUGINS
   extern void plugin_exit (void);
   plugin_exit();
 #endif
+}
 
-  _CrtMemDumpAllObjectsSince (&last_state);
-  _CrtMemDumpStatistics (&last_state);
-#if 0
-  _CrtCheckMemory();
-  _CrtDumpMemoryLeaks();
-#endif
+#if defined(USE_VLD)
+static void crtdbug_exit (void)
+{
+  _plugin_cleanup();
+  VLDGlobalDisable();
+  printf ("VLD leaks: %u\n", VLDReportLeaks());
 }
 
 void crtdbug_init (void)
 {
   static int done = 0;
+  VLD_UINT opts;
 
   if (done)
      return;
 
-  _CrtSetReportFile (_CRT_WARN, _CRTDBG_FILE_STDERR);
-  _CrtSetReportMode (_CRT_WARN, _CRTDBG_MODE_FILE);
-  _CrtSetDbgFlag (_CRTDBG_LEAK_CHECK_DF     |
-                  _CRTDBG_DELAY_FREE_MEM_DF |
-                  _CRTDBG_ALLOC_MEM_DF      |
-                  _CrtSetDbgFlag(_CRTDBG_REPORT_FLAG));
-  _CrtMemCheckpoint (&last_state);
   atexit (crtdbug_exit);
+
+  /* Force all reports to "stdout" in "ASCII"
+   */
+  VLDSetReportOptions (VLD_OPT_REPORT_TO_STDOUT, NULL);
+
+  opts = VLDGetOptions();
+  opts |= VLD_OPT_SAFE_STACK_WALK;
+
+  /* Force all reports to "stdout" in "ASCII"
+   */
+  VLDSetOptions (opts, 100, 4);
+
+  /* Needed to get filename and line-numbers correctly reported
+   */
+  VLDResolveCallstacks();
   done = 1;
 }
-#endif
 
+#elif defined(_DEBUG)
+/**
+ * Only effective for 'cl' + 'clang-cl' using '-MDd' or '-MTd'.
+ */
+static _CrtMemState last_state;
+
+static void crtdbug_exit (void)
+{
+  _CrtMemState new_state, diff_state;
+
+  _plugin_cleanup();
+
+  _CrtMemCheckpoint (&new_state);
+
+  /* No significant difference in the mem-state. So just get out.
+   */
+  if (!_CrtMemDifference(&diff_state, &last_state, &new_state))
+     return;
+
+  _CrtCheckMemory();
+  _CrtMemDumpAllObjectsSince (&last_state);
+  _CrtDumpMemoryLeaks();
+}
+
+void crtdbug_init (void)
+{
+  static int done = 0;
+  _HFILE file;
+  int    flags, mode;
+
+  if (done)
+     return;
+
+  atexit (crtdbug_exit);
+
+  file = _CRTDBG_FILE_STDERR;
+  mode = _CRTDBG_MODE_FILE;
+
+  /* Let all CRT asserts, errors and warnings go to 'stderr'.
+   */
+  _CrtSetReportFile (_CRT_ASSERT, file);
+  _CrtSetReportMode (_CRT_ASSERT, mode);
+  _CrtSetReportFile (_CRT_ERROR, file);
+  _CrtSetReportMode (_CRT_ERROR, mode);
+  _CrtSetReportFile (_CRT_WARN, file);
+  _CrtSetReportMode (_CRT_WARN, mode);
+
+  flags = _CRTDBG_LEAK_CHECK_DF | _CRTDBG_DELAY_FREE_MEM_DF | _CRTDBG_ALLOC_MEM_DF;
+  flags |= _CrtSetDbgFlag (_CRTDBG_REPORT_FLAG);
+
+  _CrtSetDbgFlag (flags);
+  _CrtMemCheckpoint (&last_state);
+  done = 1;
+}
+
+#else
+void crtdbug_init (void)
+{
+}
+#endif  /* _DEBUG */
+#endif  /* _MSC_VER */
+
+/* Watcom is really no longer supported.
+ */
 #if defined(__WATCOMC__)
 char *str_rip (char *s)
 {
@@ -108,53 +181,8 @@ const char *gai_strerror (int err)
 }
 #endif
 
-#if 0
-/*
- * This is needed in optimize.c. But not for MSVC. So just add it here.
- */
-#if defined(__MINGW32__)
-int ffs(int mask)
-{
-  return __builtin_ffs(mask);
-}
-
-#elif !defined (_MSC_VER)
-/*
- * ffs -- vax ffs instruction
- * Copyright (C) 1991, 1992 Free Software Foundation, Inc.
- * Contributed by Torbjorn Granlund (tege@sics.se).
- */
-int ffs(int mask)
-{
-  static unsigned char table[] = {
-    0,1,2,2,3,3,3,3,4,4,4,4,4,4,4,4,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,5,
-    6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,6,
-    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-    7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,7,
-    8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,
-    8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,
-    8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,
-    8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8,8
-  };
-  unsigned long a, x = mask & (-mask);
-
-  a = x <= 0xFFFFUL ? (x <= 0xFF ? 0 : 8) : (x <= 0xFFFFFF ? 16 : 24);
-  return (table[x >> a] + a);
-}
-#endif
-#endif  /* 0 */
-
 #ifdef HAVE_AIRPCAP_API  /* Rest of file */
-
 #include <airpcap.h>
-
-#if defined(USE_WIN10PCAP)
-  #error Win10Pcap with AirPcap is not supported at the moment.
-#endif
-
-#if defined(USE_NPCAP) && 0
-  #error NPcap with AirPcap is not supported at the moment.
-#endif
 
 /* Copied from Packet32-int.h:
  */
@@ -163,15 +191,11 @@ typedef BOOL  (*AirpcapSetLinkTypeHandler) (struct _AirpcapHandle *Handle,
                                             AirpcapLinkType LinkLayer);
 typedef struct _AirpcapHandle * (*AirpcapOpenHandler) (char *DeviceName, char *Ebuf);
 
-/* Set in Packet32.c
+/* Initialised by 'GetProcAddress (AirpcapLib,"xx")' in Packet32.c
  */
-/* PCAP_API_DEF */ AirpcapGetLastErrorHandler g_PAirpcapGetLastError;
-/* PCAP_API_DEF */ AirpcapSetLinkTypeHandler  g_PAirpcapSetLinkType;
-/* PCAP_API_DEF */ AirpcapOpenHandler         g_PAirpcapOpen;
-
-/* A private in Packet32.c
- */
-extern void PacketLoadLibrariesDynamically (void);
+AirpcapGetLastErrorHandler g_PAirpcapGetLastError;
+AirpcapSetLinkTypeHandler  g_PAirpcapSetLinkType;
+AirpcapOpenHandler         g_PAirpcapOpen;
 
 static int pcap_set_datalink_airpcap (pcap_t *p, int dlt)
 {
@@ -184,15 +208,13 @@ static int pcap_set_datalink_airpcap (pcap_t *p, int dlt)
 
   if (!hnd)
   {
-    pcap_snprintf (p->errbuf, PCAP_ERRBUF_SIZE,
-                  "handle from PacketGetAirPcapHandle() is NULL");
+    snprintf (p->errbuf, PCAP_ERRBUF_SIZE, "handle from PacketGetAirPcapHandle() is NULL");
     return (-1);
   }
 
   if (!g_PAirpcapSetLinkType)
   {
-    pcap_snprintf (p->errbuf, PCAP_ERRBUF_SIZE,
-                  "(*g_PAirpcapSetLinkType) is NULL");
+    snprintf (p->errbuf, PCAP_ERRBUF_SIZE, "(*g_PAirpcapSetLinkType) is NULL");
     return (-1);
   }
 
@@ -210,8 +232,7 @@ static int pcap_set_datalink_airpcap (pcap_t *p, int dlt)
          PCAP_TRACE (2, "DLT_PPI\n");
          break;
      default:
-         pcap_snprintf (p->errbuf, PCAP_ERRBUF_SIZE,
-                        "Unsupported dlt: %d\n", dlt);
+         snprintf (p->errbuf, PCAP_ERRBUF_SIZE, "Unsupported dlt: %d\n", dlt);
          PCAP_TRACE (2, "%s", p->errbuf);
          return (-1);
   }
@@ -221,9 +242,9 @@ static int pcap_set_datalink_airpcap (pcap_t *p, int dlt)
   if ((*g_PAirpcapSetLinkType)(hnd, type))
      return (0);
 
-  pcap_snprintf (p->errbuf, PCAP_ERRBUF_SIZE,
-                 "(*g_PAirpcapSetLinkType)() failed: %s\n",
-                 (*g_PAirpcapGetLastError)(hnd));
+  snprintf (p->errbuf, PCAP_ERRBUF_SIZE,
+            "(*g_PAirpcapSetLinkType)() failed: %s\n",
+            (*g_PAirpcapGetLastError)(hnd));
   PCAP_TRACE (2, "%s", p->errbuf);
   return (-1);
 }

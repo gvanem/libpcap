@@ -1,33 +1,29 @@
 #undef  WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 
-#include "pcap-trace.h"
-
-#include <assert.h>
-#include <pcap/pcap.h>
-#include <pcap-int.h>
+#include "config.h"
 
 #if defined(USE_PCAP_TRACE)  /* Rest of file */
 
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
 static HANDLE                     stdout_hnd;
+static int                        dbg_level;
 
 CRITICAL_SECTION  g_trace_crit;
-int               g_dbg_level;
 
 int _pcap_trace_level (void)
 {
   const char *env;
 
   if (g_trace_crit.OwningThread)   /* Already done this, get out */
-     return (g_dbg_level);
+     return (dbg_level);
 
   env = getenv ("PCAP_TRACE");
-  g_dbg_level = env ? (*env-'0') : 0;
+  dbg_level = env ? (*env-'0') : 0;
   stdout_hnd = GetStdHandle (STD_OUTPUT_HANDLE);
   GetConsoleScreenBufferInfo (stdout_hnd, &console_info);
   InitializeCriticalSection (&g_trace_crit);
-  return (g_dbg_level);
+  return (dbg_level);
 }
 
 void _pcap_trace_color (unsigned short col)

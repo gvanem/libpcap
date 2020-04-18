@@ -127,7 +127,6 @@
   #include <netdb.h>
 #endif /* _WIN32 */
 
-#include <ctype.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -218,10 +217,10 @@ pcap_nametoaddrinfo(const char *name)
  *  XXX - not guaranteed to be thread-safe!  See below for platforms
  *  on which it is thread-safe and on which it isn't.
  */
+#if defined(_WIN32) || defined(__CYGWIN__)
 bpf_u_int32
-pcap_nametonetaddr(const char *name)
+pcap_nametonetaddr(const char *name _U_)
 {
-#ifdef _WIN32
 	/*
 	 * There's no "getnetbyname()" on Windows.
 	 *
@@ -235,7 +234,11 @@ pcap_nametonetaddr(const char *name)
 	 * of *UN*X* machines.)
 	 */
 	return 0;
-#else
+}
+#else /* _WIN32 */
+bpf_u_int32
+pcap_nametonetaddr(const char *name)
+{
 	/*
 	 * UN*X.
 	 */
@@ -309,8 +312,8 @@ pcap_nametonetaddr(const char *name)
 		return np->n_net;
 	else
 		return 0;
-#endif /* _WIN32 */
 }
+#endif /* _WIN32 */
 
 /*
  * Convert a port name to its port and protocol numbers.
@@ -653,9 +656,9 @@ pcap_nametollc(const char *s)
 static inline u_char
 xdtoi(u_char c)
 {
-	if (isdigit(c))
+	if (c >= '0' && c <= '9')
 		return (u_char)(c - '0');
-	else if (islower(c))
+	else if (c >= 'a' && c <= 'f')
 		return (u_char)(c - 'a' + 10);
 	else
 		return (u_char)(c - 'A' + 10);
@@ -671,8 +674,15 @@ __pcap_atoin(const char *s, bpf_u_int32 *addr)
 	len = 0;
 	for (;;) {
 		n = 0;
-		while (*s && *s != '.')
+		while (*s && *s != '.') {
+			if (n > 25) {
+				/* The result will be > 255 */
+				return -1;
+			}
 			n = n * 10 + *s++ - '0';
+		}
+		if (n > 255)
+			return -1;
 		*addr <<= 8;
 		*addr |= n & 0xff;
 		len += 8;
@@ -727,7 +737,7 @@ pcap_ether_aton(const char *s)
 		if (*s == ':' || *s == '.' || *s == '-')
 			s += 1;
 		d = xdtoi(*s++);
-		if (isxdigit((unsigned char)*s)) {
+		if (PCAP_ISXDIGIT(*s)) {
 			d <<= 4;
 			d |= xdtoi(*s++);
 		}

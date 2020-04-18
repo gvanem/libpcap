@@ -115,7 +115,6 @@ static int bpf_load(char *errbuf);
 
 #endif /* _AIX */
 
-#include <ctype.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <netdb.h>
@@ -522,7 +521,7 @@ bpf_open(char *errbuf)
 		 * that isn't in use.
 		 */
 		do {
-			(void)pcap_snprintf(device, sizeof(device), "/dev/bpf%d", n++);
+			(void)snprintf(device, sizeof(device), "/dev/bpf%d", n++);
 			/*
 			 * Initially try a read/write open (to allow the inject
 			 * method to work).  If that fails due to permission
@@ -557,7 +556,7 @@ bpf_open(char *errbuf)
 				 * means we probably have no BPF
 				 * devices.
 				 */
-				pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+				snprintf(errbuf, PCAP_ERRBUF_SIZE,
 				    "(there are no BPF devices)");
 			} else {
 				/*
@@ -566,7 +565,7 @@ bpf_open(char *errbuf)
 				 * devices, but all the ones
 				 * that exist are busy.
 				 */
-				pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+				snprintf(errbuf, PCAP_ERRBUF_SIZE,
 				    "(all BPF devices are busy)");
 			}
 			break;
@@ -1020,18 +1019,21 @@ pcap_read_bpf(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
 			case EWOULDBLOCK:
 				return (0);
 
-			case ENXIO:
+			case ENXIO:	/* FreeBSD, DragonFly BSD, and Darwin */
+			case EIO:	/* OpenBSD */
+					/* NetBSD appears not to return an error in this case */
 				/*
 				 * The device on which we're capturing
 				 * went away.
 				 *
 				 * XXX - we should really return
-				 * PCAP_ERROR_IFACE_NOT_UP, but
-				 * pcap_dispatch() etc. aren't
-				 * defined to retur that.
+				 * an appropriate error for that,
+				 * but pcap_dispatch() etc. aren't
+				 * documented as having error returns
+				 * other than PCAP_ERROR or PCAP_ERROR_BREAK.
 				 */
-				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-				    "The interface went down");
+				snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
+				    "The interface disappeared");
 				return (PCAP_ERROR);
 
 #if defined(sun) && !defined(BSD) && !defined(__svr4__) && !defined(__SVR4)
@@ -1251,7 +1253,7 @@ bpf_odminit(char *errbuf)
 	if (odm_initialize() == -1) {
 		if (odm_err_msg(odmerrno, &errstr) == -1)
 			errstr = "Unknown error";
-		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+		snprintf(errbuf, PCAP_ERRBUF_SIZE,
 		    "bpf_load: odm_initialize failed: %s",
 		    errstr);
 		return (PCAP_ERROR);
@@ -1260,7 +1262,7 @@ bpf_odminit(char *errbuf)
 	if ((odmlockid = odm_lock("/etc/objrepos/config_lock", ODM_WAIT)) == -1) {
 		if (odm_err_msg(odmerrno, &errstr) == -1)
 			errstr = "Unknown error";
-		pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+		snprintf(errbuf, PCAP_ERRBUF_SIZE,
 		    "bpf_load: odm_lock of /etc/objrepos/config_lock failed: %s",
 		    errstr);
 		(void)odm_terminate();
@@ -1279,7 +1281,7 @@ bpf_odmcleanup(char *errbuf)
 		if (errbuf != NULL) {
 			if (odm_err_msg(odmerrno, &errstr) == -1)
 				errstr = "Unknown error";
-			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+			snprintf(errbuf, PCAP_ERRBUF_SIZE,
 			    "bpf_load: odm_unlock failed: %s",
 			    errstr);
 		}
@@ -1290,7 +1292,7 @@ bpf_odmcleanup(char *errbuf)
 		if (errbuf != NULL) {
 			if (odm_err_msg(odmerrno, &errstr) == -1)
 				errstr = "Unknown error";
-			pcap_snprintf(errbuf, PCAP_ERRBUF_SIZE,
+			snprintf(errbuf, PCAP_ERRBUF_SIZE,
 			    "bpf_load: odm_terminate failed: %s",
 			    errstr);
 		}
@@ -1353,7 +1355,7 @@ bpf_load(char *errbuf)
 
 	if (rc == -1 || getmajor(sbuf.st_rdev) != major) {
 		for (i = 0; i < BPF_MINORS; i++) {
-			pcap_snprintf(buf, sizeof(buf), "%s%d", BPF_NODE, i);
+			snprintf(buf, sizeof(buf), "%s%d", BPF_NODE, i);
 			unlink(buf);
 			if (mknod(buf, S_IRUSR | S_IFCHR, domakedev(major, i)) == -1) {
 				pcap_fmt_errmsg_for_errno(errbuf,
@@ -1366,7 +1368,7 @@ bpf_load(char *errbuf)
 
 	/* Check if the driver is loaded */
 	memset(&cfg_ld, 0x0, sizeof(cfg_ld));
-	pcap_snprintf(buf, sizeof(buf), "%s/%s", DRIVER_PATH, BPF_NAME);
+	snprintf(buf, sizeof(buf), "%s/%s", DRIVER_PATH, BPF_NAME);
 	cfg_ld.path = buf;
 	if ((sysconfig(SYS_QUERYLOAD, (void *)&cfg_ld, sizeof(cfg_ld)) == -1) ||
 	    (cfg_ld.kmid == 0)) {
@@ -1683,7 +1685,7 @@ pcap_activate_bpf(pcap_t *p)
 	}
 	if (bv.bv_major != BPF_MAJOR_VERSION ||
 	    bv.bv_minor < BPF_MINOR_VERSION) {
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
+		snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 		    "kernel bpf filter out of date");
 		status = PCAP_ERROR;
 		goto bad;
@@ -1723,7 +1725,7 @@ pcap_activate_bpf(pcap_t *p)
 		char *lnamep;
 
 		if (ifr.lifr_zoneid != GLOBAL_ZONEID) {
-			pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
+			snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 			    "zonename/linkname only valid in global zone.");
 			status = PCAP_ERROR;
 			goto bad;
@@ -1886,7 +1888,7 @@ pcap_activate_bpf(pcap_t *p)
 				 * "atexit()" failed; don't create the
 				 * interface, just give up.
 				 */
-				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
+				snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 				     "atexit failed");
 				close(s);
 				status = PCAP_ERROR;
@@ -1899,7 +1901,7 @@ pcap_activate_bpf(pcap_t *p)
 			pcap_strlcpy(ifr.ifr_name, p->opt.device, sizeof(ifr.ifr_name));
 			if (ioctl(s, SIOCIFCREATE2, &ifr) < 0) {
 				if (errno == EINVAL) {
-					pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
+					snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 					    "Invalid USB bus interface %s",
 					    p->opt.device);
 				} else {
@@ -2070,7 +2072,7 @@ pcap_activate_bpf(pcap_t *p)
 			}
 
 			if (v == 0) {
-				pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
+				snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
 				    "BIOCSBLEN: %s: No buffer size worked",
 				    p->opt.device);
 				status = PCAP_ERROR;
@@ -2114,7 +2116,7 @@ pcap_activate_bpf(pcap_t *p)
 		/*
 		 * We don't know what to map this to yet.
 		 */
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "unknown interface type %u",
+		snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "unknown interface type %u",
 		    v);
 		status = PCAP_ERROR;
 		goto bad;
@@ -2174,9 +2176,9 @@ pcap_activate_bpf(pcap_t *p)
 	 * we try to select DLT_IEEE802_11.
 	 */
 	if (have_osinfo) {
-		if (isdigit((unsigned)osinfo.release[0]) &&
+		if (PCAP_ISDIGIT((unsigned)osinfo.release[0]) &&
 		     (osinfo.release[0] == '9' ||
-		     isdigit((unsigned)osinfo.release[1]))) {
+		     PCAP_ISDIGIT((unsigned)osinfo.release[1]))) {
 			/*
 			 * 10.5 (Darwin 9.x), or later.
 			 */
@@ -2426,7 +2428,7 @@ pcap_activate_bpf(pcap_t *p)
 		/*
 		 * We don't support immediate mode.  Fail.
 		 */
-		pcap_snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "Immediate mode not supported");
+		snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "Immediate mode not supported");
 		status = PCAP_ERROR;
 		goto bad;
 	}
@@ -2756,12 +2758,37 @@ get_if_flags(const char *name, bpf_u_int32 *flags, char *errbuf)
 	strncpy(req.ifm_name, name, sizeof(req.ifm_name));
 	if (ioctl(sock, SIOCGIFMEDIA, &req) < 0) {
 		if (errno == EOPNOTSUPP || errno == EINVAL || errno == ENOTTY ||
-		    errno == ENODEV) {
+		    errno == ENODEV || errno == EPERM
+#ifdef EPWROFF
+		    || errno == EPWROFF
+#endif
+		    ) {
 			/*
 			 * Not supported, so we can't provide any
 			 * additional information.  Assume that
 			 * this means that "connected" vs.
 			 * "disconnected" doesn't apply.
+			 *
+			 * The ioctl routine for Apple's pktap devices,
+			 * annoyingly, checks for "are you root?" before
+			 * checking whether the ioctl is valid, so it
+			 * returns EPERM, rather than ENOTSUP, for the
+			 * invalid SIOCGIFMEDIA, unless you're root.
+			 * So, just as we do for some ethtool ioctls
+			 * on Linux, which makes the same mistake, we
+			 * also treat EPERM as meaning "not supported".
+			 *
+			 * And it appears that Apple's llw0 device, which
+			 * appears to be part of the Skywalk subsystem:
+			 *
+			 *    http://newosxbook.com/bonus/vol1ch16.html
+			 *
+			 * can sometimes return EPWROFF ("Device power
+			 * is off") for that ioctl, so we treat *that*
+			 * as another indication that we can't get a
+			 * connection status.  (If it *isn't* "powered
+			 * off", it's reported as a wireless device,
+			 * complete with an active/inactive state.)
 			 */
 			*flags |= PCAP_IF_CONNECTION_STATUS_NOT_APPLICABLE;
 			close(sock);
@@ -2898,7 +2925,7 @@ monitor_mode(pcap_t *p, int set)
 
 		default:
 			pcap_fmt_errmsg_for_errno(p->errbuf, PCAP_ERRBUF_SIZE,
-			    errno, "SIOCGIFMEDIA 1");
+			    errno, "SIOCGIFMEDIA");
 			close(sock);
 			return (PCAP_ERROR);
 		}
@@ -3040,8 +3067,12 @@ find_802_11(struct bpf_dltlist *bdlp)
 				new_dlt = bdlp->bfl_list[i];
 			break;
 
+#ifdef DLT_PRISM_HEADER
 		case DLT_PRISM_HEADER:
+#endif
+#ifdef DLT_AIRONET_HEADER
 		case DLT_AIRONET_HEADER:
+#endif
 		case DLT_IEEE802_11_RADIO_AVS:
 			/*
 			 * 802.11 with radio, but not radiotap.
@@ -3136,11 +3167,17 @@ remove_802_11(pcap_t *p)
 		switch (p->dlt_list[i]) {
 
 		case DLT_IEEE802_11:
+#ifdef DLT_PRISM_HEADER
 		case DLT_PRISM_HEADER:
+#endif
+#ifdef DLT_AIRONET_HEADER
 		case DLT_AIRONET_HEADER:
+#endif
 		case DLT_IEEE802_11_RADIO:
 		case DLT_IEEE802_11_RADIO_AVS:
+#ifdef DLT_PPI
 		case DLT_PPI:
+#endif
 			/*
 			 * 802.11.  Don't offer this one.
 			 */
@@ -3237,14 +3274,101 @@ static int
 pcap_setdirection_bpf(pcap_t *p, pcap_direction_t d)
 {
 	u_int direction;
+	const char *direction_name;
 
-	direction = (d == PCAP_D_IN) ? BPF_D_IN :
-	    ((d == PCAP_D_OUT) ? BPF_D_OUT : BPF_D_INOUT);
+	/*
+	 * FreeBSD and NetBSD.
+	 */
+	switch (d) {
+
+	case PCAP_D_IN:
+		/*
+		 * Incoming, but not outgoing, so accept only
+		 * incoming packets.
+		 */
+		direction = BPF_D_IN;
+		direction_name = "\"incoming only\"";
+		break;
+
+	case PCAP_D_OUT:
+		/*
+		 * Outgoing, but not incoming, so accept only
+		 * outgoing packets.
+		 */
+		direction = BPF_D_OUT;
+		direction_name = "\"outgoing only\"";
+		break;
+
+	default:
+		/*
+		 * Incoming and outgoing, so accept both
+		 * incoming and outgoing packets.
+		 *
+		 * It's guaranteed, at this point, that d is a valid
+		 * direction value, so we know that this is PCAP_D_INOUT
+		 * if it's not PCAP_D_IN or PCAP_D_OUT.
+		 */
+		direction = BPF_D_INOUT;
+		direction_name = "\"incoming and outgoing\"";
+		break;
+	}
+
 	if (ioctl(p->fd, BIOCSDIRECTION, &direction) == -1) {
 		pcap_fmt_errmsg_for_errno(p->errbuf, sizeof(p->errbuf),
-		    errno, "Cannot set direction to %s",
-		        (d == PCAP_D_IN) ? "PCAP_D_IN" :
-			((d == PCAP_D_OUT) ? "PCAP_D_OUT" : "PCAP_D_INOUT"));
+		    errno, "Cannot set direction to %s", direction_name);
+		return (-1);
+	}
+	return (0);
+}
+#elif defined(BIOCSDIRFILT)
+static int
+pcap_setdirection_bpf(pcap_t *p, pcap_direction_t d)
+{
+	u_int dirfilt;
+	const char *direction_name;
+
+	/*
+	 * OpenBSD; same functionality, different names, different
+	 * semantics (the flags mean "*don't* capture packets in
+	 * that direction", not "*capture only* packets in that
+	 * direction").
+	 */
+	switch (d) {
+
+	case PCAP_D_IN:
+		/*
+		 * Incoming, but not outgoing, so filter out
+		 * outgoing packets.
+		 */
+		dirfilt = BPF_DIRECTION_OUT;
+		direction_name = "\"incoming only\"";
+		break;
+
+	case PCAP_D_OUT:
+		/*
+		 * Outgoing, but not incoming, so filter out
+		 * incoming packets.
+		 */
+		dirfilt = BPF_DIRECTION_IN;
+		direction_name = "\"outgoing only\"";
+		break;
+
+	default:
+		/*
+		 * Incoming and outgoing, so don't filter out
+		 * any packets based on direction.
+		 *
+		 * It's guaranteed, at this point, that d is a valid
+		 * direction value, so we know that this is PCAP_D_INOUT
+		 * if it's not PCAP_D_IN or PCAP_D_OUT.
+		 */
+		dirfilt = 0;
+		direction_name = "\"incoming and outgoing\"";
+		break;
+	}
+	if (ioctl(p->fd, BIOCSDIRFILT, &dirfilt) == -1) {
+		pcap_fmt_errmsg_for_errno(p->errbuf, sizeof(p->errbuf),
+		    errno, "Cannot set direction to %s", direction_name);
 		return (-1);
 	}
 	return (0);
@@ -3254,21 +3378,47 @@ static int
 pcap_setdirection_bpf(pcap_t *p, pcap_direction_t d)
 {
 	u_int seesent;
+	const char *direction_name;
 
 	/*
-	 * We don't support PCAP_D_OUT.
+	 * OS with just BIOCSSEESENT.
 	 */
-	if (d == PCAP_D_OUT) {
-		pcap_snprintf(p->errbuf, sizeof(p->errbuf),
-		    "Setting direction to PCAP_D_OUT is not supported on BPF");
-		return -1;
+	switch (d) {
+
+	case PCAP_D_IN:
+		/*
+		 * Incoming, but not outgoing, so we don't want to
+		 * see transmitted packets.
+		 */
+		seesent = 0;
+		direction_name = "\"incoming only\"";
+		break;
+
+	case PCAP_D_OUT:
+		/*
+		 * Outgoing, but not incoming; we can't specify that.
+		 */
+		snprintf(p->errbuf, sizeof(p->errbuf),
+		    "Setting direction to \"outgoing only\" is not supported on this device");
+		return (-1);
+
+	default:
+		/*
+		 * Incoming and outgoing, so we want to see transmitted
+		 * packets.
+		 *
+		 * It's guaranteed, at this point, that d is a valid
+		 * direction value, so we know that this is PCAP_D_INOUT
+		 * if it's not PCAP_D_IN or PCAP_D_OUT.
+		 */
+		seesent = 1;
+		direction_name = "\"incoming and outgoing\"";
+		break;
 	}
 
-	seesent = (d == PCAP_D_INOUT);
 	if (ioctl(p->fd, BIOCSSEESENT, &seesent) == -1) {
 		pcap_fmt_errmsg_for_errno(p->errbuf, sizeof(p->errbuf),
-		    errno, "Cannot set direction to %s",
-		    (d == PCAP_D_INOUT) ? "PCAP_D_INOUT" : "PCAP_D_IN");
+		    errno, "Cannot set direction to %s", direction_name);
 		return (-1);
 	}
 	return (0);
@@ -3277,8 +3427,8 @@ pcap_setdirection_bpf(pcap_t *p, pcap_direction_t d)
 static int
 pcap_setdirection_bpf(pcap_t *p, pcap_direction_t d _U_)
 {
-	(void) pcap_snprintf(p->errbuf, sizeof(p->errbuf),
-	    "This system doesn't support BIOCSSEESENT, so the direction can't be set");
+	(void) snprintf(p->errbuf, sizeof(p->errbuf),
+	    "Setting direction is not supported on this device");
 	return (-1);
 }
 #endif

@@ -1,0 +1,22 @@
+# The internal git client reads CIRRUS_CLONE_DEPTH.
+env:
+  CIRRUS_CLONE_DEPTH: 3
+  MAXJOBS: 2
+  IGNORE_OSVERSION: yes
+
+task:
+  freebsd_instance:
+    matrix:
+      - image_family: freebsd-11-3-snap
+      - image_family: freebsd-12-1-snap
+      - image_family: freebsd-13-0-snap
+  script:
+    - freebsd-version
+    - pkg update -f
+    - pkg install -qy git autoconf
+    - touch .devel
+    - ./configure --enable-remote
+    - make -s all
+    - make -s testprogs
+    - testprogs/findalldevstest
+

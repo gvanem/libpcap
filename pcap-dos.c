@@ -413,7 +413,7 @@ int pcap_lookupnet (const char *device, bpf_u_int32 *localnet,
        net = IN_CLASSC_NET;
     else
     {
-      pcap_snprintf (errbuf, PCAP_ERRBUF_SIZE, "inet class for 0x%lx unknown", mask);
+      snprintf (errbuf, PCAP_ERRBUF_SIZE, "inet class for 0x%lx unknown", mask);
       return (-1);
     }
   }
@@ -514,13 +514,13 @@ static int open_driver (pcap_t *pcap)
 {
   if (!PktSearchDriver())
   {
-    pcap_snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE, "failed to detect a Pkt-Driver");
+    snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE, "failed to detect a Pkt-Driver");
     return (0);
   }
 
   if (!pkt_open(pcap->opt.promisc))
   {
-    pcap_snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE, "failed to activate the Pkt-Driver");
+    snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE, "failed to activate the Pkt-Driver");
     if (pktInfo.error)
     {
       strcat (pcap->errbuf, ": ");
@@ -711,7 +711,7 @@ static int init_watt32 (pcap_t *pcap)
 
   if (rc)
   {
-    pcap_snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE, "sock_init() failed, code %d", rc);
+    snprintf (pcap->errbuf, PCAP_ERRBUF_SIZE, "sock_init() failed, code %d", rc);
     return (0);
   }
 
