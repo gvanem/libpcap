@@ -14,8 +14,8 @@ matrix:
 
 install:
   - set _ECHO=c:\msys64\usr\bin\echo.exe -e
-  - cmd: if not exist c:\Users\appveyor\AppData\Local\Temp\1\chocolatey\winflexbison (
-      %_ECHO% "\e[1;33mDownloading and installing WinFlexBison.\e[0m"
+  - cmd: if not exist c:\ProgramData\chocolatey\bin\win_flex.exe (
+      %_ECHO% "\e[1;33mDownloading and installing win_flex and win_bison.\e[0m"
       cinst winflexbison )
 
   - cmd: where win_flex  & win_flex  --version
@@ -25,10 +25,10 @@ install:
       %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m"
       cinst winpcap )
 
-  - cmd: if not exist c:\projects\libpcap\Win32\WpdPack (
+  - cmd: if not exist c:\projects\libpcap\Win32\WpdPack\Lib\Packet.lib (
       %_ECHO% "\e[1;33mDownloading and installing WinPcap developer pack.\e[0m"
       curl -o .\WpdPack_4_1_2.zip -# https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip &
-      dir *.zip &
+      dir *.zip                          &
       md c:\projects\libpcap\Win32 > NUL &
       7z x .\WpdPack_4_1_2.zip -oc:\projects\libpcap\Win32 )
 
