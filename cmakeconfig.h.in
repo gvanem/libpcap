@@ -364,3 +364,5 @@
 /* on sinix */
 #cmakedefine sinix 1
 #endif
+
+#define PCAP_TRACE(level, fmt, ...)  (void)0
