@@ -366,3 +366,9 @@
 #endif
 
 #define PCAP_TRACE(level, fmt, ...)  (void)0
+
+#if defined(__MINGW32__)
+  #define __USE_MINGW_ANSI_STDIO
+  #include <stdio.h>
+#endif
+
