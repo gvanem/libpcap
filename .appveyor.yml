@@ -25,17 +25,16 @@ install:
       %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m"
       cinst winpcap )
 
-  - cmd: if not exist c:\projects\libpcap\Win32\WpdPack\Lib\Packet.lib (
-      %_ECHO% "\e[1;33mDownloading and installing WinPcap developer pack.\e[0m"
-      curl -o .\WpdPack_4_1_2.zip -# https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip &
-      dir *.zip                          &
-      md c:\projects\libpcap\Win32 > NUL &
-      7z x .\WpdPack_4_1_2.zip -oc:\projects\libpcap\Win32 )
+  - cmd: (%_ECHO% "\e[1;33mDownloading and installing WinPcap developer pack.\e[0m"
+          curl -o .\WpdPack_4_1_2.zip -# https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip &
+          dir *.zip                          &
+          md c:\projects\libpcap\Win32 > NUL &
+          7z x .\WpdPack_4_1_2.zip -oc:\projects\libpcap\Win32 )
 
-  - cmd: if not exist c:\projects\libpcap\Win32\Npcap_Guide.html (
-      %_ECHO% "\e[1;33mDownloading and installing NPcap.\e[0m"
-      curl -o .\npcap-sdk-1.05.zip -# https://nmap.org/npcap/dist/npcap-sdk-1.05.zip &
-      7z x .\npcap-sdk-1.05.zip -oc:\projects\libpcap\Win32 > NUL )
+  - cmd: (%_ECHO% "\e[1;33mDownloading and installing NPcap.\e[0m" &
+          curl -o .\npcap-sdk-1.05.zip -# https://nmap.org/npcap/dist/npcap-sdk-1.05.zip &
+          dir *.zip                                                                      &
+          7z x .\npcap-sdk-1.05.zip -oc:\projects\libpcap\Win32 > NUL )
 
 
 build_script:
