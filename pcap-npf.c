@@ -35,6 +35,7 @@
 #include <config.h>
 #endif
 
+#include <stdio.h>
 #include <errno.h>
 
 #if !defined(USE_WIN10PCAP)

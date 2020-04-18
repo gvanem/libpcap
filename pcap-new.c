@@ -48,6 +48,7 @@
 #include "rpcap-protocol.h"
 #include <errno.h>		// for the errno variable
 #include <stdlib.h>		// for malloc(), free(), ...
+#include <stdio.h>
 #include <string.h>		// for strstr, etc
 
 #ifndef _WIN32

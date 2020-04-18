@@ -38,6 +38,7 @@
 #include "ftmacros.h"
 
 #include <string.h>		/* for strlen(), ... */
+#include <stdio.h>
 #include <stdlib.h>		/* for malloc(), free(), ... */
 #include <stdarg.h>		/* for functions with variable number of arguments */
 #include <errno.h>		/* for the errno variable */
