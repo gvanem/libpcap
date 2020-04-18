@@ -45,3 +45,6 @@ test_script:
    - cmd: echo Trying to run 'run\rpcapd.exe' with the above 'winpcap' installation
    - cmd: run\rpcapd.exe
 
+cache:
+   - 'c:\Users\appveyor\AppData\Local\1\Temp\chocolatey'
+   - 'c:\ProgramData\chocolatey'
