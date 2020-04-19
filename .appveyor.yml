@@ -57,14 +57,14 @@ build_script:
   - if "%GENERATOR%" == "MinGW Makefiles" ( mingw32-make ) else ( msbuild -nologo -m -p:Configuration=Release pcap.sln )
 
 test_script:
-   - cmd: if "%GENERATOR%" == "MinGW Makefiles" (
+   - cmd: @if "%GENERATOR%" == "MinGW Makefiles" (
             set PROG=run\rpcapd.exe
           ) else (
             set PROG=run\Release\findalldevstest.exe
           )
-          %_ECHO "\e[1;33mTrying to run '%PROG%' with the above 'winpcap' installation\e[0m"
-          start /min %PROG%
-          sleep 10
+          %_ECHO "\e[1;33mTrying to run '%PROG%' with the above 'winpcap' installation\e[0m" &
+          start /min %PROG%    &
+          sleep 10             &
           taskkill /im %PROG%
 
 cache:
