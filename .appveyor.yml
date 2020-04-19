@@ -23,7 +23,6 @@ install:
 
   - cmd: where win_flex
   - cmd: where win_bison
-  - cmd: dir "c:\Program Files (x86)\WinPcap\"
 
   - cmd: if not exist "c:\Program Files (x86)\WinPcap\Uninstall.exe" (
            %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m" &
