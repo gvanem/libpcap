@@ -18,15 +18,15 @@ matrix:
 install:
   - set _ECHO=c:\msys64\usr\bin\echo.exe -e
   - cmd: if not exist c:\ProgramData\chocolatey\bin\win_flex.exe (
-      %_ECHO% "\e[1;33mDownloading and installing win_flex and win_bison.\e[0m" &
-      cinst winflexbison )
+           %_ECHO% "\e[1;33mDownloading and installing win_flex and win_bison.\e[0m" &
+           cinst winflexbison )
 
   - cmd: where win_flex
   - cmd: where win_bison
 
   - cmd: if not exist "c:\Program Files (x86)\WinPcap\Uninstall.exe" (
-      %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m" &
-      cinst winpcap )
+           %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m" &
+           cinst winpcap )
 
   - cmd: (%_ECHO% "\e[1;33mDownloading and installing WinPcap developer pack.\e[0m" &
           curl -o .\WpdPack_4_1_2.zip -# https://www.winpcap.org/install/bin/WpdPack_4_1_2.zip &
@@ -56,9 +56,16 @@ build_script:
   - cmake -DPacket_ROOT=c:\projects\libpcap\Win32\%SDK% -G "%GENERATOR%" ..
   - if "%GENERATOR%" == "MinGW Makefiles" ( mingw32-make ) else ( msbuild -nologo -m -p:Configuration=Release pcap.sln )
 
-# test_script:
-#    - cmd: echo Trying to run 'run\rpcapd.exe' with the above 'winpcap' installation
-#    - cmd: run\rpcapd.exe
+test_script:
+   - cmd: if "%GENERATOR%" == "MinGW Makefiles" (
+            set PROG=run\rpcapd.exe
+          ) else (
+            set PROG=run\Release\findalldevstest.exe
+          )
+          %_ECHO "\e[1;33mTrying to run '%PROG%' with the above 'winpcap' installation\e[0m"
+          start /min %PROG%
+          sleep 10
+          taskkill /im %PROG%
 
 cache:
    - 'c:\Users\appveyor\AppData\Local\1\Temp\chocolatey'
