@@ -23,6 +23,7 @@ install:
 
   - cmd: where win_flex
   - cmd: where win_bison
+  - cmd: where sleep
 
   - cmd: if not exist "c:\Program Files (x86)\WinPcap\Uninstall.exe" (
            %_ECHO% "\e[1;33mDownloading and installing WinPcap driver.\e[0m" &
@@ -60,9 +61,9 @@ test_script:
    - cmd: if "%GENERATOR%" == "MinGW Makefiles" ( set PROG=run\rpcapd.exe ) else ( set PROG=run\Release\findalldevstest.exe )
 
    - cmd: (%_ECHO% "\e[1;33mTrying to run '%PROG%' with the above 'winpcap' installation\e[0m" &
-           start /min %PROG%   &
-           sleep 10            &
-           taskkill /im %PROG% )
+           start /min %PROG%           &
+           c:\msys64\usr\bin\sleep 10  &
+           taskkill /IM %PROG% )
 
 cache:
    - 'c:\Users\appveyor\AppData\Local\1\Temp\chocolatey'
