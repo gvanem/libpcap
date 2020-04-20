@@ -59,7 +59,6 @@ build_script:
 
 test_script:
    - cmd: if "%GENERATOR%" == "MinGW Makefiles" ( set PROG=run\rpcapd.exe ) else ( set PROG=run\Release\findalldevstest.exe )
-   - cmd: %_ECHO% "\e[1;33mTrying to run '%PROG%' with the above 'winpcap' installation\e[0m"
    - cmd: start /min %PROG%
    - cmd: c:\msys64\usr\bin\sleep 10
    - cmd: taskkill /F /IM %PROG%
