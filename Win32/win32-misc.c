@@ -155,33 +155,9 @@ void crtdbug_init (void)
 #endif  /* _DEBUG */
 #endif  /* _MSC_VER */
 
-/* Watcom is really no longer supported.
+/* Rest of file. No longer a need for this since 'pcap-airpcap.c' does these things.
  */
-#if defined(__WATCOMC__)
-char *str_rip (char *s)
-{
-  char *p;
-
-  if ((p = strrchr(s,'\n')) != NULL) *p = '\0';
-  if ((p = strrchr(s,'\r')) != NULL) *p = '\0';
-  return (s);
-}
-
-const char *gai_strerror (int err)
-{
-  static char err_buf [512];
-
-  err_buf[0] = '\0';
-  FormatMessageA (FORMAT_MESSAGE_FROM_SYSTEM |
-                  FORMAT_MESSAGE_IGNORE_INSERTS |
-                  FORMAT_MESSAGE_MAX_WIDTH_MASK,
-                  NULL, err, LANG_NEUTRAL,
-                  err_buf, sizeof(err_buf)-1, NULL);
-  return str_rip (err_buf);
-}
-#endif
-
-#ifdef HAVE_AIRPCAP_API  /* Rest of file */
+#if defined(HAVE_AIRPCAP_API) && 0
 #include <airpcap.h>
 
 /* Copied from Packet32-int.h:
@@ -255,13 +231,12 @@ static void init_airpcap_dlts (pcap_t *p)
   if (!p->dlt_list)
      return;
 
-  p->dlt_list[0] = DLT_DOCSIS;
-  p->dlt_list[1] = DLT_IEEE802_11;
-  p->dlt_list[2] = DLT_IEEE802_11_RADIO;
-  p->dlt_list[3] = DLT_PPI;
-  p->dlt_count = 4;
+  p->dlt_list[0] = DLT_IEEE802_11;
+  p->dlt_list[1] = DLT_IEEE802_11_RADIO;
+  p->dlt_list[2] = DLT_PPI;
+  p->dlt_count = 3;
 
   PCAP_TRACE (2, "p->dlt_list: %p, p->dlt_count: %d\n", (const void*)p->dlt_list, p->dlt_count);
 }
-#endif  /* HAVE_AIRPCAP_API */
+#endif  /* HAVE_AIRPCAP_API && 0*/
 

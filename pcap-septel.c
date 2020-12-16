@@ -45,7 +45,7 @@ struct pcap_septel {
 /*
  *  Read at most max_packets from the capture queue and call the callback
  *  for each of them. Returns the number of packets handled, -1 if an
- *  error occured, or -2 if we were told to break out of the loop.
+ *  error occurred, or -2 if we were told to break out of the loop.
  */
 static int septel_read(pcap_t *p, int cnt, pcap_handler callback, u_char *user) {
 
@@ -233,7 +233,7 @@ pcap_t *septel_create(const char *device, char *ebuf, int *is_ours) {
 	/* OK, it's probably ours. */
 	*is_ours = 1;
 
-	p = pcap_create_common(ebuf, sizeof (struct pcap_septel));
+	p = PCAP_CREATE_COMMON(ebuf, struct pcap_septel);
 	if (p == NULL)
 		return NULL;
 

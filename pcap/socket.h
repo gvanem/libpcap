@@ -49,16 +49,6 @@
   #include <ws2tcpip.h>
 
   /*
-   * Winsock doesn't have this UN*X type; it's used in the UN*X
-   * sockets API.
-   *
-   * XXX - do we need to worry about UN*Xes so old that *they*
-   * don't have it, either?
-   */
-  #undef socklen_t
-  typedef int socklen_t;
-
-  /*
    * Winsock doesn't have this POSIX type; it's used for the
    * tv_usec value of struct timeval.
    */
@@ -85,13 +75,10 @@
    * in UN*X, it's -1.
    * We define INVALID_SOCKET to be -1 on UN*X, so that it can be used on
    * both platforms.
-   *
-   * Also defined in <sys/socket.h> for MSDOS (i.e Watt-32). But it is only
-   * used in Remote capture code which seems impossible (?) on MSDOS.
-   * Hence this value doesn't really matter.
    */
-  #undef  INVALID_SOCKET
-  #define INVALID_SOCKET -1
+  #ifndef INVALID_SOCKET
+    #define INVALID_SOCKET -1
+  #endif
 #endif /* _WIN32 */
 
 #endif /* lib_pcap_socket_h */

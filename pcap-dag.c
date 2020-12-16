@@ -333,7 +333,7 @@ dag_erf_ext_header_count(uint8_t * erf, size_t len)
 /*
  *  Read at most max_packets from the capture stream and call the callback
  *  for each of them. Returns the number of packets handled, -1 if an
- *  error occured, or -2 if we were told to break out of the loop.
+ *  error occurred, or -2 if we were told to break out of the loop.
  */
 static int
 dag_read(pcap_t *p, int cnt, pcap_handler callback, u_char *user)
@@ -1071,7 +1071,7 @@ pcap_t *dag_create(const char *device, char *ebuf, int *is_ours)
 	/* OK, it's probably ours. */
 	*is_ours = 1;
 
-	p = pcap_create_common(ebuf, sizeof (struct pcap_dag));
+	p = PCAP_CREATE_COMMON(ebuf, struct pcap_dag);
 	if (p == NULL)
 		return NULL;
 
@@ -1084,7 +1084,6 @@ pcap_t *dag_create(const char *device, char *ebuf, int *is_ours)
 	 * XXX Our native precision is 2^-32s, but libpcap doesn't support
 	 * power of two precisions yet. We can convert to either MICRO or NANO.
 	 */
-	p->tstamp_precision_count = 2;
 	p->tstamp_precision_list = malloc(2 * sizeof(u_int));
 	if (p->tstamp_precision_list == NULL) {
 		pcap_fmt_errmsg_for_errno(ebuf, PCAP_ERRBUF_SIZE,
@@ -1094,6 +1093,7 @@ pcap_t *dag_create(const char *device, char *ebuf, int *is_ours)
 	}
 	p->tstamp_precision_list[0] = PCAP_TSTAMP_PRECISION_MICRO;
 	p->tstamp_precision_list[1] = PCAP_TSTAMP_PRECISION_NANO;
+	p->tstamp_precision_count = 2;
 	return p;
 }
 
@@ -1114,7 +1114,7 @@ dag_stats(pcap_t *p, struct pcap_stat *ps) {
 		/* Note this counter is cleared at start of capture and will wrap at UINT_MAX.
 		 * The application is responsible for polling ps_drop frequently enough
 		 * to detect each wrap and integrate total drop with a wider counter */
-		if ((dag_error = dag_config_get_uint32_attribute_ex(pd->dag_ref, pd->drop_attr, &stream_drop) == kDagErrNone)) {
+		if ((dag_error = dag_config_get_uint32_attribute_ex(pd->dag_ref, pd->drop_attr, &stream_drop)) == kDagErrNone) {
 			pd->stat.ps_drop = stream_drop;
 		} else {
 			snprintf(p->errbuf, PCAP_ERRBUF_SIZE, "reading stream drop attribute: %s",

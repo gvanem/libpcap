@@ -38,7 +38,6 @@
 #include "ftmacros.h"
 
 #include <string.h>		/* for strlen(), ... */
-#include <stdio.h>
 #include <stdlib.h>		/* for malloc(), free(), ... */
 #include <stdarg.h>		/* for functions with variable number of arguments */
 #include <errno.h>		/* for the errno variable */
@@ -418,7 +417,11 @@ static int pcap_read_nocb_remote(pcap_t *p, struct pcap_pkthdr *pkt_header, u_ch
 		 */
 		FD_SET(pr->rmt_sockdata, &rfds);
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+		retval = 1;
+#else
 		retval = select((int) pr->rmt_sockdata + 1, &rfds, NULL, NULL, &tv);
+#endif
 
 		if (retval == -1)
 		{
@@ -1485,7 +1488,7 @@ error_nodiscard:
  * This function can be called in two cases:
  * - pcap_startcapture_remote() is called (we have to send the filter
  *   along with the 'start capture' command)
- * - we want to udpate the filter during a capture (i.e. pcap_setfilter()
+ * - we want to update the filter during a capture (i.e. pcap_setfilter()
  *   after the capture has been started)
  *
  * This function serializes the filter into the sending buffer ('sendbuf',
@@ -2320,7 +2323,7 @@ pcap_t *pcap_open_rpcap(const char *source, int snaplen, int flags, int read_tim
 	struct rpcap_header header;		/* header of the RPCAP packet */
 	struct rpcap_openreply openreply;	/* open reply message */
 
-	fp = pcap_create_common(errbuf, sizeof (struct pcap_rpcap));
+	fp = PCAP_CREATE_COMMON(errbuf, struct pcap_rpcap);
 	if (fp == NULL)
 	{
 		return NULL;

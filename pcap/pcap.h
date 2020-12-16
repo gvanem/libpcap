@@ -198,7 +198,7 @@ typedef struct pcap_addr pcap_addr_t;
  *
  * Then supply the changes by forking the branch at
  *
- *	https://github.com/the-tcpdump-group/libpcap/issues
+ *	https://github.com/the-tcpdump-group/libpcap/tree/master
  *
  * and issuing a pull request, so that future versions of libpcap and
  * programs that use it (such as tcpdump) will be able to read your new
@@ -245,7 +245,7 @@ typedef enum {
 struct pcap_pkthdr {
 	struct timeval ts;	/* time stamp */
 	bpf_u_int32 caplen;	/* length of portion present */
-	bpf_u_int32 len;	/* length this packet (off wire) */
+	bpf_u_int32 len;	/* length of this packet (off wire) */
 };
 
 /*
@@ -517,7 +517,19 @@ PCAP_API int	pcap_bufsize(pcap_t *);
 
 /* XXX */
 PCAP_API FILE	*pcap_file(pcap_t *);
+#ifdef _WIN32
+/*
+ * This probably shouldn't have been kept in WinPcap; most if not all
+ * UN*X code that used it won't work on Windows.  We deprecate it; if
+ * anybody really needs access to whatever HANDLE may be associated
+ * with a pcap_t (there's no guarantee that there is one), we can add
+ * a Windows-only pcap_handle() API that returns the HANDLE.
+ */
+PCAP_API int	pcap_fileno(pcap_t *)
+PCAP_DEPRECATED(pcap_fileno, "use 'pcap_handle'");
+#else /* _WIN32 */
 PCAP_API int	pcap_fileno(pcap_t *);
+#endif /* _WIN32 */
 
 #ifdef _WIN32
   PCAP_API int	pcap_wsockinit(void);
@@ -683,8 +695,8 @@ PCAP_API const char *pcap_lib_version(void);
  * - rpcap://devicename [opens the selected device devices available on the local host, without using the RPCAP protocol]
  * - rpcap://host/devicename [opens the selected device available on a remote host]
  * - rpcap://host:port/devicename [opens the selected device available on a remote host, using a non-standard port for RPCAP]
- * - adaptername [to open a local adapter; kept for compability, but it is strongly discouraged]
- * - (NULL) [to open the first local adapter; kept for compability, but it is strongly discouraged]
+ * - adaptername [to open a local adapter; kept for compatibility, but it is strongly discouraged]
+ * - (NULL) [to open the first local adapter; kept for compatibility, but it is strongly discouraged]
  *
  * The formats allowed by the pcap_findalldevs_ex() are the following:
  * - file://folder/ [lists all the files in the given folder]

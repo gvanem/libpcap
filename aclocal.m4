@@ -271,7 +271,7 @@ dnl with the flag in question, and the "treat warnings as errors" flag
 dnl set, and don't add the flag to the first argument if the compile
 dnl fails; this is for warning options cause problems that can't be
 dnl worked around.  If a third argument is supplied, a fourth argument
-dnl should also be supplied; it's a message desribing what the test
+dnl should also be supplied; it's a message describing what the test
 dnl program is checking.
 dnl
 AC_DEFUN(AC_LBL_CHECK_COMPILER_OPT,
@@ -522,7 +522,7 @@ AC_DEFUN(AC_LBL_SHLIBS_INIT,
 		    #
 		    V_SONAME_OPT="-Wl,+h,"
 		    #
-		    # By default, directories specifed with -L
+		    # By default, directories specified with -L
 		    # are added to the run-time search path, so
 		    # we don't add them in pcap-config.
 		    #
@@ -583,7 +583,7 @@ AC_DEFUN(AC_LBL_SHLIBS_INIT,
 		    V_SHLIB_OPT="-b"
 		    V_SONAME_OPT="+h "
 		    #
-		    # By default, directories specifed with -L
+		    # By default, directories specified with -L
 		    # are added to the run-time search path, so
 		    # we don't add them in pcap-config.
 		    #
@@ -1078,7 +1078,7 @@ dnl Check to see whether a particular set of modules exists. Similar to
 dnl PKG_CHECK_MODULES(), but does not set variables or print errors.
 dnl
 dnl Please remember that m4 expands AC_REQUIRE([PKG_PROG_PKG_CONFIG])
-dnl only at the first occurence in configure.ac, so if the first place
+dnl only at the first occurrence in configure.ac, so if the first place
 dnl it's called might be skipped (such as if it is within an "if", you
 dnl have to call PKG_CHECK_EXISTS manually
 AC_DEFUN([PKG_CHECK_EXISTS],

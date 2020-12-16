@@ -143,7 +143,7 @@ static int pcap_stats_dos (pcap_t *p, struct pcap_stat *ps)
 
 pcap_t *pcap_create_interface (const char *device _U_, char *ebuf)
 {
-  pcap_t *p = pcap_create_common(ebuf, sizeof (struct pcap_dos));
+  pcap_t *p = PCAP_CREATE_COMMON(ebuf, struct pcap_dos);
 
   if (!p)
      return (NULL);

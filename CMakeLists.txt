@@ -185,6 +185,7 @@ endif(WIN32)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 if(WIN32)
     set(Packet_ROOT "" CACHE PATH "Path to directory with include and lib subdirectories for packet.dll")
+    set(AirPcap_ROOT "" CACHE PATH "Path to directory with include and lib subdirectories for airpcap.dll")
 endif(WIN32)
 
 option(ENABLE_PROFILING "Enable code profiling" OFF)
@@ -313,15 +314,16 @@ if(WIN32)
         cmake_push_check_state()
         set(CMAKE_REQUIRED_LIBRARIES ${PACKET_LIBRARIES})
         check_function_exists(PacketIsLoopbackAdapter HAVE_PACKET_IS_LOOPBACK_ADAPTER)
+        check_function_exists(PacketGetTimestampModes HAVE_PACKET_GET_TIMESTAMP_MODES)
         cmake_pop_check_state()
     endif(PACKET_FOUND)
 
     message(STATUS "checking for Npcap's version.h")
     check_symbol_exists(WINPCAP_PRODUCT_NAME "../../version.h" HAVE_VERSION_H)
     if(HAVE_VERSION_H)
-	    message(STATUS "HAVE version.h")
+        message(STATUS "HAVE version.h")
     else(HAVE_VERSION_H)
-	    message(STATUS "MISSING version.h")
+        message(STATUS "MISSING version.h")
     endif(HAVE_VERSION_H)
 
 endif(WIN32)
@@ -1222,6 +1224,8 @@ else()
 endif(WIN32)
 message(STATUS "Packet capture mechanism type: ${PCAP_TYPE}")
 
+find_package(PkgConfig QUIET)
+
 #
 # Do capture-mechanism-dependent tests.
 #
@@ -1293,51 +1297,28 @@ else(WIN32)
 
         #
         # Do we have libnl?
+        # We only want version 3.  Version 2 was, apparently,
+        # short-lived, and version 1 is source and binary
+        # incompatible with version 3, and it appears that,
+        # these days, everybody's using version 3.  We're
+        # not supporting older versions of the Linux kernel;
+        # let's drop support for older versions of libnl, too.
         #
         if(BUILD_WITH_LIBNL)
-            #
-            # Try libnl 3.x first.
-            #
-            cmake_push_check_state()
-            set(CMAKE_REQUIRED_LIBRARIES nl-3)
-            check_function_exists(nl_socket_alloc HAVE_LIBNL)
-            cmake_pop_check_state()
-            if(HAVE_LIBNL)
-                #
-                # Yes, we have libnl 3.x.
-                #
-                set(PCAP_LINK_LIBRARIES nl-genl-3 nl-3 ${PCAP_LINK_LIBRARIES})
-                set(HAVE_LIBNL_3_x ON)
-                set(HAVE_LIBNL_NLE ON)
-                set(HAVE_LIBNL_SOCKETS ON)
-                include_directories("/usr/include/libnl3")
+            pkg_check_modules(LIBNL libnl-3.0)
+            if(LIBNL_FOUND)
+                set(PCAP_LINK_LIBRARIES ${LIBNL_LIBRARIES} ${PCAP_LINK_LIBRARIES})
             else()
-                #
-                # Try libnl 2.x.
-                #
                 cmake_push_check_state()
-                set(CMAKE_REQUIRED_LIBRARIES nl)
+                set(CMAKE_REQUIRED_LIBRARIES nl-3)
                 check_function_exists(nl_socket_alloc HAVE_LIBNL)
                 cmake_pop_check_state()
                 if(HAVE_LIBNL)
                     #
-                    # Yes, we have libnl 2.x.
+                    # Yes, we have libnl 3.x.
                     #
-                    set(PCAP_LINK_LIBRARIES nl-genl nl ${PCAP_LINK_LIBRARIES})
-                    set(HAVE_LIBNL_2_x ON)
-                    set(HAVE_LIBNL_NLE ON)
-                    set(HAVE_LIBNL_SOCKETS ON)
-                else()
-                    #
-                    # No, we don't; do we have libnl 1.x?
-                    #
-                    cmake_push_check_state()
-                    set(CMAKE_REQUIRED_LIBRARIES nl)
-                    check_function_exists(nl_handle_alloc HAVE_LIBNL)
-                    cmake_pop_check_state()
-                    if(HAVE_LIBNL)
-                        set(PCAP_LINK_LIBRARIES nl ${PCAP_LINK_LIBRARIES})
-                    endif()
+                    set(PCAP_LINK_LIBRARIES nl-genl-3 nl-3 ${PCAP_LINK_LIBRARIES})
+                    include_directories("/usr/include/libnl3")
                 endif()
             endif()
         else()
@@ -1591,11 +1572,16 @@ if(NOT DISABLE_DPDK)
         # We include rte_bus.h, and older versions of DPDK didn't have
         # it, so check for it.
         #
+        # Also, we call rte_eth_dev_count_avail(), and older versions
+        # of DPDK didn't have it, so check for it.
+        #
         cmake_push_check_state()
         set(CMAKE_REQUIRED_INCLUDES ${dpdk_INCLUDE_DIRS})
         check_include_file(rte_bus.h HAVE_RTE_BUS_H)
+        set(CMAKE_REQUIRED_LIBRARIES ${dpdk_LIBRARIES})
+        check_function_exists(rte_eth_dev_count_avail HAVE_RTE_ETH_DEV_COUNT_AVAIL)
         cmake_pop_check_state()
-        if(HAVE_RTE_BUS_H)
+        if(HAVE_RTE_BUS_H AND HAVE_RTE_ETH_DEV_COUNT_AVAIL)
             set(DPDK_C_FLAGS "-march=native")
             set(DPDK_LIB dpdk rt m numa dl)
             set(CMAKE_C_FLAGS ${CMAKE_C_FLAGS} ${DPDK_C_FLAGS})
@@ -1604,6 +1590,18 @@ if(NOT DISABLE_DPDK)
             set(PCAP_LINK_LIBRARIES ${PCAP_LINK_LIBRARIES} ${dpdk_LIBRARIES})
             set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} pcap-dpdk.c)
             set(PCAP_SUPPORT_DPDK TRUE)
+
+            #
+            # Check whether the rte_ether.h file defines
+            # struct ether_addr or struct rte_ether_addr.
+            #
+            # ("API compatibility?  That's for losers!")
+            #
+            cmake_push_check_state()
+            set(CMAKE_REQUIRED_INCLUDES ${dpdk_INCLUDE_DIRS})
+            set(CMAKE_EXTRA_INCLUDE_FILES rte_ether.h)
+            check_type_size("struct rte_ether_addr" STRUCT_RTE_ETHER_ADDR)
+            cmake_pop_check_state()
         endif()
     endif()
 endif()
@@ -1794,6 +1792,27 @@ if(NOT DISABLE_SNF)
     endif()
 endif()
 
+# Check for Riverbed AirPcap support.
+if(NOT DISABLE_AIRPCAP)
+    #
+    # Try to find the AirPcap header file and library.
+    #
+    find_package(AirPcap)
+
+    #
+    # Did we succeed?
+    #
+    if(AIRPCAP_FOUND)
+        #
+        # Yes.
+        #
+        include_directories(AFTER ${AIRPCAP_INCLUDE_DIRS})
+        set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} pcap-airpcap.c)
+        set(HAVE_AIRPCAP_API TRUE)
+        set(PCAP_LINK_LIBRARIES ${PCAP_LINK_LIBRARIES} ${AIRPCAP_LIBRARIES})
+    endif()
+endif()
+
 # Check for Riverbed TurboCap support.
 if(NOT DISABLE_TC)
     #
@@ -1811,7 +1830,7 @@ if(NOT DISABLE_TC)
         include_directories(AFTER ${TC_INCLUDE_DIRS})
         set(PROJECT_SOURCE_LIST_C ${PROJECT_SOURCE_LIST_C} pcap-tc.c)
         set(HAVE_TC_API TRUE)
-        set(PCAP_LINK_LIBRARIES "${PCAP_LINK_LIBRARIES} ${TC_LIBRARIES} ${CMAKE_USE_PTHREADS_INIT} stdc++")
+        set(PCAP_LINK_LIBRARIES ${PCAP_LINK_LIBRARIES} ${TC_LIBRARIES} ${CMAKE_USE_PTHREADS_INIT} stdc++)
     endif()
 endif()
 
@@ -1915,6 +1934,11 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.devel OR EXISTS ${CMAKE_BINARY_DIR}/.deve
         # XXX - add /Qspectre if that is really worth doing.
         #
         check_and_add_compiler_option(-wd5045)
+
+        #
+        # Treat all (remaining) warnings as errors.
+        #
+        check_and_add_compiler_option(-WX)
     else()
         #
         # Other compilers, including MSVC with a Clang front end and
@@ -2035,6 +2059,27 @@ find_program(YACC_EXECUTABLE NAMES bison win_bison byacc yacc)
 if(YACC_EXECUTABLE STREQUAL "YACC_EXECUTABLE-NOTFOUND")
     message(FATAL_ERROR "Neither bison nor win_bison nor byacc nor yacc was found.")
 endif()
+
+if(YACC_EXECUTABLE MATCHES "byacc" OR YACC_EXECUTABLE MATCHES "yacc")
+    #
+    # Berkeley YACC doesn't support "%define api.pure", so use
+    # "%pure-parser".
+    #
+    set(REENTRANT_PARSER "%pure-parser")
+else()
+    #
+    # Bison prior to 2.4(.1) doesn't support "%define api.pure", so use
+    # "%pure-parser".
+    #
+    execute_process(COMMAND ${YACC_EXECUTABLE} -V OUTPUT_VARIABLE bison_full_version)
+    string(REGEX MATCH "[1-9][0-9]*[.][1-9][0-9]*" bison_major_minor ${bison_full_version})
+    if (bison_major_minor VERSION_LESS "2.4")
+        set(REENTRANT_PARSER "%pure-parser")
+    else()
+        set(REENTRANT_PARSER "%define api.pure")
+    endif()
+endif()
+    
 message(STATUS "Parser generator: ${YACC_EXECUTABLE}")
 
 #
@@ -2048,9 +2093,9 @@ if("${YACC_NAME}" STREQUAL "bison" OR "${YACC_NAME}" STREQUAL "win_bison")
 endif()
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/grammar.c ${CMAKE_CURRENT_BINARY_DIR}/grammar.h
-    SOURCE ${pcap_SOURCE_DIR}/grammar.y
-    COMMAND ${YACC_EXECUTABLE} ${YACC_COMPATIBILITY_FLAG} -p pcap_ -o ${CMAKE_CURRENT_BINARY_DIR}/grammar.c -d ${pcap_SOURCE_DIR}/grammar.y
-    DEPENDS ${pcap_SOURCE_DIR}/grammar.y
+    SOURCE ${pcap_BINARY_DIR}/grammar.y
+    COMMAND ${YACC_EXECUTABLE} ${YACC_COMPATIBILITY_FLAG} -p pcap_ -o ${CMAKE_CURRENT_BINARY_DIR}/grammar.c -d ${pcap_BINARY_DIR}/grammar.y
+    DEPENDS ${pcap_BINARY_DIR}/grammar.y
 )
 
 #
@@ -2435,6 +2480,12 @@ endif()
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cmakeconfig.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h)
 
 ######################################
+# Write out the grammar.y file
+######################################
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/grammar.y.in ${CMAKE_CURRENT_BINARY_DIR}/grammar.y @ONLY)
+
+######################################
 # Install pcap library, include files, and man pages
 ######################################
 
@@ -2669,6 +2720,7 @@ if(NOT MSVC)
         endforeach(TEMPLATE_MANPAGE)
         install(FILES ${MAN3PCAP} DESTINATION ${CMAKE_INSTALL_MANDIR}/man3)
         install_manpage_symlink(pcap_datalink_val_to_name.3pcap pcap_datalink_val_to_description.3pcap ${CMAKE_INSTALL_MANDIR}/man3)
+        install_manpage_symlink(pcap_datalink_val_to_name.3pcap pcap_datalink_val_to_description_or_dlt.3pcap ${CMAKE_INSTALL_MANDIR}/man3)
         install_manpage_symlink(pcap_dump_open.3pcap pcap_dump_fopen.3pcap ${CMAKE_INSTALL_MANDIR}/man3)
         install_manpage_symlink(pcap_findalldevs.3pcap pcap_freealldevs.3pcap ${CMAKE_INSTALL_MANDIR}/man3)
         install_manpage_symlink(pcap_geterr.3pcap pcap_perror.3pcap ${CMAKE_INSTALL_MANDIR}/man3)

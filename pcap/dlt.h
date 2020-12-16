@@ -473,7 +473,7 @@
  * interface (irdaX), but not on a raw serial port.
  * Note the capture is done in "Linux-cooked" mode, so each packet include
  * a fake packet header (struct sll_header). This is because IrDA packet
- * decoding is dependant on the direction of the packet (incomming or
+ * decoding is dependent on the direction of the packet (incoming or
  * outgoing).
  * When/if other platform implement IrDA capture, we may revisit the
  * issue and define a real DLT_IRDA...
@@ -565,7 +565,7 @@
  * input packets such as port scans, packets from old lost connections,
  * etc. to force the connection to stay up).
  *
- * The first byte of the PPP header (0xff03) is modified to accomodate
+ * The first byte of the PPP header (0xff03) is modified to accommodate
  * the direction - 0x00 = IN, 0x01 = OUT.
  */
 #define DLT_PPP_PPPD		166
@@ -817,8 +817,11 @@
  * PPP, with a one-byte direction pseudo-header prepended - zero means
  * "received by this host", non-zero (any non-zero value) means "sent by
  * this host" - as per Will Barker <w.barker@zen.co.uk>.
+ *
+ * Don't confuse this with DLT_PPP_WITH_DIRECTION, which is an old
+ * name for what is now called DLT_PPP_PPPD.
  */
-#define DLT_PPP_WITH_DIR	204	/* Don't confuse with DLT_PPP_WITH_DIRECTION */
+#define DLT_PPP_WITH_DIR	204
 
 /*
  * Cisco HDLC, with a one-byte direction pseudo-header prepended - zero
@@ -1390,7 +1393,7 @@
 
 /*
  * DisplayPort AUX channel monitoring data as specified by VESA
- * DisplayPort(DP) Standard preceeded by a pseudo-header.
+ * DisplayPort(DP) Standard preceded by a pseudo-header.
  *    per dirk.eibach at gdsys.cc
  */
 #define DLT_DISPLAYPORT_AUX	275

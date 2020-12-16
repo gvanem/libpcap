@@ -7,22 +7,36 @@
 
 static CONSOLE_SCREEN_BUFFER_INFO console_info;
 static HANDLE                     stdout_hnd;
-static int                        dbg_level;
+static CRITICAL_SECTION           trace_crit;
 
-CRITICAL_SECTION  g_trace_crit;
+void _pcap_trace_exit (void)
+{
+  PCAP_TRACE (1, "In %s()\n", __FUNCTION__);
+  DeleteCriticalSection (&trace_crit);
+}
 
 int _pcap_trace_level (void)
 {
+  static int dbg_level = -1;
   const char *env;
 
-  if (g_trace_crit.OwningThread)   /* Already done this, get out */
+  if (dbg_level != -1)   /* Already done this, get out */
      return (dbg_level);
 
   env = getenv ("PCAP_TRACE");
-  dbg_level = env ? (*env-'0') : 0;
-  stdout_hnd = GetStdHandle (STD_OUTPUT_HANDLE);
-  GetConsoleScreenBufferInfo (stdout_hnd, &console_info);
-  InitializeCriticalSection (&g_trace_crit);
+  if (env)
+  {
+    if (isdigit((int)*env))
+         dbg_level = (*env - '0');
+    else dbg_level = 0;
+  }
+  if (dbg_level > 0)
+  {
+    stdout_hnd = GetStdHandle (STD_OUTPUT_HANDLE);
+    GetConsoleScreenBufferInfo (stdout_hnd, &console_info);
+    InitializeCriticalSection (&trace_crit);
+    atexit (_pcap_trace_exit);
+  }
   return (dbg_level);
 }
 
@@ -30,12 +44,19 @@ void _pcap_trace_color (unsigned short col)
 {
   fflush (stdout);
   if (col == 0)
-       SetConsoleTextAttribute (stdout_hnd, console_info.wAttributes);
-  else SetConsoleTextAttribute (stdout_hnd, (console_info.wAttributes & ~7) | col);
+  {
+    SetConsoleTextAttribute (stdout_hnd, console_info.wAttributes);
+    LeaveCriticalSection (&trace_crit);
+  }
+  else
+  {
+    EnterCriticalSection (&trace_crit);
+    SetConsoleTextAttribute (stdout_hnd, (console_info.wAttributes & ~7) | col);
+  }
 }
 
 /*
- * Strip drive-letter, directory and suffix from a filename.
+ * Strip drive-letter and directory from a filename.
  */
 #define IS_SLASH(c)  ((c) == '\\' || (c) == '/')
 

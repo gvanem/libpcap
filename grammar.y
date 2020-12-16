@@ -1,3 +1,8 @@
+ /*
+  * Generated grammar.y for MinGW, MSVC and clang-cl at 16-December-2020.
+  * DO NOT EDIT!
+  * Edit F:/MingW32/src/inet/libpcap/Makefile.Windows instead.
+  */
 /*
  * We want a reentrant parser.
  */
@@ -355,6 +360,7 @@ DIAG_OFF_BISON_BYACC
 %token  ATALK AARP DECNET LAT SCA MOPRC MOPDL
 %token  TK_BROADCAST TK_MULTICAST
 %token  NUM INBOUND OUTBOUND
+%token  IFINDEX
 %token  PF_IFNAME PF_RSET PF_RNR PF_SRNR PF_REASON PF_ACTION
 %token	TYPE SUBTYPE DIR ADDR1 ADDR2 ADDR3 ADDR4 RA TA
 %token  LINK
@@ -581,6 +587,7 @@ other:	  pqual TK_BROADCAST	{ CHECK_PTR_VAL(($$ = gen_broadcast(cstate, $1))); }
 	| CBYTE NUM byteop NUM	{ CHECK_PTR_VAL(($$ = gen_byteop(cstate, $3, $2, $4))); }
 	| INBOUND		{ CHECK_PTR_VAL(($$ = gen_inbound(cstate, 0))); }
 	| OUTBOUND		{ CHECK_PTR_VAL(($$ = gen_inbound(cstate, 1))); }
+	| IFINDEX NUM		{ CHECK_PTR_VAL(($$ = gen_ifindex(cstate, $2))); }
 	| VLAN pnum		{ CHECK_PTR_VAL(($$ = gen_vlan(cstate, $2, 1))); }
 	| VLAN			{ CHECK_PTR_VAL(($$ = gen_vlan(cstate, 0, 0))); }
 	| MPLS pnum		{ CHECK_PTR_VAL(($$ = gen_mpls(cstate, $2, 1))); }

@@ -56,13 +56,13 @@
 #include <linux/netfilter/nfnetlink_log.h>
 #include <linux/netfilter/nfnetlink_queue.h>
 
-/* NOTE: if your program drops privilages after pcap_activate() it WON'T work with nfqueue.
+/* NOTE: if your program drops privileges after pcap_activate() it WON'T work with nfqueue.
  *       It took me quite some time to debug ;/
  *
- *       Sending any data to nfnetlink socket requires CAP_NET_ADMIN privilages,
+ *       Sending any data to nfnetlink socket requires CAP_NET_ADMIN privileges,
  *       and in nfqueue we need to send verdict reply after recving packet.
  *
- *       In tcpdump you can disable dropping privilages with -Z root
+ *       In tcpdump you can disable dropping privileges with -Z root
  */
 
 #include "pcap-netfilter-linux.h"
@@ -743,7 +743,7 @@ netfilter_create(const char *device, char *ebuf, int *is_ours)
 	/* OK, it's probably ours. */
 	*is_ours = 1;
 
-	p = pcap_create_common(ebuf, sizeof (struct pcap_netfilter));
+	p = PCAP_CREATE_COMMON(ebuf, struct pcap_netfilter);
 	if (p == NULL)
 		return (NULL);
 

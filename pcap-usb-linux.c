@@ -41,6 +41,8 @@
 #include "pcap-usb-linux.h"
 #include "pcap/usb.h"
 
+#include "extract.h"
+
 #ifdef NEED_STRERROR_H
 #include "strerror.h"
 #endif
@@ -562,7 +564,7 @@ probe_devices(int bus)
 		ret = ioctl(fd, USBDEVFS_CONTROL, &ctrl);
 		if (ret >= 0) {
 			uint16_t wtotallength;
-			wtotallength = (configdesc[2]) | (configdesc[3] << 8);
+			wtotallength = EXTRACT_LE_U_2(&configdesc[2]);
 #ifdef HAVE_STRUCT_USBDEVFS_CTRLTRANSFER_BREQUESTTYPE
 			ctrl.wLength = wtotallength;
 #else
@@ -615,7 +617,7 @@ usb_create(const char *device, char *ebuf, int *is_ours)
 	/* OK, it's probably ours. */
 	*is_ours = 1;
 
-	p = pcap_create_common(ebuf, sizeof (struct pcap_usb_linux));
+	p = PCAP_CREATE_COMMON(ebuf, struct pcap_usb_linux);
 	if (p == NULL)
 		return (NULL);
 
@@ -897,9 +899,13 @@ usb_read_linux(pcap_t *handle, int max_packets _U_, pcap_handler callback, u_cha
 		&cnt);
 	if (ret < 8)
 	{
+		char string_truncated[181];
+
+		strncpy(string_truncated, string, sizeof(string_truncated));
+		string_truncated[sizeof(string_truncated) - 1] = 0;
 		snprintf(handle->errbuf, PCAP_ERRBUF_SIZE,
-		    "Can't parse USB bus message '%s', too few tokens (expected 8 got %d)",
-		    string, ret);
+			 "Can't parse USB bus message '%s', too few tokens (expected 8 got %d)",
+			 string_truncated, ret);
 		return -1;
 	}
 	uhdr->id = tag;
@@ -1370,7 +1376,7 @@ usb_read_linux_mmap(pcap_t *handle, int max_packets, pcap_handler callback, u_ch
 			}
 		}
 
-		/* with max_packets specifying "unlimited" we stop afer the first chunk*/
+		/* with max_packets specifying "unlimited" we stop after the first chunk*/
 		if (PACKET_COUNT_IS_UNLIMITED(max_packets) || (packets == max_packets))
 			break;
 	}

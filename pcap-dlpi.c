@@ -633,7 +633,7 @@ pcap_activate_dlpi(pcap_t *p)
 	**/
 	if (dlbindreq(p->fd, 0, p->errbuf) < 0 ||
 	    dlbindack(p->fd, (char *)buf, p->errbuf, NULL) < 0) {
-	    	status = PCAP_ERROR;
+		status = PCAP_ERROR;
 		goto bad;
 	}
 #endif /* AIX vs. HP-UX vs. other */
@@ -761,7 +761,7 @@ pcap_activate_dlpi(pcap_t *p)
 	*/
 	if (dlinforeq(p->fd, p->errbuf) < 0 ||
 	    dlinfoack(p->fd, (char *)buf, p->errbuf) < 0) {
-	    	status = PCAP_ERROR;
+		status = PCAP_ERROR;
 		goto bad;
 	}
 
@@ -1813,7 +1813,7 @@ get_dlpi_ppa(register int fd, register const char *ifname, register u_int unit,
 	}
 	if (nl[NL_IFNET].n_value == 0) {
 		snprintf(ebuf, PCAP_ERRBUF_SIZE,
-		    "could't find %s kernel symbol",
+		    "couldn't find %s kernel symbol",
 		    nl[NL_IFNET].n_name);
 		return (PCAP_ERROR);
 	}
@@ -1880,7 +1880,7 @@ pcap_create_interface(const char *device _U_, char *ebuf)
 	struct pcap_dlpi *pd;
 #endif
 
-	p = pcap_create_common(ebuf, sizeof (struct pcap_dlpi));
+	p = PCAP_CREATE_COMMON(ebuf, struct pcap_dlpi);
 	if (p == NULL)
 		return (NULL);
 

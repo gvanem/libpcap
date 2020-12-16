@@ -395,7 +395,7 @@ daemon_serviceloop(SOCKET sockctrl, int isactive, char *passiveClients,
 			if (sock_send(sockctrl, NULL, (char *) &tls_header,
 			    TLS_RECORD_HEADER_LEN, errbuf, PCAP_ERRBUF_SIZE) == -1)
 			{
-				// That failed; log a messsage and give up.
+				// That failed; log a message and give up.
 				rpcapd_log(LOGPRIO_ERROR, "Send to client failed: %s", errbuf);
 				goto end;
 			}
@@ -405,7 +405,7 @@ daemon_serviceloop(SOCKET sockctrl, int isactive, char *passiveClients,
 			if (sock_send(sockctrl, NULL, (char *) &tls_alert,
 			    TLS_ALERT_LEN, errbuf, PCAP_ERRBUF_SIZE) == -1)
 			{
-				// That failed; log a messsage and give up.
+				// That failed; log a message and give up.
 				rpcapd_log(LOGPRIO_ERROR, "Send to client failed: %s", errbuf);
 				goto end;
 			}
@@ -750,7 +750,7 @@ daemon_serviceloop(SOCKET sockctrl, int isactive, char *passiveClients,
 		//
 		// Be carefully: the capture can have been started, but an error occurred (so session != NULL, but
 		//  sockdata is 0
-		if ((!pars.isactive) &&  ((session == NULL) || ((session != NULL) && (session->sockdata == 0))))
+		if ((!pars.isactive) && (session == NULL || session->sockdata == 0))
 		{
 			// Check for the initial timeout
 			FD_ZERO(&rfds);
@@ -760,7 +760,11 @@ daemon_serviceloop(SOCKET sockctrl, int isactive, char *passiveClients,
 
 			FD_SET(pars.sockctrl, &rfds);
 
+#ifdef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
+			retval = 1;
+#else
 			retval = select((int)pars.sockctrl + 1, &rfds, NULL, NULL, &tv);
+#endif
 			if (retval == -1)
 			{
 				sock_geterror("select() failed", errmsgbuf, PCAP_ERRBUF_SIZE);
@@ -1111,6 +1115,9 @@ end:
 		session = NULL;
 	}
 
+	if (passiveClients) {
+		free(passiveClients);
+	}
 	//
 	// Finish using the SSL handle for the control socket, if we
 	// have an SSL connection, and close the control socket.
@@ -1377,7 +1384,7 @@ daemon_msg_auth_req(struct daemon_slpars *pars, uint32 plen)
 	// Send the reply.
 	if (sock_send(pars->sockctrl, pars->ssl, sendbuf, sendbufidx, errbuf, PCAP_ERRBUF_SIZE) == -1)
 	{
-		// That failed; log a messsage and give up.
+		// That failed; log a message and give up.
 		rpcapd_log(LOGPRIO_ERROR, "Send to client failed: %s", errbuf);
 		return -1;
 	}
@@ -2423,7 +2430,7 @@ daemon_msg_updatefilter_req(uint8 ver, struct daemon_slpars *pars,
 
 	if (sock_send(pars->sockctrl, pars->ssl, (char *) &header, sizeof (struct rpcap_header), pcap_geterr(session->fp), PCAP_ERRBUF_SIZE))
 	{
-		// That failed; log a messsage and give up.
+		// That failed; log a message and give up.
 		rpcapd_log(LOGPRIO_ERROR, "Send to client failed: %s", errbuf);
 		return -1;
 	}
@@ -2473,7 +2480,7 @@ daemon_msg_setsampling_req(uint8 ver, struct daemon_slpars *pars, uint32 plen,
 
 	if (sock_send(pars->sockctrl, pars->ssl, (char *) &header, sizeof (struct rpcap_header), errbuf, PCAP_ERRBUF_SIZE) == -1)
 	{
-		// That failed; log a messsage and give up.
+		// That failed; log a message and give up.
 		rpcapd_log(LOGPRIO_ERROR, "Send to client failed: %s", errbuf);
 		return -1;
 	}
@@ -2859,6 +2866,7 @@ daemon_seraddr(struct sockaddr_storage *sockaddrin, struct rpcap_sockaddr *socka
 */
 void sleep_secs(int secs)
 {
+#ifndef FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION
 #ifdef _WIN32
 	Sleep(secs*1000);
 #else
@@ -2869,6 +2877,7 @@ void sleep_secs(int secs)
 	secs_remaining = secs;
 	while (secs_remaining != 0)
 		secs_remaining = sleep(secs_remaining);
+#endif
 #endif
 }
 

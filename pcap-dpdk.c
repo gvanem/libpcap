@@ -34,7 +34,7 @@ Description:
 
 Limitations:
 1. DPDK support will be on if DPDK is available. Please set DIR for --with-dpdk[=DIR] with ./configure or -DDPDK_DIR[=DIR] with cmake if DPDK is installed manually.
-2. Only support link libdpdk.so dynamicly, because the libdpdk.a will not work correctly.
+2. Only support link libdpdk.so dynamically, because the libdpdk.a will not work correctly.
 3. Only support read operation, and packet injection has not been supported yet.
 
 Usage:
@@ -55,7 +55,7 @@ $RTE_SDK/examples/l2fwd/$RTE_TARGET/l2fwd -dlibrte_pmd_e1000.so -dlibrte_pmd_ixg
 
 3. Compile libpcap with dpdk options.
 
-If DPDK has not been found automatically, you shall export DPDK envionment variable which are used for compiling DPDK. And then pass $RTE_SDK/$RTE_TARGET to --with-dpdk or -DDPDK_DIR
+If DPDK has not been found automatically, you shall export DPDK environment variable which are used for compiling DPDK. And then pass $RTE_SDK/$RTE_TARGET to --with-dpdk or -DDPDK_DIR
 
 export RTE_SDK={your DPDK base directory}
 export RTE_TARGET={your target name}
@@ -115,6 +115,16 @@ env DPDK_CFG="--log-level=debug -l0 -dlibrte_pmd_e1000.so -dlibrte_pmd_ixgbe.so 
 #include "pcap-int.h"
 #include "pcap-dpdk.h"
 
+/*
+ * Deal with API changes that break source compatibility.
+ */
+
+#ifdef HAVE_STRUCT_RTE_ETHER_ADDR
+#define ETHER_ADDR_TYPE	struct rte_ether_addr
+#else
+#define ETHER_ADDR_TYPE	struct ether_addr
+#endif
+
 #define DPDK_DEF_LOG_LEV RTE_LOG_ERR
 //
 // This is set to 0 if we haven't initialized DPDK yet, 1 if we've
@@ -152,7 +162,11 @@ static char dpdk_cfg_buf[DPDK_CFG_MAX_LEN];
 static uint16_t nb_rxd = RTE_TEST_RX_DESC_DEFAULT;
 static uint16_t nb_txd = RTE_TEST_TX_DESC_DEFAULT;
 
+#ifdef RTE_ETHER_MAX_JUMBO_FRAME_LEN
+#define RTE_ETH_PCAP_SNAPLEN RTE_ETHER_MAX_JUMBO_FRAME_LEN
+#else
 #define RTE_ETH_PCAP_SNAPLEN ETHER_MAX_JUMBO_FRAME_LEN
+#endif
 
 static struct rte_eth_dev_tx_buffer *tx_buffer;
 
@@ -176,7 +190,7 @@ struct pcap_dpdk{
 	uint64_t bps;
 	struct rte_mempool * pktmbuf_pool;
 	struct dpdk_ts_helper ts_helper;
-	struct ether_addr eth_addr;
+	ETHER_ADDR_TYPE eth_addr;
 	char mac_addr[DPDK_MAC_ADDR_SIZE];
 	char pci_addr[DPDK_PCI_ADDR_SIZE];
 	unsigned char pcap_tmp_buf[RTE_ETH_PCAP_SNAPLEN];
@@ -258,7 +272,7 @@ static inline void calculate_timestamp(struct dpdk_ts_helper *helper,struct time
 	timeradd(&(helper->start_time), &cur_time, ts);
 }
 
-static uint32_t dpdk_gather_data(unsigned char *data, int len, struct rte_mbuf *mbuf)
+static uint32_t dpdk_gather_data(unsigned char *data, uint32_t len, struct rte_mbuf *mbuf)
 {
 	uint32_t total_len = 0;
 	while (mbuf && (total_len+mbuf->data_len) < len ){
@@ -270,7 +284,7 @@ static uint32_t dpdk_gather_data(unsigned char *data, int len, struct rte_mbuf *
 }
 
 
-static int dpdk_read_with_timeout(pcap_t *p, uint16_t portid, struct rte_mbuf **pkts_burst, const uint16_t burst_cnt){
+static int dpdk_read_with_timeout(pcap_t *p, struct rte_mbuf **pkts_burst, const uint16_t burst_cnt){
 	struct pcap_dpdk *pd = (struct pcap_dpdk*)(p->priv);
 	int nb_rx = 0;
 	int timeout_ms = p->opt.timeout;
@@ -279,7 +293,7 @@ static int dpdk_read_with_timeout(pcap_t *p, uint16_t portid, struct rte_mbuf **
 		// In non-blocking mode, just read once, no matter how many packets are captured.
 		nb_rx = (int)rte_eth_rx_burst(pd->portid, 0, pkts_burst, burst_cnt);
 	}else{
-		// In blocking mode, read many times until packets are captured or timeout or break_loop is setted.
+		// In blocking mode, read many times until packets are captured or timeout or break_loop is set.
 		// if timeout_ms == 0, it may be blocked forever.
 		while (timeout_ms == 0 || sleep_ms < timeout_ms){
 			nb_rx = (int)rte_eth_rx_burst(pd->portid, 0, pkts_burst, burst_cnt);
@@ -307,7 +321,6 @@ static int pcap_dpdk_dispatch(pcap_t *p, int max_cnt, pcap_handler cb, u_char *c
 	struct rte_mbuf *pkts_burst[MAX_PKT_BURST];
 	struct rte_mbuf *m;
 	struct pcap_pkthdr pcap_header;
-	uint16_t portid = pd->portid;
 	// In DPDK, pkt_len is sum of lengths for all segments. And data_len is for one segment
 	uint32_t pkt_len = 0;
 	uint32_t caplen = 0;
@@ -330,14 +343,14 @@ static int pcap_dpdk_dispatch(pcap_t *p, int max_cnt, pcap_handler cb, u_char *c
 			return PCAP_ERROR_BREAK;
 		}
 		// read once in non-blocking mode, or try many times waiting for timeout_ms.
-		// if timeout_ms == 0, it will be blocked until one packet arrives or break_loop is setted.
-		nb_rx = dpdk_read_with_timeout(p, portid, pkts_burst, burst_cnt);
+		// if timeout_ms == 0, it will be blocked until one packet arrives or break_loop is set.
+		nb_rx = dpdk_read_with_timeout(p, pkts_burst, burst_cnt);
 		if (nb_rx == 0){
 			if (pd->nonblock){
 				RTE_LOG(DEBUG, USER1, "dpdk: no packets available in non-blocking mode.\n");
 			}else{
 				if (p->break_loop){
-					RTE_LOG(DEBUG, USER1, "dpdk: no packets available and break_loop is setted in blocking mode.\n");
+					RTE_LOG(DEBUG, USER1, "dpdk: no packets available and break_loop is set in blocking mode.\n");
 					p->break_loop = 0;
 					return PCAP_ERROR_BREAK;
 
@@ -365,7 +378,7 @@ static int pcap_dpdk_dispatch(pcap_t *p, int max_cnt, pcap_handler cb, u_char *c
 				bp = rte_pktmbuf_mtod(m, u_char *);
 			}else{
 				// use fast buffer pcap_tmp_buf if pkt_len is small, no need to call malloc and free
-				if ( pkt_len <= ETHER_MAX_JUMBO_FRAME_LEN)
+				if ( pkt_len <= RTE_ETH_PCAP_SNAPLEN)
 				{
 					gather_len = dpdk_gather_data(pd->pcap_tmp_buf, RTE_ETH_PCAP_SNAPLEN, m);
 					bp = pd->pcap_tmp_buf;
@@ -472,7 +485,7 @@ static int check_link_status(uint16_t portid, struct rte_eth_link *plink)
 	rte_eth_link_get(portid, plink);
 	return plink->link_status == ETH_LINK_UP;
 }
-static void eth_addr_str(struct ether_addr *addrp, char* mac_str, int len)
+static void eth_addr_str(ETHER_ADDR_TYPE *addrp, char* mac_str, int len)
 {
 	int offset=0;
 	if (addrp == NULL){
@@ -949,7 +962,7 @@ static int pcap_dpdk_activate(pcap_t *p)
 	return ret;
 }
 
-// device name for dpdk shoud be in the form as dpdk:number, such as dpdk:0
+// device name for dpdk should be in the form as dpdk:number, such as dpdk:0
 pcap_t * pcap_dpdk_create(const char *device, char *ebuf, int *is_ours)
 {
 	pcap_t *p=NULL;
@@ -959,7 +972,7 @@ pcap_t * pcap_dpdk_create(const char *device, char *ebuf, int *is_ours)
 	if (! *is_ours)
 		return NULL;
 	//memset will happen
-	p = pcap_create_common(ebuf, sizeof(struct pcap_dpdk));
+	p = PCAP_CREATE_COMMON(ebuf, struct pcap_dpdk);
 
 	if (p == NULL)
 		return NULL;
@@ -973,7 +986,7 @@ int pcap_dpdk_findalldevs(pcap_if_list_t *devlistp, char *ebuf)
 	unsigned int nb_ports = 0;
 	char dpdk_name[DPDK_DEV_NAME_MAX];
 	char dpdk_desc[DPDK_DEV_DESC_MAX];
-	struct ether_addr eth_addr;
+	ETHER_ADDR_TYPE eth_addr;
 	char mac_addr[DPDK_MAC_ADDR_SIZE];
 	char pci_addr[DPDK_PCI_ADDR_SIZE];
 	do{

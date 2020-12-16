@@ -731,6 +731,11 @@ AC_MSG_RESULT($V_PCAP)
 AC_SUBST(VALGRINDTEST_SRC)
 
 #
+# Do we have pkg-config?
+#
+AC_CHECK_PROG([PKGCONFIG], [pkg-config], [pkg-config], [no])
+
+#
 # Handle each capture type.
 #
 case "$V_PCAP" in
@@ -751,7 +756,7 @@ dlpi)
 	# Also, due to the bug above applications that link to libpcap with
 	# libdlpi will have to add "-L/lib" option to "configure".
 	#
-	saved_ldflags=$LDFLAGS
+	save_LDFLAGS="$LDFLAGS"
 	LDFLAGS="$LIBS -L/lib"
 	AC_CHECK_LIB(dlpi, dlpi_walk,
 		[
@@ -774,7 +779,7 @@ dlpi)
 			#
 			PLATFORM_C_SRC="pcap-dlpi.c dlpisubs.c"
 		])
-	LDFLAGS=$saved_ldflags
+	LDFLAGS="$save_LDFLAGS"
 
 	#
 	# Checks whether <sys/dlpi.h> is usable, to catch weird SCO
@@ -846,86 +851,75 @@ linux)
 
 	#
 	# Do we have libnl?
+	# We only want version 3.  Version 2 was, apparently,
+	# short-lived, and version 1 is source and binary
+	# incompatible with version 3, and it appears that,
+	# these days, everybody's using version 3.  We're
+	# not supporting older versions of the Linux kernel;
+	# let's drop support for older versions of libnl, too.
 	#
 	AC_ARG_WITH(libnl,
 	AC_HELP_STRING([--without-libnl],[disable libnl support @<:@default=yes, on Linux, if present@:>@]),
 		with_libnl=$withval,with_libnl=if_available)
 
 	if test x$with_libnl != xno ; then
-		have_any_nl="no"
-
-                incdir=-I/usr/include/libnl3
-                libnldir=
-                case "$with_libnl" in
-
-                yes|if_available)
-                  ;;
-
-                *)
-                  if test -d $withval; then
-                    libnldir=-L${withval}/lib/.libs
-                    incdir=-I${withval}/include
-                  fi
-                  ;;
-                esac
-
-		#
-		# Try libnl 3.x first.
-		#
-		AC_CHECK_LIB(nl-3, nl_socket_alloc,
-		[
+		if test "x$PKGCONFIG" != "xno"; then
 			#
-			# Yes, we have libnl 3.x.
+			# We have pkg-config; see if we have libnl-genl-3.0
+			# as a package.
 			#
-			LIBS="${libnldir} -lnl-genl-3 -lnl-3 $LIBS"
-			AC_DEFINE(HAVE_LIBNL,1,[if libnl exists])
-			AC_DEFINE(HAVE_LIBNL_3_x,1,[if libnl exists and is version 3.x])
-			AC_DEFINE(HAVE_LIBNL_NLE,1,[libnl has NLE_FAILURE])
-			AC_DEFINE(HAVE_LIBNL_SOCKETS,1,[libnl has new-style socket api])
-			V_INCLS="$V_INCLS ${incdir}"
-			have_any_nl="yes"
-		],[], ${incdir} ${libnldir} -lnl-genl-3 -lnl-3 )
-
-		if test x$have_any_nl = xno ; then
-			#
-			# Try libnl 2.x
-			#
-			AC_CHECK_LIB(nl, nl_socket_alloc,
-			[
-				#
-				# Yes, we have libnl 2.x.
-				#
-				LIBS="${libnldir} -lnl-genl -lnl $LIBS"
+			AC_MSG_CHECKING([for libnl-genl-3.0 with pkg-config])
+			if "$PKGCONFIG" libnl-genl-3.0; then
+				AC_MSG_RESULT([found])
+				pkg_config_found_libnl=yes
+				libnl_genl_cflags=`"$PKGCONFIG" --cflags libnl-genl-3.0`
+				V_INCLS="$V_INCLS ${libnl_genl_cflags}"
+				libnl_genl_libs=`"$PKGCONFIG" --libs libnl-genl-3.0`
+				LIBS="${libnl_genl_libs} $LIBS"
 				AC_DEFINE(HAVE_LIBNL,1,[if libnl exists])
-				AC_DEFINE(HAVE_LIBNL_2_x,1,[if libnl exists and is version 2.x])
-				AC_DEFINE(HAVE_LIBNL_NLE,1,[libnl has NLE_FAILURE])
-				AC_DEFINE(HAVE_LIBNL_SOCKETS,1,[libnl has new-style socket api])
-				have_any_nl="yes"
-			])
-		fi
-
-		if test x$have_any_nl = xno ; then
-			#
-			# No, we don't; do we have libnl 1.x?
-			#
-			AC_CHECK_LIB(nl, nl_handle_alloc,
-			[
-				#
-				# Yes.
-				#
-				LIBS="${libnldir} -lnl $LIBS"
-				AC_DEFINE(HAVE_LIBNL,1,[if libnl exists])
-				have_any_nl="yes"
-			])
-		fi
-
-		if test x$have_any_nl = xno ; then
-			#
-			# No, we don't have libnl at all.
-			#
-			if test x$with_libnl = xyes ; then
-				AC_MSG_ERROR([libnl support requested but libnl not found])
+			else
+				AC_MSG_RESULT([not found])
 			fi
+		fi
+
+		if test x$pkg_config_found_libnl != xyes; then
+			#
+			# OK, either we don't have pkg-config or there
+			# wasn't a .pc file for it; Check for it directly.
+			#
+			case "$with_libnl" in
+
+			yes|if_available)
+				incdir=-I/usr/include/libnl3
+				libnldir=
+				;;
+
+			*)
+				if test -d $withval; then
+					libnldir=-L${withval}/lib
+					incdir=-I${withval}/include
+				fi
+				;;
+			esac
+
+			AC_CHECK_LIB(nl-3, nl_socket_alloc,
+			[
+				#
+				# Yes, we have libnl 3.x.
+				#
+				LIBS="${libnldir} -lnl-genl-3 -lnl-3 $LIBS"
+				AC_DEFINE(HAVE_LIBNL,1,[if libnl exists])
+				V_INCLS="$V_INCLS ${incdir}"
+			],[
+				#
+				# No, we don't have libnl at all.
+				# Fail if the user explicitly requested
+				# it.
+				#
+				if test x$with_libnl = xyes ; then
+					AC_MSG_ERROR([libnl support requested but libnl not found])
+				fi
+			], ${incdir} ${libnldir} -lnl-genl-3 -lnl-3 )
 		fi
 	fi
 
@@ -1141,11 +1135,6 @@ if test "$enable_ipv6" != "no"; then
 	AC_DEFINE(INET6,1,[IPv6])
 fi
 
-#
-# Do we have pkg-config?
-#
-AC_CHECK_PROG([PKGCONFIG], [pkg-config], [pkg-config], [no])
-
 # Check for Endace DAG card support.
 AC_ARG_WITH([dag],
 AC_HELP_STRING([--with-dag@<:@=DIR@:>@],[include Endace DAG support (located in directory DIR, if supplied).  @<:@default=yes, if present@:>@]),
@@ -1209,13 +1198,22 @@ if test "$want_dag" != no; then
 
 	if test -z "$dag_lib_dir"; then
 		dag_lib_dir="$dag_root/lib"
+		#
+		# Handle multiarch systems.
+		#
+		if test -d "$dag_lib_dir/$host"
+		then
+			dag_lib_dir="$dag_lib_dir/$host"
+		fi
 	fi
 
-	V_INCLS="$V_INCLS -I$dag_include_dir"
-
+	save_CFLAGS="$CFLAGS"
+	CFLAGS="$CFLAGS -I$dag_include_dir"
 	AC_CHECK_HEADERS([dagapi.h])
 
 	if test "$ac_cv_header_dagapi_h" = yes; then
+
+		V_INCLS="$V_INCLS -I$dag_include_dir"
 
 		if test $V_PCAP != dag ; then
 			 MODULE_C_SRC="$MODULE_C_SRC pcap-dag.c"
@@ -1224,7 +1222,7 @@ if test "$want_dag" != no; then
 		# Check for various DAG API functions.
 		# Don't need to save and restore LIBS to prevent -ldag being
 		# included if there's a found-action (arg 3).
-		saved_ldflags=$LDFLAGS
+		save_LDFLAGS="$LDFLAGS"
 		LDFLAGS="-L$dag_lib_dir"
 		AC_CHECK_LIB([dag], [dag_attach_stream],
 		    [],
@@ -1235,7 +1233,7 @@ if test "$want_dag" != no; then
 		AC_CHECK_LIB([dag],[dag_get_stream_erf_types], [
 			AC_DEFINE(HAVE_DAG_GET_STREAM_ERF_TYPES, 1, [define if you have dag_get_stream_erf_types()])])
 
-		LDFLAGS=$saved_ldflags
+		LDFLAGS="$save_LDFLAGS"
 
 		#
 		# We assume that if we have libdag we have libdagconf,
@@ -1271,6 +1269,7 @@ if test "$want_dag" != no; then
 			AC_MSG_ERROR([DAG support requested with --with-dag, but the DAG headers weren't found at $dag_include_dir: make sure the DAG support is installed, specify a different path or paths if necessary, or don't request DAG support])
 		fi
 	fi
+	CFLAGS="$save_CFLAGS"
 fi
 
 AC_ARG_WITH(septel,
@@ -1415,14 +1414,21 @@ if test "$with_snf" != no; then
 
 	if test -z "$snf_lib_dir"; then
 		snf_lib_dir="$snf_root/lib"
+		#
+		# Handle multiarch systems.
+		#
+		if test -d "$snf_lib_dir/$host"
+		then
+			snf_lib_dir="$snf_lib_dir/$host"
+		fi
 	fi
 
 	if test -f "$snf_include_dir/snf.h"; then
 		# We found a header; make sure we can link with the library
-		saved_ldflags=$LDFLAGS
+		save_LDFLAGS="$LDFLAGS"
 		LDFLAGS="$LDFLAGS -L$snf_lib_dir"
 		AC_CHECK_LIB([snf], [snf_init], [ac_cv_lbl_snf_api="yes"])
-		LDFLAGS="$saved_ldflags"
+		LDFLAGS="$save_LDFLAGS"
 		if test "$ac_cv_lbl_snf_api" = no; then
 			AC_MSG_ERROR(SNF API cannot correctly be linked; check config.log)
 		fi
@@ -1736,21 +1742,52 @@ fi
 #
 AC_PROG_YACC
 
-#
-# Make sure it supports the -p flag and supports processing our
-# grammar.y.
-#
-AC_CACHE_CHECK([for capable yacc/bison], tcpdump_cv_capable_yacc,
-	if $YACC -p pcap_ -o /dev/null $srcdir/grammar.y >/dev/null 2>&1; then
-	    tcpdump_cv_capable_yacc=yes
-	else
-	    tcpdump_cv_capable_yacc=insufficient
-	fi)
-if test $tcpdump_cv_capable_yacc = insufficient ; then
-	AC_MSG_ERROR([$YACC is insufficient to compile libpcap.
+case "$YACC" in
+
+*yacc)
+	#
+	# Make sure this is Berkeley YACC, not AT&T YACC; the latter
+	# doesn't support reentrant parsers.  Run it with "-V";
+	# that succeeds and reports the version number with
+	# Berkeley YACC, but will (probably) fail with various
+	# vendor flavors of AT&T YACC.
+	#
+	AC_CACHE_CHECK([for capable yacc], tcpdump_cv_capable_yacc,
+	    if $YACC -V >/dev/null 2>&1; then
+		tcpdump_cv_capable_yacc=yes
+	    else
+		tcpdump_cv_capable_yacc=insufficient
+	    fi)
+	if test $tcpdump_cv_capable_yacc = insufficient ; then
+	    AC_MSG_ERROR([$YACC is insufficient to compile libpcap.
  libpcap requires Bison, a newer version of Berkeley YACC with support
  for reentrant parsers, or another YACC compatible with them.])
-fi
+	fi
+
+	#
+	# Berkeley YACC doesn't support "%define api.pure", so use
+	# "%pure-parser".
+	#
+	REENTRANT_PARSER="%pure-parser"
+	;;
+
+*)
+	#
+	# Bison prior to 2.4(.1) doesn't support "%define api.pure", so use
+	# "%pure-parser".
+	#
+	bison_major_version=`$YACC -V | sed -n 's/.* \(@<:@1-9@:>@@<:@0-9@:>@*\)\.@<:@1-9@:>@@<:@0-9.@:>@*/\1/p'`
+	bison_minor_version=`$YACC -V | sed -n 's/.* @<:@1-9@:>@@<:@0-9@:>@*\.\(@<:@1-9@:>@@<:@0-9@:>@*\).*/\1/p'`
+	if test "$bison_major_version" -lt 2 -o \
+	    \( "$bison_major_version" -eq 2 -a "$bison_major_version" -lt 4 \)
+	then
+		REENTRANT_PARSER="%pure-parser"
+	else
+		REENTRANT_PARSER="%define api.pure"
+	fi
+	;;
+esac
+AC_SUBST(REENTRANT_PARSER)
 
 #
 # Do various checks for various OSes and versions of those OSes.
@@ -2360,35 +2397,92 @@ AC_HELP_STRING([--with-dpdk@<:@=DIR@:>@],[include DPDK support (located in direc
 ])
 
 if test "$want_dpdk" != no; then
-	if test -z "$dpdk_dir"; then
+	if test "x$PKGCONFIG" != "xno"
+	then
 		#
-		# The user didn't specify a directory containing
-		# the DPDK headers and libraries.  If we find
-		# a /usr/local/include/dpdk directory, assume
-		# it's /usr/local, otherwise assume it's /usr.
+		# We have pkg-config; see if we have DPDK installed
+		# as a package.
 		#
-		if test -d "/usr/local/include/dpdk"; then
-			dpdk_dir="/usr/local"
+		AC_MSG_CHECKING([for DPDK with pkg-config])
+		if "$PKGCONFIG" libdpdk
+		then
+			AC_MSG_RESULT([found])
+			found_dpdk_with_pkg_config=yes
+			DPDK_CFLAGS=`"$PKGCONFIG" --cflags libdpdk`
+			DPDK_LDFLAGS=`"$PKGCONFIG" --libs libdpdk`
 		else
-			dpdk_dir="/usr"
+			AC_MSG_RESULT([not found])
 		fi
 	fi
+
 	#
-	# The convention appears to be that 1) there's a "dpdk"
-	# subdirectory of the include directory, containing DPDK
-	# headers (at least in the installation on Ubuntu with
-	# the system DPDK packages) and 2) includes of DPDK
-	# headers don't use "dpdk/{header}" (at least from the
-	# way the DPDK documentation is written).
+	# If we didn't find it with pkg-config, try checking for
+	# it manually.
 	#
-	# So we add "/dpdk" to the include directory, and always
-	# add that to the list of include directories to search.
-	#
-	dpdk_inc_dir="$dpdk_dir/include/dpdk"
-	dpdk_lib_dir="$dpdk_dir/lib"
-	DPDK_MACHINE_CFLAGS="-march=native"
-	DPDK_CFLAGS="$DPDK_MACHINE_CFLAGS -I$dpdk_inc_dir"
-	DPDK_LDFLAGS="-L$dpdk_lib_dir -ldpdk -lrt -lm -lnuma -ldl -pthread"
+	if test "x$found_dpdk_with_pkg_config" != "xyes"
+	then
+		if test -z "$dpdk_dir"; then
+			#
+			# The user didn't specify a directory containing
+			# the DPDK headers and libraries.  If we find
+			# a /usr/local/include/dpdk directory, assume
+			# it's /usr/local, otherwise assume it's /usr.
+			#
+			if test -d "/usr/local/include/dpdk"; then
+				dpdk_dir="/usr/local"
+			else
+				dpdk_dir="/usr"
+			fi
+		fi
+		#
+		# The convention appears to be that 1) there's a "dpdk"
+		# subdirectory of the include directory, containing DPDK
+		# headers (at least in the installation on Ubuntu with
+		# the system DPDK packages) and 2) includes of DPDK
+		# headers don't use "dpdk/{header}" (at least from the
+		# way the DPDK documentation is written).
+		#
+		# So we add "/dpdk" to the include directory, and always
+		# add that to the list of include directories to search.
+		#
+		dpdk_inc_dir="$dpdk_dir/include/dpdk"
+		dpdk_inc_flags="-I$dpdk_inc_dir"
+		dpdk_lib_dir="$dpdk_dir/lib"
+		#
+		# Handle multiarch systems.
+		#
+		# Step 1: run the C compiler with the -dumpmachine option;
+		# if it succeeds, the output would be the multiarch directory
+		# name if your system has multiarch directories.
+		#
+		multiarch_dir=`$CC -dumpmachine 2>/dev/null`
+		if test ! -z "$multiarch_dir"
+		then
+			#
+			# OK, we have a multiarch directory.
+			#
+			# Now deal with includes.  On Ubuntu 20.04, for
+			# example, we have /usr/include/dpdk *and*
+			# /usr/include/$multiarch_dir/dpdk, and must
+			# search both.
+			#
+			if test -d "$dpdk_dir/include/$multiarch_dir/dpdk"
+			then
+				dpdk_inc_flags="-I$dpdk_dir/include/$multiarch_dir/dpdk $dpdk_inc_flags"
+			fi
+
+			#
+			# Now deal with libraries.
+			#
+			if test -d "$dpdk_lib_dir/$multiarch_dir"
+			then
+				dpdk_lib_dir="$dpdk_lib_dir/$multiarch_dir"
+			fi
+		fi
+		DPDK_MACHINE_CFLAGS="-march=native"
+		DPDK_CFLAGS="$DPDK_MACHINE_CFLAGS $dpdk_inc_flags"
+		DPDK_LDFLAGS="-L$dpdk_lib_dir -ldpdk -lrt -lm -lnuma -ldl -pthread"
+	fi
 
 	save_CFLAGS="$CFLAGS"
 	save_LIBS="$LIBS"
@@ -2412,14 +2506,35 @@ AC_INCLUDES_DEFAULT
 	# didn't have it, so check for it.
 	#
 	if test "$ac_cv_dpdk_can_compile" = yes; then
-		AC_CHECK_HEADERS(rte_bus.h)
+		#
+		# This runs the preprocessor, so make sure it
+		# looks in the DPDK directories.  Instead of
+		# including dpdk/XXX.h, we include just XXX.h
+		# and assume DPDK_CFLAGS is the directory
+		# containing the DPDK headers (that's how
+		# pkg-config sets it, at least on Ubuntu),
+		# so just looking under /usr/include won't
+		# find it.
+		#
+		save_CPPFLAGS="$CPPFLAGS"
+		CPPFLAGS="$CPPFLAGS $DPDK_CFLAGS"
+		AC_CHECK_HEADER(rte_bus.h)
+		CPPFLAGS="$save_CPPFLAGS"
+	fi
+
+	#
+	# We call rte_eth_dev_count_avail(), and older versions
+	# of DPDK didn't have it, so check for it.
+	#
+	if test "$ac_cv_header_rte_bus_h" = yes; then
+		AC_CHECK_FUNC(rte_eth_dev_count_avail)
 	fi
 
 	CFLAGS="$save_CFLAGS"
 	LIBS="$save_LIBS"
 	LDFLAGS="$save_LDFLAGS"
 
-	if test "$ac_cv_header_rte_bus_h" = yes; then
+	if test "$ac_cv_func_rte_eth_dev_count_avail" = yes; then
 		CFLAGS="$CFLAGS $DPDK_CFLAGS"
 		LIBS="$LIBS $DPDK_LDFLAGS"
 		LDFLAGS="$LDFLAGS $DPDK_LDFLAGS"
@@ -2428,16 +2543,58 @@ AC_INCLUDES_DEFAULT
 		if test $V_PCAP != dpdk ; then
 			MODULE_C_SRC="$MODULE_C_SRC pcap-dpdk.c"
 		fi
+
+		#
+		# Check whether the rte_ether.h file defines
+		# struct ether_addr or struct rte_ether_addr.
+		#
+		# ("API compatibility?  That's for losers!")
+		#
+		AC_CHECK_TYPES(struct rte_ether_addr,,,
+		    [
+			#include <rte_ether.h>
+		    ])
 	else
 		if test "$V_PCAP" = dpdk; then
-			# User requested "dpdk" capture type but we couldn't
-			# find the DPDK API support.
-			AC_MSG_ERROR([DPDK support requested with --with-pcap=dpdk, but the DPDK headers weren't found at $dpdk_inc_dir: make sure the DPDK support is installed, specify a different path or paths if necessary, or don't request DPDK support])
+			# User requested DPDK-only capture support, but
+			# we couldn't the DPDK API support at all, or we
+			# found it but it wasn't a sufficiently recent
+			# version.
+			if test "$ac_cv_dpdk_can_compile" != yes; then
+				#
+				# Couldn't even find the headers.
+				#
+				AC_MSG_ERROR([DPDK support requested with --with-pcap=dpdk, but the DPDK headers weren't found at $dpdk_inc_dir: make sure the DPDK support is installed, specify a different path or paths if necessary, or don't request DPDK support])
+			else
+				#
+				# Found the headers, but we couldn't find
+				# rte_bus.h or rte_eth_dev_count_avail(),
+				# we don't have a sufficiently recent
+				# version of DPDK.
+				#
+				AC_MSG_ERROR([DPDK support requested with --with-pcap=dpdk, but we require DPDK 18.x or later; install a newer version of DPDK, or don't request DPDK support])
+			fi
 		fi
 
 		if test "$want_dpdk" = yes; then
-			# User wanted DPDK support but we couldn't find it.
-			AC_MSG_ERROR([DPDK support requested with --with-pcap=dpdk, but the DPDK headers weren't found at $dpdk_inc_dir: make sure the DPDK support is installed, specify a different path or paths if necessary, or don't request DPDK support])
+			# User requested DPDK-only capture support, but
+			# we couldn't the DPDK API support at all, or we
+			# found it but it wasn't a sufficiently recent
+			# version.
+			if test "$ac_cv_dpdk_can_compile" != yes; then
+				#
+				# Couldn't even find the headers.
+				#
+				AC_MSG_ERROR([DPDK support requested with --with-pcap=dpdk, but the DPDK headers weren't found at $dpdk_inc_dir: make sure the DPDK support is installed, specify a different path or paths if necessary, or don't request DPDK support])
+			else
+				#
+				# Found the headers, but we couldn't find
+				# rte_bus.h or rte_eth_dev_count_avail(),
+				# we don't have a sufficiently recent
+				# version of DPDK.
+				#
+				AC_MSG_ERROR([DPDK support requested with --with-pcap=dpdk, but we require DPDK 18.x or later: install a newer version of DPDK, or don't request DPDK support])
+			fi
 		fi
 	fi
 fi
@@ -2671,7 +2828,7 @@ AC_OUTPUT_COMMANDS([if test -f .devel; then
 	cat $srcdir/Makefile-devel-adds >> Makefile
 	make depend
 fi])
-AC_OUTPUT(Makefile pcap-filter.manmisc pcap-linktype.manmisc
+AC_OUTPUT(Makefile grammar.y pcap-filter.manmisc pcap-linktype.manmisc
 	pcap-tstamp.manmisc pcap-savefile.manfile pcap.3pcap
 	pcap_compile.3pcap pcap_datalink.3pcap pcap_dump_open.3pcap
 	pcap_get_tstamp_precision.3pcap pcap_list_datalinks.3pcap

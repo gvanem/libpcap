@@ -161,7 +161,7 @@ capture_thread_func(THREAD_FUNC_ARG_TYPE arg)
 		} else
 			printf("No packets seen by pcap_dispatch\n");
 	}
-	if (status == -2) {
+	if (status == PCAP_ERROR_BREAK) {
 		/*
 		 * We got interrupted, so perhaps we didn't
 		 * manage to finish a line we were printing.
@@ -171,7 +171,7 @@ capture_thread_func(THREAD_FUNC_ARG_TYPE arg)
 		printf("Loop got broken\n");
 	}
 	(void)fflush(stdout);
-	if (status == -1) {
+	if (status == PCAP_ERROR) {
 		/*
 		 * Error.  Report it.
 		 */
@@ -186,7 +186,7 @@ main(int argc, char **argv)
 {
 	register int op;
 	register char *cp, *cmdbuf, *device;
-	int immediate = 0;
+	int do_wakeup = 1;
 	pcap_if_t *devlist;
 	bpf_u_int32 localnet, netmask;
 	struct bpf_program fcode;
@@ -194,9 +194,7 @@ main(int argc, char **argv)
 	int status;
 	THREAD_HANDLE capture_thread;
 
-#ifdef _WIN32
-	pcap_wsockinit();
-#else
+#ifndef _WIN32
 	void *retval;
 #endif
 
@@ -207,11 +205,15 @@ main(int argc, char **argv)
 		program_name = argv[0];
 
 	opterr = 0;
-	while ((op = getopt(argc, argv, "i:")) != -1) {
+	while ((op = getopt(argc, argv, "i:n")) != -1) {
 		switch (op) {
 
 		case 'i':
 			device = strdup(optarg);
+			break;
+
+		case 'n':
+			do_wakeup = 0;
 			break;
 
 		default:
@@ -236,12 +238,6 @@ main(int argc, char **argv)
 	if (status != 0)
 		error("%s: pcap_set_snaplen failed: %s",
 			    device, pcap_statustostr(status));
-	if (immediate) {
-		status = pcap_set_immediate_mode(pd, 1);
-		if (status != 0)
-			error("%s: pcap_set_immediate_mode failed: %s",
-			    device, pcap_statustostr(status));
-	}
 	status = pcap_set_timeout(pd, 5*60*1000);
 	if (status != 0)
 		error("%s: pcap_set_timeout failed: %s",
@@ -288,21 +284,39 @@ main(int argc, char **argv)
 		error("Can't create capture thread: %s", strerror(status));
 #endif
 	sleep_secs(60);
+	printf("Doing pcap_breakloop()\n");
 	pcap_breakloop(pd);
+	if (do_wakeup) {
+		/*
+		 * Force a wakeup in the capture thread.
+		 *
+		 * On some platforms, with some devices,, pcap_breakloop()
+		 * can't do that itself.  On Windows, poke the device's
+		 * event handle; on UN*X, send a SIGUSR1 to the thread.
+		 */
 #ifdef _WIN32
-	printf("Setting event\n");
-	if (!SetEvent(pcap_getevent(pd)))
-		error("Can't set event for pcap_t: %s",
-		    win32_strerror(GetLastError()));
+		printf("Setting event\n");
+		if (!SetEvent(pcap_getevent(pd)))
+			error("Can't set event for pcap_t: %s",
+			    win32_strerror(GetLastError()));
+#else
+			printf("Sending SIGUSR1\n");
+			status = pthread_kill(capture_thread, SIGUSR1);
+			if (status != 0)
+				warning("Can't interrupt capture thread: %s",
+				strerror(status));
+#endif
+	}
+
+	/*
+	 * Now wait for the capture thread to terminate.
+	 */
+#ifdef _WIN32
 	if (WaitForSingleObject(capture_thread, INFINITE) == WAIT_FAILED)
 		error("Wait for thread termination failed: %s",
 		    win32_strerror(GetLastError()));
 	CloseHandle(capture_thread);
 #else
-	printf("Sending SIGUSR1\n");
-	status = pthread_kill(capture_thread, SIGUSR1);
-	if (status != 0)
-		warning("Can't interrupt capture thread: %s", strerror(status));
 	status = pthread_join(capture_thread, &retval);
 	if (status != 0)
 		error("Wait for thread termination failed: %s",
@@ -326,7 +340,7 @@ countme(u_char *user, const struct pcap_pkthdr *h _U_, const u_char *sp _U_)
 static void
 usage(void)
 {
-	(void)fprintf(stderr, "Usage: %s [ -m ] [ -i interface ] [ -t timeout] [expression]\n",
+	(void)fprintf(stderr, "Usage: %s [ -n ] [ -i interface ] [ expression ]\n",
 	    program_name);
 	exit(1);
 }

@@ -40,6 +40,8 @@
   #include <crtdbg.h>       /* for mem-leak detection */
 #endif
 
+#include <stddef.h>
+
 #include <signal.h>
 
 #include <pcap/pcap.h>
@@ -389,7 +391,7 @@ struct pcap_timeval {
  *
  * Then supply the changes by forking the branch at
  *
- *	https://github.com/the-tcpdump-group/libpcap/issues
+ *	https://github.com/the-tcpdump-group/libpcap/tree/master
  *
  * and issuing a pull request, so that future versions of libpcap and
  * programs that use it (such as tcpdump) will be able to read your new
@@ -399,7 +401,7 @@ struct pcap_timeval {
 struct pcap_sf_pkthdr {
     struct pcap_timeval ts;	/* time stamp */
     bpf_u_int32 caplen;		/* length of portion present */
-    bpf_u_int32 len;		/* length this packet (off wire) */
+    bpf_u_int32 len;		/* length of this packet (off wire) */
 };
 
 /*
@@ -415,7 +417,7 @@ struct pcap_sf_pkthdr {
 struct pcap_sf_patched_pkthdr {
     struct pcap_timeval ts;	/* time stamp */
     bpf_u_int32 caplen;		/* length of portion present */
-    bpf_u_int32 len;		/* length this packet (off wire) */
+    bpf_u_int32 len;		/* length of this packet (off wire) */
     int		index;
     unsigned short protocol;
     unsigned char pkt_type;
@@ -467,7 +469,19 @@ int	pcap_setnonblock_fd(pcap_t *p, int);
  * by pcap_create routines.
  */
 pcap_t	*pcap_create_interface(const char *, char *);
-pcap_t	*pcap_create_common(char *, size_t);
+
+/*
+ * This wrapper takes an error buffer pointer and a type to use for the
+ * private data, and calls pcap_create_common(), passing it the error
+ * buffer pointer, the size fo the private data type, in bytes, and the
+ * offset of the private data from the beginning of the structure, in
+ * bytes.
+ */
+#define PCAP_CREATE_COMMON(ebuf, type) \
+	pcap_create_common(ebuf, \
+	    sizeof (struct { pcap_t __common; type __private; }), \
+	    offsetof (struct { pcap_t __common; type __private; }, __private))
+pcap_t	*pcap_create_common(char *, size_t, size_t);
 int	pcap_do_addexit(pcap_t *);
 void	pcap_add_to_pcaps_to_close(pcap_t *);
 void	pcap_remove_from_pcaps_to_close(pcap_t *);
@@ -542,7 +556,20 @@ int	add_addr_to_if(pcap_if_list_t *, const char *, bpf_u_int32,
  * treats the pathname as being in UTF-8, rather than the local
  * code page, on Windows.
  */
-pcap_t	*pcap_open_offline_common(char *ebuf, size_t size);
+
+/*
+ * This wrapper takes an error buffer pointer and a type to use for the
+ * private data, and calls pcap_create_common(), passing it the error
+ * buffer pointer, the size fo the private data type, in bytes, and the
+ * offset of the private data from the beginning of the structure, in
+ * bytes.
+ */
+#define PCAP_OPEN_OFFLINE_COMMON(ebuf, type) \
+	pcap_open_offline_common(ebuf, \
+	    sizeof (struct { pcap_t __common; type __private; }), \
+	    offsetof (struct { pcap_t __common; type __private; }, __private))
+pcap_t	*pcap_open_offline_common(char *ebuf, size_t total_size,
+    size_t private_data);
 bpf_u_int32 pcap_adjust_snapshot(bpf_u_int32 linktype, bpf_u_int32 snaplen);
 void	sf_cleanup(pcap_t *p);
 #ifdef _WIN32
@@ -552,6 +579,17 @@ FILE	*charset_fopen(const char *path, const char *mode);
  * On other OSes, just use Boring Old fopen().
  */
 #define charset_fopen(path, mode)	fopen((path), (mode))
+#endif
+
+/*
+ * Internal interfaces for loading code at run time.
+ */
+#ifdef _WIN32
+#define pcap_code_handle_t	HMODULE
+#define pcap_funcptr_t		FARPROC
+
+pcap_code_handle_t	pcap_load_code(const char *);
+pcap_funcptr_t		pcap_find_function(pcap_code_handle_t, const char *);
 #endif
 
 /*

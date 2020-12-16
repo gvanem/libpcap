@@ -46,6 +46,17 @@
 #include <pcap-int.h>
 #include <pcap/dlt.h>
 
+/*
+ * XXX - Packet32.h defines bpf_program, so we can't include
+ * <pcap/bpf.h>, which also defines it; that's why we define
+ * PCAP_DONT_INCLUDE_PCAP_BPF_H,
+ *
+ * However, no header in the WinPcap or Npcap SDKs defines the
+ * macros for BPF code, so we have to define them ourselves.
+ */
+#define		BPF_RET		0x06
+#define		BPF_K		0x00
+
 /* Old-school MinGW have these headers in a different place.
  */
 #if defined(__MINGW32__) && !defined(__MINGW64_VERSION_MAJOR)
@@ -61,6 +72,8 @@
 #endif /* HAVE_DAG_API */
 
 #include "diag-control.h"
+
+#include "pcap-airpcap.h"
 
 static int pcap_setfilter_npf(pcap_t *, struct bpf_program *);
 static int pcap_setfilter_win32_dag(pcap_t *, struct bpf_program *);
@@ -96,6 +109,16 @@ struct pcap_win {
 };
 
 #include "Win32/win32-misc.c"
+
+/*
+ * In case we're using Win10Pcap, it need to initialise it's
+ * 'Win10Pcap.sys' driver. The only place it does that is in
+ * it's 'DllMain()'.
+ *
+ * For NPcap, we call 'DllMain()' both with 'DLL_PROCESS_ATTACH' and 'DLL_PROCESS_DETACH'
+ * since it's not built to be used as a static libraray
+ */
+extern BOOL APIENTRY DllMain (HANDLE DllHandle, DWORD Reason, LPVOID lpReserved);
 
 /*
  * Define stub versions of the monitor-mode support routines if this
@@ -281,7 +304,12 @@ pcap_stats_ex_npf(pcap_t *p, int *pcap_stat_size)
 	p->stat.ps_recv = bstats.bs_recv;
 	p->stat.ps_drop = bstats.bs_drop;
 	p->stat.ps_ifdrop = bstats.ps_ifdrop;
-#ifdef ENABLE_REMOTE
+	/*
+	 * Just in case this is ever compiled for a target other than
+	 * Windows, which is somewhere between extremely unlikely and
+	 * impossible.
+	 */
+#ifdef _WIN32
 	p->stat.ps_capt = bstats.bs_capt;
 #endif
 	return (&p->stat);
@@ -394,12 +422,6 @@ pcap_sendqueue_transmit_npf(pcap_t *p, pcap_send_queue *queue, int sync)
 {
 	struct pcap_win *pw = p->priv;
 	u_int res;
-
-	if (pw->adapter==NULL) {
-		snprintf(p->errbuf, PCAP_ERRBUF_SIZE,
-		    "Cannot transmit a queue to an offline capture or to a TurboCap port");
-		return (0);
-	}
 
 	res = PacketSendPackets(pw->adapter,
 		queue->buffer,
@@ -905,6 +927,11 @@ pcap_cleanup_npf(pcap_t *p)
 		PacketSetMonitorMode(p->opt.device, 0);
 	}
 	pcap_cleanup_live_common(p);
+
+#if defined(USE_NPCAP)
+	PCAP_TRACE (1, "Calling 'DllMain (DLL_PROCESS_DETACH)' for NPcap\n");
+	DllMain (NULL, DLL_PROCESS_DETACH, NULL);
+#endif
 }
 
 static void
@@ -924,6 +951,8 @@ pcap_activate_npf(pcap_t *p)
 	NetType type;
 	int res;
 	int status = 0;
+	struct bpf_insn total_insn;
+	struct bpf_program total_prog;
 
 	if (p->opt.rfmon) {
 		/*
@@ -955,17 +984,13 @@ pcap_activate_npf(pcap_t *p)
 		}
 	}
 
-#ifdef USE_WIN10PCAP
-	{
-		/*
-		 * In case we're using Win10Pcap, it need to initialise it's
-		 * 'Win10Pcap.sys' driver. The only place it does that is in
-		 * it's 'DllMain()'.
-		 */
-		extern BOOL APIENTRY DllMain (HANDLE DllHandle, DWORD Reason, LPVOID lpReserved);
+#if defined(USE_NPCAP)
+	PCAP_TRACE (1, "Calling 'DllMain (DLL_PROCESS_ATTACH)' for NPcap\n");
+	DllMain (NULL, DLL_PROCESS_ATTACH, NULL);
 
-		DllMain (NULL, DLL_PROCESS_ATTACH, NULL);
-	}
+#elif defined(USE_WIN10PCAP)
+	PCAP_TRACE (1, "Calling 'DllMain (DLL_PROCESS_ATTACH)' for Win10Pcap\n");
+	DllMain (NULL, DLL_PROCESS_ATTACH, NULL);
 #endif
 
 	/* Initialised the PacketLibraryVersion[] string incase we're
@@ -1124,6 +1149,64 @@ pcap_activate_npf(pcap_t *p)
 		break;
 	}
 
+#ifdef HAVE_PACKET_GET_TIMESTAMP_MODES
+	/*
+	 * Set the timestamp type.
+	 * (Yes, we require PacketGetTimestampModes(), not just
+	 * PacketSetTimestampMode().  If we have the former, we
+	 * have the latter, unless somebody's using a version
+	 * of Npcap that they've hacked to provide the former
+	 * but not the latter; if they've done that, either
+	 * they're confused or they're trolling us.)
+	 */
+	switch (p->opt.tstamp_type) {
+
+	case PCAP_TSTAMP_HOST_HIPREC_UNSYNCED:
+		/*
+		 * Better than low-res, but *not* synchronized with
+		 * the OS clock.
+		 */
+		if (!PacketSetTimestampMode(pw->adapter, TIMESTAMPMODE_SINGLE_SYNCHRONIZATION))
+		{
+			pcap_fmt_errmsg_for_win32_err(p->errbuf, PCAP_ERRBUF_SIZE,
+			    GetLastError(), "Cannot set the time stamp mode to TIMESTAMPMODE_SINGLE_SYNCHRONIZATION");
+			goto bad;
+		}
+		break;
+
+	case PCAP_TSTAMP_HOST_LOWPREC:
+		/*
+		 * Low-res, but synchronized with the OS clock.
+		 */
+		if (!PacketSetTimestampMode(pw->adapter, TIMESTAMPMODE_QUERYSYSTEMTIME))
+		{
+			pcap_fmt_errmsg_for_win32_err(p->errbuf, PCAP_ERRBUF_SIZE,
+			    GetLastError(), "Cannot set the time stamp mode to TIMESTAMPMODE_QUERYSYSTEMTIME");
+			goto bad;
+		}
+		break;
+
+	case PCAP_TSTAMP_HOST_HIPREC:
+		/*
+		 * High-res, and synchronized with the OS clock.
+		 */
+		if (!PacketSetTimestampMode(pw->adapter, TIMESTAMPMODE_QUERYSYSTEMTIME_PRECISE))
+		{
+			pcap_fmt_errmsg_for_win32_err(p->errbuf, PCAP_ERRBUF_SIZE,
+			    GetLastError(), "Cannot set the time stamp mode to TIMESTAMPMODE_QUERYSYSTEMTIME_PRECISE");
+			goto bad;
+		}
+		break;
+
+	case PCAP_TSTAMP_HOST:
+		/*
+		 * XXX - do whatever the default is, for now.
+		 * Set to the highest resolution that's synchronized
+		 * with the system clock?
+		 */
+		break;
+	}
+#endif /* HAVE_PACKET_GET_TIMESTAMP_MODES */
 	/*
 	 * Turn a negative snapshot value (invalid), a snapshot value of
 	 * 0 (unspecified), or a value bigger than the normal maximum
@@ -1215,13 +1298,11 @@ pcap_activate_npf(pcap_t *p)
 				goto bad;
 			}
 		}
-	}
-	else
-#ifdef HAVE_DAG_API
-	{
+	} else {
 		/*
 		 * Dag Card
 		 */
+#ifdef HAVE_DAG_API
 		/*
 		 * We have DAG support.
 		 */
@@ -1263,13 +1344,36 @@ pcap_activate_npf(pcap_t *p)
 		/* Set the length of the FCS associated to any packet. This value
 		 * will be subtracted to the packet length */
 		pw->dag_fcs_bits = pw->adapter->DagFcsLen;
-	}
-#else
+#else  /* HAVE_DAG_API */
 	/*
 	 * No DAG support.
 	 */
 	goto bad;
 #endif /* HAVE_DAG_API */
+	}
+
+	/*
+	 * If there's no filter program installed, there's
+	 * no indication to the kernel of what the snapshot
+	 * length should be, so no snapshotting is done.
+	 *
+	 * Therefore, when we open the device, we install
+	 * an "accept everything" filter with the specified
+	 * snapshot length.
+	 */
+	total_insn.code = (u_short)(BPF_RET | BPF_K);
+	total_insn.jt = 0;
+	total_insn.jf = 0;
+	total_insn.k = p->snapshot;
+
+	total_prog.bf_len = 1;
+	total_prog.bf_insns = &total_insn;
+	if (!PacketSetBpf(pw->adapter, &total_prog)) {
+		pcap_fmt_errmsg_for_win32_err(p->errbuf, PCAP_ERRBUF_SIZE,
+		    GetLastError(), "PacketSetBpf");
+		status = PCAP_ERROR;
+		goto bad;
+	}
 
 	PacketSetReadTimeout(pw->adapter, p->opt.timeout);
 
@@ -1292,12 +1396,14 @@ pcap_activate_npf(pcap_t *p)
 		p->setfilter_op = pcap_setfilter_win32_dag;
 	}
 	else
-#endif
 	{
+#endif /* HAVE_DAG_API */
 		/* install traditional npf handlers for read and setfilter */
 		p->read_op = pcap_read_npf;
 		p->setfilter_op = pcap_setfilter_npf;
+#ifdef HAVE_DAG_API
 	}
+#endif /* HAVE_DAG_API */
 
 	p->setdirection_op = NULL;	/* Not implemented. */
 	    /* XXX - can this be implemented on some versions of Windows? */
@@ -1320,13 +1426,6 @@ pcap_activate_npf(pcap_t *p)
 	p->live_dump_ended_op = pcap_live_dump_ended_npf;
 	p->get_airpcap_handle_op = pcap_get_airpcap_handle_npf;
 	p->cleanup_op = pcap_cleanup_npf;
-
-#ifdef HAVE_AIRPCAP_API
-	if (pw->adapter->Flags & INFO_FLAG_AIRPCAP_CARD) {
-		p->set_datalink_op = pcap_set_datalink_airpcap;
-		init_airpcap_dlts (p);
-	}
-#endif
 
 	/*
 	 * XXX - this is only done because WinPcap supported
@@ -1360,15 +1459,179 @@ pcap_t *
 pcap_create_interface(const char *device _U_, char *ebuf)
 {
 	pcap_t *p;
+#ifdef HAVE_PACKET_GET_TIMESTAMP_MODES
+	char *device_copy;
+	ADAPTER *adapter;
+	ULONG num_ts_modes;
+	BOOL ret;
+	DWORD error;
+	ULONG *modes;
+#endif
 
-	PCAP_TRACE (2, "device: %s, len: %d\n", device, strlen(device));
+	PCAP_TRACE (2, "device: %s, len: %d\n", device, (int)strlen(device));
 
-	p = pcap_create_common(ebuf, sizeof(struct pcap_win));
+	p = PCAP_CREATE_COMMON(ebuf, struct pcap_win);
 	if (p == NULL)
 		return (NULL);
 
 	p->activate_op = pcap_activate_npf;
 	p->can_set_rfmon_op = pcap_can_set_rfmon_npf;
+
+#ifdef HAVE_PACKET_GET_TIMESTAMP_MODES
+	/*
+	 * First, find out how many time stamp modes we have.
+	 * To do that, we have to open the adapter.
+	 *
+	 * XXX - PacketOpenAdapter() takes a non-const pointer
+	 * as an argument, so we make a copy of the argument and
+	 * pass that to it.
+	 */
+	device_copy = strdup(device);
+	adapter = PacketOpenAdapter(device_copy);
+	free(device_copy);
+	if (adapter != NULL)
+	{
+		/*
+		 * Get the total number of time stamp modes.
+		 *
+		 * The buffer for PacketGetTimestampModes() is
+		 * a sequence of 1 or more ULONGs.  What's
+		 * passed to PacketGetTimestampModes() should have
+		 * the total number of ULONGs in the first ULONG;
+		 * what's returned *from* PacketGetTimestampModes()
+		 * has the total number of time stamp modes in
+		 * the first ULONG.
+		 *
+		 * Yes, that means if there are N time stamp
+		 * modes, the first ULONG should be set to N+1
+		 * on input, and will be set to N on output.
+		 *
+		 * We first make a call to PacketGetTimestampModes()
+		 * with a pointer to a single ULONG set to 1; the
+		 * call should fail with ERROR_MORE_DATA (unless
+		 * there are *no* modes, but that should never
+		 * happen), and that ULONG should be set to the
+		 * number of modes.
+		 */
+		num_ts_modes = 1;
+		ret = PacketGetTimestampModes(adapter, &num_ts_modes);
+		if (!ret) {
+			/*
+			 * OK, it failed.  Did it fail with
+			 * ERROR_MORE_DATA?
+			 */
+			error = GetLastError();
+			if (error != ERROR_MORE_DATA) {
+				/*
+				 * No, some other error.  Fail.
+				 */
+				pcap_fmt_errmsg_for_win32_err(ebuf,
+				    PCAP_ERRBUF_SIZE, GetLastError(),
+				    "Error calling PacketGetTimestampModes");
+				pcap_close(p);
+				return (NULL);
+			}
+
+			/*
+			 * Yes, so we now know how many types to fetch.
+			 *
+		    	 * The buffer needs to have one ULONG for the
+		    	 * count and num_ts_modes ULONGs for the
+		    	 * num_ts_modes time stamp types.
+		    	 */
+			modes = (ULONG *)malloc((1 + num_ts_modes) * sizeof(ULONG));
+			if (modes == NULL) {
+				/* Out of memory. */
+				/* XXX SET ebuf */
+				pcap_close(p);
+				return (NULL);
+			}
+			modes[0] = 1 + num_ts_modes;
+			if (!PacketGetTimestampModes(adapter, modes)) {
+				pcap_fmt_errmsg_for_win32_err(ebuf,
+				    PCAP_ERRBUF_SIZE, GetLastError(),
+				    "Error calling PacketGetTimestampModes");
+				free(modes);
+				pcap_close(p);
+				return (NULL);
+			}
+			if (modes[0] != num_ts_modes) {
+				snprintf(ebuf, PCAP_ERRBUF_SIZE,
+				    "First PacketGetTimestampModes() call gives %lu modes, second call gives %u modes",
+				    num_ts_modes, modes[0]);
+				free(modes);
+				pcap_close(p);
+				return (NULL);
+			}
+			if (num_ts_modes != 0) {
+				u_int num_ts_types;
+
+				/*
+				 * Allocate a buffer big enough for
+				 * PCAP_TSTAMP_HOST (default) plus
+				 * the explicitly specified modes.
+				 */
+				p->tstamp_type_list = malloc((1 + modes[0]) * sizeof(u_int));
+				if (p->tstamp_type_list == NULL) {
+					/* XXX SET ebuf */
+					free(modes);
+					pcap_close(p);
+					return (NULL);
+				}
+				num_ts_types = 0;
+				p->tstamp_type_list[num_ts_types] =
+				    PCAP_TSTAMP_HOST;
+				num_ts_types++;
+				for (ULONG i = 0; i < modes[0]; i++) {
+					switch (modes[i + 1]) {
+
+					case TIMESTAMPMODE_SINGLE_SYNCHRONIZATION:
+						/*
+						 * Better than low-res,
+						 * but *not* synchronized
+						 * with the OS clock.
+						 */
+						p->tstamp_type_list[num_ts_types] =
+						    PCAP_TSTAMP_HOST_HIPREC_UNSYNCED;
+						num_ts_types++;
+						break;
+
+					case TIMESTAMPMODE_QUERYSYSTEMTIME:
+						/*
+						 * Low-res, but synchronized
+						 * with the OS clock.
+						 */
+						p->tstamp_type_list[num_ts_types] =
+						    PCAP_TSTAMP_HOST_LOWPREC;
+						num_ts_types++;
+						break;
+
+					case TIMESTAMPMODE_QUERYSYSTEMTIME_PRECISE:
+						/*
+						 * High-res, and synchronized
+						 * with the OS clock.
+						 */
+						p->tstamp_type_list[num_ts_types] =
+						    PCAP_TSTAMP_HOST_HIPREC;
+						num_ts_types++;
+						break;
+
+					default:
+						/*
+						 * Unknown, so we can't
+						 * report it.
+						 */
+						break;
+					}
+				}
+				p->tstamp_type_count = num_ts_types;
+				free(modes);
+			}
+		}
+		PacketCloseAdapter(adapter);
+	}
+#endif /* HAVE_PACKET_GET_TIMESTAMP_MODES */
+
 	return (p);
 }
 
@@ -1431,7 +1694,7 @@ pcap_setfilter_npf(pcap_t *p, struct bpf_program *fp)
 }
 
 /*
- * We filter at user level, since the kernel driver does't process the packets
+ * We filter at user level, since the kernel driver doesn't process the packets
  */
 static int
 pcap_setfilter_win32_dag(pcap_t *p, struct bpf_program *fp) {
@@ -1716,7 +1979,13 @@ get_if_flags(const char *name, bpf_u_int32 *flags, char *errbuf)
 	if (status == 0) {
 		/*
 		 * We got the physical medium.
+		 *
+		 * XXX - we might want to check for NdisPhysicalMediumWiMax
+		 * and NdisPhysicalMediumNative802_15_4 being
+		 * part of the enum, and check for those in the "wireless"
+		 * case.
 		 */
+DIAG_OFF_ENUM_SWITCH
 		switch (phys_medium) {
 
 		case NdisPhysicalMediumWirelessLan:
@@ -1733,10 +2002,11 @@ get_if_flags(const char *name, bpf_u_int32 *flags, char *errbuf)
 
 		default:
 			/*
-			 * Not wireless.
+			 * Not wireless or unknown
 			 */
 			break;
 		}
+DIAG_ON_ENUM_SWITCH
 	}
 #endif
 
@@ -1768,6 +2038,7 @@ get_if_flags(const char *name, bpf_u_int32 *flags, char *errbuf)
 			*flags |= PCAP_IF_CONNECTION_STATUS_DISCONNECTED;
 			break;
 
+		case MediaConnectStateUnknown:
 		default:
 			/*
 			 * It's unknown whether it's connected or not.
@@ -1845,7 +2116,7 @@ pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 		if (last_error != ERROR_INSUFFICIENT_BUFFER)
 		{
 			pcap_fmt_errmsg_for_win32_err(errbuf, PCAP_ERRBUF_SIZE,
-			    last_error, "PacketGetAdapterNames");
+			    last_error, "PacketGetAdapterNames/1");
 			return (-1);
 		}
 	}
@@ -1861,7 +2132,7 @@ pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 
 	if (!PacketGetAdapterNames(AdaptersName, &NameLength)) {
 		pcap_fmt_errmsg_for_win32_err(errbuf, PCAP_ERRBUF_SIZE,
-		    GetLastError(), "PacketGetAdapterNames");
+		    GetLastError(), "PacketGetAdapterNames/2");
 		free(AdaptersName);
 		return (-1);
 	}
@@ -1896,6 +2167,20 @@ pcap_platform_finddevs(pcap_if_list_t *devlistp, char *errbuf)
 	name = &AdaptersName[0];
 	while (*name != '\0') {
 		bpf_u_int32 flags = 0;
+
+#ifdef HAVE_AIRPCAP_API
+		/*
+		 * Is this an AirPcap device?
+		 * If so, ignore it; it'll get added later, by the
+		 * AirPcap code.
+		 */
+		if (device_is_airpcap(name, errbuf) == 1) {
+			name += strlen(name) + 1;
+			desc += strlen(desc) + 1;
+			continue;
+		}
+#endif
+
 #ifdef HAVE_PACKET_IS_LOOPBACK_ADAPTER
 		/*
 		 * Is this a loopback interface?
@@ -2164,7 +2449,7 @@ pcap_lib_version(void)
 		/*
 		 * Generate the version string.
 		 */
-		char *packet_version_string = PacketGetVersion();
+		const char *packet_version_string = PacketGetVersion();
 
 		if (strcmp(WINPCAP_VER_STRING, packet_version_string) == 0) {
 			/*

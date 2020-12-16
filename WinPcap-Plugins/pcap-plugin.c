@@ -222,6 +222,8 @@ static void plugin_initialize_ops (pcap_t *p, PLUGIN_INSTANCE *plugin)
   p->cleanup_op   = plugin_cleanup;
   p->setfilter_op = plugin_set_packet_filter;
 
+  pcap_do_addexit (p);
+
 #if (USE_SET_DUMMY == 0)
   SET_FUNC (p, plugin->GetNextPacket,  read);
   SET_FUNC (p, plugin->InjectPacket,   inject);
@@ -607,7 +609,7 @@ static void plugin_load_all (const char *file_spec) /* \todo */
 
   PCAP_TRACE (2, "%s() finished:\n"
                  "%*sWe have %d modules and %d plugins with a total of %d devices.\n",
-                 __FUNCTION__, sizeof(__FILE())+8, "",
+                 __FUNCTION__, (int)sizeof(__FILE())+8, "",
                  g_moduleCount, g_PluginCount, g_good_devices);
 }
 
@@ -1066,7 +1068,7 @@ pcap_t *plugin_create (const char *device, char *ebuf, int *is_ours)
      return (NULL);
 
   *is_ours = 1;
-  p = pcap_create_common (ebuf, sizeof(struct plugin_priv));
+  p = PCAP_CREATE_COMMON (ebuf, struct plugin_priv);
   if (!p)
      return (NULL);
 

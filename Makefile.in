@@ -280,7 +280,7 @@ EXTRA_DIST = \
 	fad-getad.c \
 	fad-gifc.c \
 	fad-glifc.c \
-	grammar.y \
+	grammar.y.in \
 	install-sh \
 	lbl/os-aix4.h \
 	lbl/os-aix7.h \
@@ -300,16 +300,18 @@ EXTRA_DIST = \
 	missing/win_asprintf.c \
 	mkdep \
 	msdos/bin2c.c \
-	msdos/Makefile.DOS \
-	msdos/Makefile.dj \
-	msdos/Makefile.wc \
+	msdos/makefile \
+	msdos/makefile.dj \
+	msdos/makefile.wc \
 	msdos/pkt_rx0.asm \
 	msdos/pkt_rx1.s \
 	msdos/pktdrvr.c \
 	msdos/pktdrvr.h \
-	msdos/README.DOS \
+	msdos/readme.dos \
 	nomkdep \
 	org.tcpdump.chmod_bpf.plist \
+	pcap-airpcap.c \
+	pcap-airpcap.h \
 	pcap-bpf.c \
 	pcap-bt-linux.c \
 	pcap-bt-linux.h \
@@ -391,6 +393,7 @@ EXTRA_DIST = \
 	testprogs/capturetest.c \
 	testprogs/filtertest.c \
 	testprogs/findalldevstest.c \
+	testprogs/findalldevstest-perf.c \
 	testprogs/fuzz/CMakeLists.txt \
 	testprogs/fuzz/fuzz_both.c \
 	testprogs/fuzz/fuzz_both.options \
@@ -405,6 +408,8 @@ EXTRA_DIST = \
 	testprogs/threadsignaltest.c \
 	testprogs/unix.h \
 	testprogs/valgrindtest.c \
+	testprogs/visopts.py \
+	testprogs/writecaptest.c \
 	tests/shb-option-too-long.pcapng \
 	Win32/Prj/wpcap.sln \
 	Win32/Prj/wpcap.vcxproj \
@@ -505,7 +510,26 @@ scanner.h: scanner.c
 scanner.o: scanner.c grammar.h
 	$(CC) $(FULL_CFLAGS) -c scanner.c
 
-grammar.c: $(srcdir)/grammar.y
+#
+# Generate the grammar.y file.
+#
+# Some Makes, e.g. AIX Make and Solaris Make, can't handle "--file=$@.tmp:$<";
+# for example, the Solaris 9 make man page says
+#
+#	Because make assigns $< and $* as it would for implicit rules
+#	(according to the suffixes list and the directory contents),
+#	they may be unreliable when used within explicit target entries.
+#
+# and this is an explicit target entry.
+#
+# Therefore, instead of using $<, we explicitly put in $(srcdir)/libpcap.pc.in.
+#
+grammar.y: $(srcdir)/grammar.y.in ./config.status
+	@rm -f $@ $@.tmp
+	./config.status --file=$@.tmp:$(srcdir)/grammar.y.in
+	mv $@.tmp $@
+
+grammar.c: grammar.y
 	$(YACC) -p pcap_ -o grammar.c -d $<
 grammar.h: grammar.c
 ## Recover from the removal of $@
@@ -719,6 +743,7 @@ uninstall: uninstall-shared uninstall-rpcapd
 	for i in $(MAN3PCAP); do \
 		rm -f $(DESTDIR)$(mandir)/man3/$$i; done
 	rm -f $(DESTDIR)$(mandir)/man3/pcap_datalink_val_to_description.3pcap
+	rm -f $(DESTDIR)$(mandir)/man3/pcap_datalink_val_to_description_or_dlt.3pcap
 	rm -f $(DESTDIR)$(mandir)/man3/pcap_dump_fopen.3pcap
 	rm -f $(DESTDIR)$(mandir)/man3/pcap_freealldevs.3pcap
 	rm -f $(DESTDIR)$(mandir)/man3/pcap_perror.3pcap
@@ -769,7 +794,7 @@ clean:
 	cd testprogs; $(MAKE) clean
 
 distclean: clean
-	rm -f Makefile config.cache config.log config.status \
+	rm -f Makefile grammar.y config.cache config.log config.status \
 	    config.h gnuc.h net os-proto.h libpcap.pc \
 	    pcap-config stamp-h stamp-h.in
 	rm -f $(MAN3PCAP_EXPAND:.in=) $(MANFILE:.in=) $(MANMISC:.in=)

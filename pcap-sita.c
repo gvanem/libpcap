@@ -72,6 +72,14 @@ typedef struct unit {
 	int			len;		/* the current size of the inbound message */
 } unit_t;
 
+/*
+ * Private data.
+ * Currently contains nothing.
+ */
+struct pcap_sita {
+	int	dummy;
+};
+
 static unit_t		units[MAX_CHASSIS+1][MAX_GEOSLOT+1];	/* we use indexes of 1 through 8, but we reserve/waste index 0 */
 static fd_set		readfds;				/* a place to store the file descriptors for the connections to the IOPs */
 static int		max_fs;
@@ -696,7 +704,7 @@ static int process_client_data (char *errbuf) {								/* returns: -1 = error, 0
 				prev_iff = iff;
 
 				newname = translate_IOP_to_pcap_name(u, iff->name, interfaceType);		/* add a translation entry and get a point to the mangled name */
-				bigger_buffer = realloc(iff->name, strlen(newname) + 1));
+				bigger_buffer = realloc(iff->name, strlen(newname) + 1);
 				if (bigger_buffer == NULL) {	/* we now re-write the name stored in the interface list */
 					pcap_fmt_errmsg_for_errno(errbuf,
 					    PCAP_ERRBUF_SIZE, errno, "realloc");
@@ -747,9 +755,9 @@ static void wait_for_all_answers(void) {
 
 		memcpy(&working_set, &readfds, sizeof(readfds));				/* otherwise, we still have to listen for more stuff, till we timeout */
 		retval = select(max_fs + 1, &working_set, NULL, NULL, &tv);
-		if (retval == -1) {												/* an error occured !!!!! */
+		if (retval == -1) {												/* an error occurred !!!!! */
 			return;
-		} else if (retval == 0) {										/* timeout occured, so process what we've got sofar and return */
+		} else if (retval == 0) {										/* timeout occurred, so process what we've got sofar and return */
 			printf("timeout\n");
 			return;
 		} else {
@@ -927,10 +935,10 @@ static int acn_read_n_bytes_with_timeout(pcap_t *handle, int count) {
 	bp = handle->bp;
 	while (count) {
 		retval = select(fd + 1, &w_fds, NULL, NULL, &tv);
-		if (retval == -1) {											/* an error occured !!!!! */
+		if (retval == -1) {											/* an error occurred !!!!! */
 //			fprintf(stderr, "error during packet data read\n");
 			return -1;										/* but we need to return a good indication to prevent unnecessary popups */
-		} else if (retval == 0) {									/* timeout occured, so process what we've got sofar and return */
+		} else if (retval == 0) {									/* timeout occurred, so process what we've got sofar and return */
 //			fprintf(stderr, "timeout during packet data read\n");
 			return -1;
 		} else {
@@ -1033,7 +1041,7 @@ static int pcap_activate_sita(pcap_t *handle) {
 pcap_t *pcap_create_interface(const char *device _U_, char *ebuf) {
 	pcap_t *p;
 
-	p = pcap_create_common(ebuf, 0);
+	p = PCAP_CREATE_COMMON(ebuf, struct pcap_sita);
 	if (p == NULL)
 		return (NULL);
 

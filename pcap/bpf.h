@@ -58,10 +58,21 @@
  * I don't have earlier versions available to check), or QNX-style
  * multiple-include protection (as per GitHub pull request #394).
  *
+ * We trust that they will define structures and macros and types in
+ * a fashion that's source-compatible and binary-compatible with our
+ * definitions.
+ *
  * We do not check for BPF_MAJOR_VERSION, as that's defined by
  * <linux/filter.h>, which is directly or indirectly included in some
  * programs that also include pcap.h, and <linux/filter.h> doesn't
- * define stuff we need.
+ * define stuff we need.  We *do* protect against <linux/filter.h>
+ * defining various macros for BPF code itself; <linux/filter.h> says
+ *
+ *	Try and keep these values and structures similar to BSD, especially
+ *	the BPF code definitions which need to match so you can share filters
+ *
+ * so we trust that it will define them in a fashion that's source-compatible
+ * and binary-compatible with our definitions.
  *
  * This also provides our own multiple-include protection.
  */
@@ -86,8 +97,8 @@ extern "C" {
   typedef unsigned long bpf_u_int32;
 
 #else
-typedef int   bpf_int32;
-typedef u_int bpf_u_int32;
+typedef	int bpf_int32;
+typedef	u_int bpf_u_int32;
 #endif
 
 /*
@@ -112,6 +123,8 @@ struct bpf_program {
 };
 
 #include <pcap/dlt.h>
+
+#ifndef __LINUX_FILTER_H__
 
 /*
  * The instruction encodings.
@@ -233,6 +246,8 @@ struct bpf_program {
 /*				0xf0	reserved */
 /*				0xf8	reserved */
 
+#endif /* __LINUX_FILTER_H__ */
+
 /*
  * The instruction data structure.
  */
@@ -243,13 +258,17 @@ struct bpf_insn {
 	bpf_u_int32 k;
 };
 
+#ifndef __LINUX_FILTER_H__
+
 /*
  * Macros for insn array initializers.
  */
 #define BPF_STMT(code, k) { (u_short)(code), 0, 0, k }
 #define BPF_JUMP(code, k, jt, jf) { (u_short)(code), jt, jf, k }
 
-PCAP_API u_int bpf_filter(const struct bpf_insn *, const u_char *, u_int, u_int);
+#endif /* __LINUX_FILTER_H__ */
+
+PCAP_API u_int	bpf_filter(const struct bpf_insn *, const u_char *, u_int, u_int);
 PCAP_API int	bpf_validate(const struct bpf_insn *f, int len);
 PCAP_API char	*bpf_image(const struct bpf_insn *, int);
 PCAP_API void	bpf_dump(const struct bpf_program *, int);

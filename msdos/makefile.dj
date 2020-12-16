@@ -16,8 +16,6 @@
 #
 THIS_FILE = msdos/Makefile.dj
 
-# VPATH = missing msdos testprogs
-
 VPATH = msdos testprogs
 
 WATT32_ROOT = $(realpath $(WATT_ROOT))
@@ -35,11 +33,6 @@ HAVE_PCAP_REMOTE ?= 1
 # See below.
 #
 PCAP_DEBUG ?= 0
-
-#
-# Set to 1 to create a detailed map-file.
-#
-MAKE_MAPFILE = 1
 
 ifeq ($(OS),Windows_NT)
   #
@@ -87,6 +80,8 @@ FLEX = flex -P pcap_
 CFLAGS = -g -O2 -Wall -I./msdos -I. -I$(WATT32_ROOT)/inc \
          -DHAVE_CONFIG_H -Wno-unused-variable
 
+LDFLAGS = -s
+
 ifneq ($(PCAP_DEBUG),0)
   CFLAGS += -DBDEBUG -DYYDEBUG=1
 endif
@@ -97,6 +92,7 @@ GENERATED = msdos/config.h     \
             msdos/pkt_stub.inc \
             scanner.c          \
             scanner.h          \
+            grammar.y          \
             grammar.c          \
             grammar.h
 
@@ -178,12 +174,17 @@ $(OBJ_DIR)/%.o: %.s
 	@echo
 
 %.exe: $(OBJ_DIR)/%.o $(PCAP_LIB)
-	$(call link_EXE, $@, $^ $(WATT32_ROOT)/lib/libwatt.a, $(@:.exe=.map))
+	$(call link_EXE, $@, $^ $(WATT32_ROOT)/lib/libwatt.a)
 
 msdos/pkt_stub.inc: msdos/bin2c.exe msdos/pkt_rx1.S
 	$(ASM) -o $(TEMP_BIN) -l msdos/pkt_rx1.lst msdos/pkt_rx1.S
 	msdos/bin2c $(TEMP_BIN) > $@
 	rm -f $(TEMP_BIN)
+
+grammar.y: grammar.y.in $(THIS_FILE)
+	$(call Generate_file, $@)
+	sed -e 's|@REENTRANT_PARSER@|%pure-parser|' < $< >> $@
+	@echo
 
 grammar.h: grammar.c
 grammar.c: grammar.y
@@ -257,42 +258,19 @@ define Generate_file
   $(file >> $(1),  */)
 endef
 
-ifeq ($(MAKE_MAPFILE),0)
-  define link_EXE
-    $(CC) -o $(1) $(2)
-    @echo
-  endef
-
-else ifeq ($(IS_WINDOWS_HOSTED),1)
-  #
-  # A Windows-hosted 'gcc' will print a .map-file to 'stdout'.
-  # Hence this special handling.
-  #
-  define link_EXE
-    $(call green_msg, Linking $(1).)
-    $(CC) -Wl,--print-map -o $(1) $(2) > $(3)
-    @echo
-  endef
-
-else
-  #
-  # I assume under plain DOS, one has to use the 'redir' command
-  # since 'stderr' is used to output a .map-file. That used to
-  # be the case in the old days. But untested by me.
-  #
-  define link_EXE
-    redir -e $(3) $(CC) -Wl,--print-map -o $(1) $(2)
-    @echo
-  endef
-endif
+define link_EXE
+  $(call green_msg, Linking $(1).)
+  $(CC) $(LDFLAGS) -o $(1) $(2)
+  @echo
+endef
 
 #
 # Manually generated dependencies
 #
-# msdos/pktdrvr.c: msdos/pkt_stub.inc
-# grammar.h: grammar.y
-# scanner.l: pcap-int.h pcap-namedb.h gencode.h grammar.h
-# grammar.y: pcap-int.h gencode.h pcap-namedb.h
+msdos/pktdrvr.c: msdos/pkt_stub.inc
+grammar.h: grammar.y
+scanner.l: pcap-int.h pcap-namedb.h gencode.h grammar.h
+grammar.y: pcap-int.h gencode.h pcap-namedb.h
 
 #
 # Generate dependencies.

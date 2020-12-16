@@ -39,6 +39,7 @@
 #include <errno.h>		// for the errno variable
 #include <string.h>		// for strtok, etc
 #include <stdlib.h>		// for malloc(), free(), ...
+#include <stdio.h>		// for fprintf(), stderr, FILE etc
 #include <pcap.h>		// for PCAP_ERRBUF_SIZE
 #include <signal.h>		// for signal()
 
@@ -117,7 +118,7 @@ static unsigned __stdcall main_passive_serviceloop_thread(void *ptr);
 /*!
 	\brief Prints the usage screen if it is launched in console mode.
 */
-static void printusage(void)
+static void printusage(FILE * f)
 {
 	const char *usagetext =
 	"USAGE:"
@@ -161,9 +162,12 @@ static void printusage(void)
 	"                  specified from the command line are ignored\n\n"
 	"  -h              print this help screen\n\n";
 
-	(void)fprintf(stderr, "RPCAPD, a remote packet capture daemon.\n"
-	"Compiled with %s\n\n", pcap_lib_version());
-	printf("%s", usagetext);
+	(void)fprintf(f, "RPCAPD, a remote packet capture daemon.\n"
+	"Compiled with %s\n", pcap_lib_version());
+#if defined(HAVE_OPENSSL) && defined(SSLEAY_VERSION)
+	(void)fprintf(f, "Compiled with %s\n", SSLeay_version(SSLEAY_VERSION));
+#endif
+	(void)fprintf(f, "\n%s", usagetext);
 }
 
 
@@ -237,7 +241,7 @@ int main(int argc, char *argv[])
 				break;
 			case 'i':
 #ifdef _WIN32
-				printusage();
+				printusage(stderr);
 				exit(1);
 #else
 				isrunbyinetd = 1;
@@ -308,7 +312,7 @@ int main(int argc, char *argv[])
 				break;
 #endif
 			case 'h':
-				printusage();
+				printusage(stdout);
 				exit(0);
 				/*NOTREACHED*/
 			default:
@@ -348,7 +352,7 @@ int main(int argc, char *argv[])
 	if (loadfile[0])
 		fileconf_read();
 
-#ifdef WIN32
+#ifdef _WIN32
 	//
 	// Create a handle to signal the main loop to tell it to do
 	// something.
@@ -511,7 +515,7 @@ int main(int argc, char *argv[])
 		//
 		// If this call succeeds, it is blocking on Win32
 		//
-		if (svc_start() != 1)
+		if (!svc_start())
 			rpcapd_log(LOGPRIO_DEBUG, "Unable to start the service");
 
 		// When the previous call returns, the entire application has to be stopped.
@@ -1157,7 +1161,7 @@ accept_connection(SOCKET listen_sock)
 			break;
 		}
 
-		// The accept() call can return this error when a signal is catched
+		// The accept() call can return this error when a signal is caught
 		// In this case, we have simply to ignore this error code
 		// Stevens, pg 124
 #ifdef _WIN32
@@ -1384,7 +1388,7 @@ main_active(void *ptr)
 			    hostlist_copy, nullAuthAllowed, uses_ssl);
 		}
 
-		// If the connection is closed by the user explicitely, don't try to connect to it again
+		// If the connection is closed by the user explicitly, don't try to connect to it again
 		// just exit the program
 		if (activeclose == 1)
 			break;

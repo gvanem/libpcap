@@ -219,30 +219,33 @@ int main(int argc, char **argv)
     printf("Preferred device name: %s\n", make_devname(s));
   }
 
-  if (pcap_lookupnet(s, &net, &mask, errbuf) < 0)
+  if (s)
   {
-      /*
-       * XXX - this doesn't distinguish between "a real error
-       * occurred" and "this interface doesn't *have* an IPv4
-       * address".  The latter shouldn't be treated as an error.
-       *
-       * We look for the interface name, followed by a colon and
-       * a space, and, if we find it,w e see if what follows it
-       * is "no IPv4 address assigned".
-       */
-      size_t devnamelen = strlen(alldevs->name);
-      if (strncmp(errbuf, alldevs->name, devnamelen) == 0 &&
-          strncmp(errbuf + devnamelen, ": ", 2) == 0 &&
-          strcmp(errbuf + devnamelen + 2, "no IPv4 address assigned") == 0)
-        printf("Preferred device is not on an IPv4 network\n");
-      else {
-       fprintf(stderr,"Error in pcap_lookupnet: %s\n",errbuf);
-       exit_status = 2;
-      }
-  }
-  else
-  {
-    printf("Preferred device is on network: %s/%s\n",iptos(net), iptos(mask));
+    if (pcap_lookupnet(s, &net, &mask, errbuf) < 0)
+    {
+        /*
+         * XXX - this doesn't distinguish between "a real error
+         * occurred" and "this interface doesn't *have* an IPv4
+         * address".  The latter shouldn't be treated as an error.
+         *
+         * We look for the interface name, followed by a colon and
+         * a space, and, if we find it,w e see if what follows it
+         * is "no IPv4 address assigned".
+         */
+        size_t devnamelen = strlen(alldevs->name);
+        if (strncmp(errbuf, alldevs->name, devnamelen) == 0 &&
+            strncmp(errbuf + devnamelen, ": ", 2) == 0 &&
+            strcmp(errbuf + devnamelen + 2, "no IPv4 address assigned") == 0)
+          printf("Preferred device is not on an IPv4 network\n");
+        else {
+         fprintf(stderr,"Error in pcap_lookupnet: %s\n",errbuf);
+         exit_status = 2;
+        }
+    }
+    else
+    {
+      printf("Preferred device is on network: %s/%s\n",iptos(net), iptos(mask));
+    }
   }
 
   pcap_freealldevs(alldevs);
@@ -264,6 +267,8 @@ static int ifprint(pcap_if_t *d)
   if (d->description)
     printf("\tDescription: %s\n",d->description);
 
+  printf("\tflags: 0x%08lX\n", d->flags);
+
   printf("\tFlags: ");
   sep = "";
   if (d->flags & PCAP_IF_UP) {
@@ -278,6 +283,7 @@ static int ifprint(pcap_if_t *d)
     printf("%sLOOPBACK", sep);
     sep = ", ";
   }
+
   if (d->flags & PCAP_IF_WIRELESS) {
     printf("%sWIRELESS", sep);
     switch (d->flags & PCAP_IF_CONNECTION_STATUS) {
@@ -394,7 +400,8 @@ static int ifprint(pcap_if_t *d)
 #endif
 
 #ifdef _WIN32
-  if (!strncmp(d->name, "\\Device\\NPF_", sizeof("\\Device\\NPF_")-1))
+  if (!strncmp(d->name, "\\Device\\NPF_", sizeof("\\Device\\NPF_")-1) ||
+      !strncmp(d->name, "\\Device\\NPPCAP_", sizeof("\\Device\\NPCAP_")-1) )
      win32_get_details (d->name);
 #endif
 

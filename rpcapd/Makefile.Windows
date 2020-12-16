@@ -16,9 +16,9 @@ endef
 # Root directories. Change to suite.
 #
 WINPCAP_ROOT ?= ../WinPcap
-VC_ROOT      ?= $(realpath $(VCHOME))
-CLANG32_ROOT ?= f:/ProgramFiler/LLVM-6-32bit
-CLANG64_ROOT ?= f:/ProgramFiler/LLVM-6-64bit
+VC_ROOT      ?= $(realpath $(VCToolkitInstallDir))
+CLANG32_ROOT ?= f:/ProgramFiler/LLVM-11-32bit
+CLANG64_ROOT ?= f:/ProgramFiler/LLVM-11-64bit
 
 #
 # Use wpcap as a .DLL or a static library.
@@ -67,16 +67,14 @@ ifeq ($(CC),cl)
   RCFLAGS    = -nologo -D_MSC_VER -r
 
   #
-  # Select correct cl.exe and link.exe based on $(CPU) without
-  # the 'vcvarsall.bat' non-sense.
+  # Select correct cl.exe based on $(CPU) without the 'vcvarsall.bat' non-sense.
   #
-  # Note: This assumes you have Visual-Studio 2017 where %VCHOME%
-  #       defines the base directory for the tools.
+  # Note: This assumes you have Visual-Studio 2017 (or later) where
+  #       %VCToolkitInstallDir% defines the base directory for the tools.
   #
-  # Note: 'rc.exe' doesn't care about bitness.
+  # Note: 'link.exe' and 'rc.exe' doesn't care about bitness.
   #
-  CL_CC   = $(VC_ROOT)/bin/HostX86/$(CPU)/cl.exe
-  CL_LINK = $(VC_ROOT)/bin/HostX86/$(CPU)/link.exe
+  CL_CC = $(VC_ROOT)/bin/HostX86/$(CPU)/cl.exe
 
 else ifeq ($(CC),clang-cl)
   export CL=
@@ -96,12 +94,11 @@ else ifeq ($(CC),clang-cl)
             -Wno-covered-switch-default
 
   #
-  # Select correct clang-cl.exe and link.exe based on $(CPU).
+  # Select correct clang-cl.exe based on $(CPU).
   # The linker is always from MSVC.
   # See 'CLANGxx_ROOT' above.
   #
-  CL_CC   = $(CLANG$(BITS)_ROOT)/bin/clang-cl.exe
-  CL_LINK = $(VC_ROOT)/bin/HostX86/$(CPU)/link.exe
+  CL_CC = $(CLANG$(BITS)_ROOT)/bin/clang-cl.exe
 
 else ifeq ($(CC),gcc)
   #
@@ -293,7 +290,7 @@ define link_EXE
 endef
 
 define link_EXE_cl
-  $(CL_LINK) $(LDFLAGS) -out:$(strip $(1)) $(2) > link.tmp
+  link $(LDFLAGS) -out:$(strip $(1)) $(2) > link.tmp
   cat link.tmp >> $(1:.exe=.map)
   @rm -f link.tmp $(1:.exe=.exp) $(1:.exe=.lib)
 endef

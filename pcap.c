@@ -63,6 +63,8 @@ struct rtentry;		/* declarations in <net/if.h> */
 #include <errno.h>
 #include <limits.h>
 
+#include "diag-control.h"
+
 #ifdef HAVE_OS_PROTO_H
 #include "os-proto.h"
 #endif
@@ -127,6 +129,10 @@ struct rtentry;		/* declarations in <net/if.h> */
 #include "./WinPcap-Plugins/pcap-plugin.h"
 #endif
 
+#ifdef HAVE_AIRPCAP_API
+#include "pcap-airpcap.h"
+#endif
+
 #ifdef _WIN32
 
 #if 0  /* No need for this */
@@ -147,13 +153,16 @@ struct rtentry;		/* declarations in <net/if.h> */
  *   be called from the DllMain function in a application DLL. This can
  *   potentially cause deadlocks.
  *
- * So we don't actually do anything here.  pcap_init() should be called
- * to initialize pcap on both UN*X and Windows.
+ * So we don't initialize Winsock here.  pcap_init() should be called
+ * to initialize pcap on both UN*X and Windows; it will initialize
+ * Winsock on Windows.  (It will also be initialized as needed if
+ * pcap_init() hasn't been called.)
  */
 BOOL WINAPI DllMain(
   HANDLE hinstDLL _U_,
   DWORD dwReason _U_,
-  LPVOID lpvReserved _U_)
+  LPVOID lpvReserved _U_
+)
 {
        return (TRUE);
 }
@@ -234,7 +243,7 @@ wsockinit(void)
 int
 pcap_wsockinit(void)
 {
-       return (wsockinit());
+	return (internal_wsockinit(NULL));
 }
 #endif /* _WIN32 */
 
@@ -719,6 +728,9 @@ static struct capture_source_type {
 #if defined(PCAP_SUPPORT_PLUGINS)
 	{ plugin_findalldevs, plugin_create },
 #endif
+#ifdef HAVE_AIRPCAP_API
+	{ airpcap_findalldevs, airpcap_create },
+#endif
 	{ NULL, NULL }
 };
 
@@ -1051,7 +1063,7 @@ find_or_add_if(pcap_if_list_t *devlistp, const char *name,
 	 * see if it looks like a loopback device.
 	 */
 	if (name[0] == 'l' && name[1] == 'o' &&
-	    (PCAP_ISDIGIT(name[2]) || name[2] == '\0')
+	    (PCAP_ISDIGIT(name[2]) || name[2] == '\0'))
 		pcap_flags |= PCAP_IF_LOOPBACK;
 #endif
 #ifdef IFF_UP
@@ -2458,27 +2470,16 @@ initialize_ops(pcap_t *p)
 }
 
 static pcap_t *
-pcap_alloc_pcap_t(char *ebuf, size_t size)
+pcap_alloc_pcap_t(char *ebuf, size_t total_size, size_t private_offset)
 {
 	char *chunk;
 	pcap_t *p;
 
 	/*
-	 * Allocate a chunk of memory big enough for a pcap_t
-	 * plus a structure following it of size "size".  The
-	 * structure following it is a private data structure
-	 * for the routines that handle this pcap_t.
-	 *
-	 * The structure following it must be aligned on
-	 * the appropriate alignment boundary for this platform.
-	 * We align on an 8-byte boundary as that's probably what
-	 * at least some platforms do, even with 32-bit integers,
-	 * and because we can't be sure that some values won't
-	 * require 8-byte alignment even on platforms with 32-bit
-	 * integers.
+	 * total_size is the size of a structure containing a pcap_t
+	 * followed by a private structure.
 	 */
-#define PCAP_T_ALIGNED_SIZE	((sizeof(pcap_t) + 7U) & ~0x7U)
-	chunk = calloc(PCAP_T_ALIGNED_SIZE + size, 1);
+	chunk = calloc(total_size, 1);
 	if (chunk == NULL) {
 		pcap_fmt_errmsg_for_errno(ebuf, PCAP_ERRBUF_SIZE,
 		    errno, "malloc");
@@ -2500,26 +2501,24 @@ pcap_alloc_pcap_t(char *ebuf, size_t size)
 #endif /* MSDOS */
 #endif /* _WIN32 */
 
-	if (size == 0) {
-		/* No private data was requested. */
-		p->priv = NULL;
-	} else {
-		/*
-		 * Set the pointer to the private data; that's the structure
-		 * of size "size" following the pcap_t.
-		 */
-		p->priv = (void *)(chunk + PCAP_T_ALIGNED_SIZE);
-	}
+	/*
+	 * private_offset is the offset, in bytes, of the private
+	 * data from the beginning of the structure.
+	 *
+	 * Set the pointer to the private data; that's private_offset
+	 * bytes past the pcap_t.
+	 */
+	p->priv = (void *)(chunk + private_offset);
 
 	return (p);
 }
 
 pcap_t *
-pcap_create_common(char *ebuf, size_t size)
+pcap_create_common(char *ebuf, size_t total_size, size_t private_offset)
 {
 	pcap_t *p;
 
-	p = pcap_alloc_pcap_t(ebuf, size);
+	p = pcap_alloc_pcap_t(ebuf, total_size, private_offset);
 	if (p == NULL)
 		return (NULL);
 
@@ -2899,11 +2898,11 @@ fail:
 }
 
 pcap_t *
-pcap_open_offline_common(char *ebuf, size_t size)
+pcap_open_offline_common(char *ebuf, size_t total_size, size_t private_offset)
 {
 	pcap_t *p;
 
-	p = pcap_alloc_pcap_t(ebuf, size);
+	p = pcap_alloc_pcap_t(ebuf, total_size, private_offset);
 	if (p == NULL)
 		return (NULL);
 
@@ -3487,18 +3486,33 @@ pcap_file(pcap_t *p)
 	return (p->rfile);
 }
 
+#ifdef _WIN32
 int
 pcap_fileno(pcap_t *p)
 {
-#ifndef _WIN32
-	return (p->fd);
-#else
-	if (p->handle != INVALID_HANDLE_VALUE)
+	if (p->handle != INVALID_HANDLE_VALUE) {
+		/*
+		 * This is a bogus and now-deprecated API; we
+		 * squelch the narrowing warning for the cast
+		 * from HANDLE to DWORD.  If Windows programmmers
+		 * need to get at the HANDLE for a pcap_t, *if*
+		 * there is one, they should request such a
+		 * routine (and be prepared for it to return
+		 * INVALID_HANDLE_VALUE).
+		 */
+DIAG_OFF_NARROWING
 		return ((int)(DWORD)p->handle);
-	else
+DIAG_ON_NARROWING
+	} else
 		return (PCAP_ERROR);
-#endif
 }
+#else /* _WIN32 */
+int
+pcap_fileno(pcap_t *p)
+{
+	return (p->fd);
+}
+#endif /* _WIN32 */
 
 #if !defined(_WIN32) && !defined(MSDOS)
 int
@@ -4088,6 +4102,71 @@ pcap_close(pcap_t *p)
 	p->cleanup_op(p);
 	free(p);
 }
+
+/*
+ * Helpers for safely loding code at run time.
+ * Currently Windows-only.
+ */
+#ifdef _WIN32
+//
+// This wrapper around loadlibrary appends the system folder (usually
+// C:\Windows\System32) to the relative path of the DLL, so that the DLL
+// is always loaded from an absolute path (it's no longer possible to
+// load modules from the application folder).
+// This solves the DLL Hijacking issue discovered in August 2010
+// http://blog.metasploit.com/2010/08/exploiting-dll-hijacking-flaws.html
+//
+pcap_code_handle_t
+pcap_load_code(const char *name)
+{
+	/*
+	 * XXX - should this work in UTF-16LE rather than in the local
+	 * ANSI code page?
+	 */
+	CHAR path[MAX_PATH];
+	CHAR fullFileName[MAX_PATH];
+	UINT res;
+	HMODULE hModule = NULL;
+
+	do
+	{
+		res = GetSystemDirectoryA(path, MAX_PATH);
+
+		if (res == 0) {
+			//
+			// some bad failure occurred;
+			//
+			break;
+		}
+
+		if (res > MAX_PATH) {
+			//
+			// the buffer was not big enough
+			//
+			SetLastError(ERROR_INSUFFICIENT_BUFFER);
+			break;
+		}
+
+		if (res + 1 + strlen(name) + 1 < MAX_PATH) {
+			memcpy(fullFileName, path, res * sizeof(TCHAR));
+			fullFileName[res] = '\\';
+			memcpy(&fullFileName[res + 1], name, (strlen(name) + 1) * sizeof(TCHAR));
+
+			hModule = LoadLibraryA(fullFileName);
+		} else
+			SetLastError(ERROR_INSUFFICIENT_BUFFER);
+
+	} while(FALSE);
+
+	return hModule;
+}
+
+pcap_funcptr_t
+pcap_find_function(pcap_code_handle_t code, const char *func)
+{
+	return (GetProcAddress(code, func));
+}
+#endif
 
 /*
  * Given a BPF program, a pcap_pkthdr structure for a packet, and the raw

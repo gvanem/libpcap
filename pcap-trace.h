@@ -55,14 +55,12 @@
   #define PCAP_TRACE(level, fmt, ...)                 \
           do {                                        \
             if (_pcap_trace_level() >= level) {       \
-              EnterCriticalSection (&g_trace_crit);   \
               _pcap_trace_color (TRACE_COLOUR_START); \
               printf ("%s%s(%u): ", TRACE_PREFIX,     \
                       __FILE(), __LINE__);            \
               _pcap_trace_color (TRACE_COLOUR_ARGS);  \
               printf (fmt, ## __VA_ARGS__);           \
               _pcap_trace_color (0);                  \
-              LeaveCriticalSection (&g_trace_crit);   \
             }                                         \
           } while (0)
 
@@ -77,23 +75,15 @@
    * All in shining colours.
    */
   #undef  YYFPRINTF
-  #define YYFPRINTF(stream_ignore, fmt, ...)            \
+  #define YYFPRINTF(stream_not_used, fmt, ...)          \
           do {                                          \
-            static const char *last_fmt;                \
-            static int         add_prefix;              \
-                                                        \
             if (_pcap_trace_level() >= 1) {             \
-              /* Should be start a new trace-prefix? */ \
-              add_prefix = !last_fmt ||                 \
-                (last_fmt[strlen(last_fmt)-1] == '\n'); \
-              fflush (stdout);                          \
-              last_fmt = fmt;                           \
-              if (add_prefix) {                         \
-                _pcap_trace_color (TRACE_COLOUR_GREEN); \
-                printf ("grammar.c(%u): ", __LINE__);   \
-                _pcap_trace_color (TRACE_COLOUR_WHITE); \
-              }                                         \
+              _pcap_trace_color (TRACE_COLOUR_GREEN); \
+              printf ("grammar.c(%u): ", __LINE__);   \
+              _pcap_trace_color (TRACE_COLOUR_WHITE); \
               printf (fmt, ## __VA_ARGS__);             \
+              if (fmt[strlen(fmt)-1] != '\n')           \
+                 putchar ('\n');                        \
               _pcap_trace_color (0);                    \
             }                                           \
           } while (0)
@@ -129,9 +119,8 @@
 extern "C" {
 #endif
 
-extern CRITICAL_SECTION g_trace_crit;
-
 extern int         _pcap_trace_level (void);
+extern void        _pcap_trace_exit (void);
 extern void        _pcap_trace_color (unsigned short col);
 extern const char *_pcap_trace_basename (const char *fname);
 

@@ -15,6 +15,9 @@
 /* define if we have the AIX getprotobyname_r() */
 #cmakedefine HAVE_AIX_GETPROTOBYNAME_R 1
 
+/* define if you have the AirPcap API */
+#cmakedefine HAVE_AIRPCAP_API 1
+
 /* Define to 1 if you have the `asprintf' function. */
 #cmakedefine HAVE_ASPRINTF 1
 
@@ -71,18 +74,6 @@
 
 /* if libnl exists */
 #cmakedefine HAVE_LIBNL 1
-
-/* if libnl exists and is version 2.x */
-#cmakedefine HAVE_LIBNL_2_x 1
-
-/* if libnl exists and is version 3.x */
-#cmakedefine HAVE_LIBNL_3_x 1
-
-/* libnl has NLE_FAILURE */
-#cmakedefine HAVE_LIBNL_NLE 1
-
-/* libnl has new-style socket api */
-#cmakedefine HAVE_LIBNL_SOCKETS 1
 
 /* Define to 1 if you have the <linux/compiler.h> header file. */
 #cmakedefine HAVE_LINUX_COMPILER_H 1
@@ -207,6 +198,9 @@
 /* Define to 1 if `msg_flags' is a member of `struct msghdr'. */
 #cmakedefine HAVE_STRUCT_MSGHDR_MSG_FLAGS 1
 
+/* Define to 1 if the system has the type `struct rte_ether_addr'. */
+#cmakedefine HAVE_STRUCT_RTE_ETHER_ADDR 1
+
 /* Define to 1 if `hci_channel' is a member of `struct sockaddr_hci'. */
 #cmakedefine HAVE_STRUCT_SOCKADDR_HCI_HCI_CHANNEL 1
 
@@ -264,6 +258,9 @@
 
 /* Define to 1 if you have the `_wcserror_s' function. */
 #cmakedefine HAVE__WCSERROR_S 1
+
+/* Define to 1 if you have the `PacketGetTimestampModes' function. */
+#cmakedefine HAVE_PACKET_GET_TIMESTAMP_MODES 1
 
 /* Define to 1 if you have the `PacketIsLoopbackAdapter' function. */
 #cmakedefine HAVE_PACKET_IS_LOOPBACK_ADAPTER 1
@@ -364,12 +361,3 @@
 /* on sinix */
 #cmakedefine sinix 1
 #endif
-
-#define PCAP_TRACE(level, fmt, ...)  (void)0
-#define crtdbug_init()               (void)0
-
-#if defined(__MINGW32__)
-  #define __USE_MINGW_ANSI_STDIO 1
-  #include <stdio.h>
-#endif
-

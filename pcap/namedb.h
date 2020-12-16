@@ -53,7 +53,7 @@ struct pcap_etherent {
 	char name[122];
 };
 
-#if defined(_WIN32) && 0
+#ifdef _WIN32
 PCAP_API const char *pcap_etc_subpath (const char *file);
 #define PCAP_ETHERS_FILE pcap_etc_subpath("ethers")
 #endif
