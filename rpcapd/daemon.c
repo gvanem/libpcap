@@ -40,6 +40,10 @@
 #include <limits.h>		// for INT_MAX
 
 #ifdef _WIN32
+  #undef  _libpcap_CONFIG_H
+  #define _libpcap_CONFIG_H
+
+  #include "../pcap-trace.h"
   #include <process.h>		// for threads
 #else
   #include <unistd.h>
