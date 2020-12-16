@@ -63,11 +63,10 @@ test_script:
          ) else (
            set PROG=run\Release\findalldevstest.exe
          )
-
-  - cmd: (%_ECHO% "\e[1;33mTrying to run %PROG%.\e[0m" &
-          start /min %PROG%                            &
-          c:\msys64\usr\bin\sleep 10                   &
-          taskkill /F /IM %PROG%)
+         %_ECHO% "\e[1;33mTrying to run %PROG%.\e[0m"
+         start /min %PROG%
+         c:\msys64\usr\bin\sleep 10
+         taskkill /F /IM %PROG%
 
 cache:
    - 'c:\Users\appveyor\AppData\Local\1\Temp\chocolatey'
